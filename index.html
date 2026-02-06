@@ -1,0 +1,3981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tokyo Night Driver</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: #1a1a2e;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* HUD */
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 18px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 100;
+        }
+
+        #hud div {
+            margin-bottom: 10px;
+            background: rgba(0,0,0,0.5);
+            padding: 10px 20px;
+            border-radius: 8px;
+            backdrop-filter: blur(5px);
+        }
+
+        #speed-display {
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        #speed-display span {
+            color: #00ff88;
+        }
+
+        #speed-display span.speeding {
+            color: #ff4444;
+            animation: speedingPulse 0.3s infinite alternate;
+        }
+
+        @keyframes speedingPulse {
+            from { opacity: 0.7; }
+            to { opacity: 1; }
+        }
+
+        #limit-display {
+            font-size: 16px;
+        }
+
+        #limit-display span {
+            color: #ffcc00;
+        }
+
+        #area-display span {
+            color: #ff00ff;
+        }
+
+        #wanted-display {
+            display: none;
+            background: rgba(255,0,0,0.7) !important;
+            animation: wantedPulse 0.5s infinite alternate;
+        }
+
+        #wanted-display.active {
+            display: block;
+        }
+
+        @keyframes wantedPulse {
+            from { opacity: 0.7; }
+            to { opacity: 1; }
+        }
+
+        /* Controls display */
+        #controls-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-size: 14px;
+            background: rgba(0,0,0,0.6);
+            padding: 15px 30px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 100;
+        }
+
+        #controls-hint kbd {
+            background: #444;
+            padding: 5px 10px;
+            border-radius: 4px;
+            margin: 0 5px;
+            border: 1px solid #666;
+        }
+
+        /* Mobile controls */
+        #mobile-controls {
+            display: none;
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            z-index: 100;
+            padding: 0 20px;
+        }
+
+        .control-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 3px solid rgba(255,255,255,0.5);
+            background: rgba(255,255,255,0.2);
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .control-btn:active {
+            background: rgba(255,255,255,0.4);
+        }
+
+        #left-controls, #right-controls {
+            position: absolute;
+            bottom: 0;
+            display: flex;
+            gap: 15px;
+        }
+
+        #left-controls {
+            left: 20px;
+        }
+
+        #right-controls {
+            right: 20px;
+        }
+
+        #accelerate {
+            background: rgba(0, 255, 100, 0.3);
+            border-color: rgba(0, 255, 100, 0.7);
+        }
+
+        #brake {
+            background: rgba(255, 50, 50, 0.3);
+            border-color: rgba(255, 50, 50, 0.7);
+        }
+
+        /* Shop button */
+        #shop-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 15px 30px;
+            font-size: 18px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            cursor: pointer;
+            z-index: 100;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        #shop-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.5);
+        }
+
+        /* Shop Modal */
+        #shop-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #shop-modal.active {
+            display: flex;
+        }
+
+        #shop-content {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 900px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 2px solid #333;
+        }
+
+        #shop-content h2 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 32px;
+        }
+
+        .cars-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .car-card {
+            background: linear-gradient(135deg, #2d2d44, #1f1f33);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            border: 2px solid #444;
+            transition: transform 0.3s, border-color 0.3s;
+        }
+
+        .car-card:hover {
+            transform: translateY(-5px);
+            border-color: #667eea;
+        }
+
+        .car-card.owned {
+            border-color: #00ff88;
+        }
+
+        .car-card.selected {
+            border-color: #ffcc00;
+            box-shadow: 0 0 20px rgba(255, 204, 0, 0.3);
+        }
+
+        .car-preview {
+            width: 120px;
+            height: 80px;
+            margin: 0 auto 15px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .car-card h3 {
+            color: white;
+            margin-bottom: 10px;
+            font-size: 20px;
+        }
+
+        .car-stats {
+            color: #aaa;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .car-stats div {
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .stat-bar {
+            width: 100px;
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .stat-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #00cc66);
+            border-radius: 4px;
+        }
+
+        .car-price {
+            color: #ffcc00;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .car-btn {
+            padding: 10px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .buy-btn {
+            background: linear-gradient(135deg, #00ff88, #00cc66);
+            color: #000;
+        }
+
+        .buy-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .buy-btn:disabled {
+            background: #444;
+            color: #888;
+            cursor: not-allowed;
+        }
+
+        .select-btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .selected-btn {
+            background: #ffcc00;
+            color: #000;
+        }
+
+        #close-shop {
+            position: absolute;
+            top: 20px;
+            right: 30px;
+            font-size: 30px;
+            color: white;
+            cursor: pointer;
+            background: none;
+            border: none;
+        }
+
+        /* Coins collected animation */
+        .coin-popup {
+            position: absolute;
+            color: #ffcc00;
+            font-size: 24px;
+            font-weight: bold;
+            pointer-events: none;
+            animation: coinFloat 1s ease-out forwards;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+
+        @keyframes coinFloat {
+            0% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+        }
+
+        /* Collision flash */
+        #collision-flash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255,0,0,0.3);
+            pointer-events: none;
+            opacity: 0;
+            z-index: 500;
+            transition: opacity 0.1s;
+        }
+
+        #collision-flash.active {
+            opacity: 1;
+        }
+
+        /* Start screen */
+        #start-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+
+        #start-screen h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 20px rgba(102, 126, 234, 0.8);
+        }
+
+        #start-screen p {
+            font-size: 18px;
+            color: #aaa;
+            margin-bottom: 40px;
+            text-align: center;
+            line-height: 1.6;
+        }
+
+        #start-btn {
+            padding: 20px 60px;
+            font-size: 24px;
+            background: linear-gradient(135deg, #00ff88, #00cc66);
+            border: none;
+            border-radius: 15px;
+            color: #000;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        #start-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 10px 30px rgba(0, 255, 136, 0.4);
+        }
+
+        @media (max-width: 768px) {
+            #controls-hint {
+                display: none;
+            }
+            #mobile-controls {
+                display: block;
+            }
+            #shop-content {
+                padding: 20px;
+            }
+        }
+
+        /* Mini-map */
+        #mini-map {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 200px;
+            height: 300px;
+            background: rgba(0,0,0,0.8);
+            border: 2px solid #444;
+            border-radius: 10px;
+            overflow: hidden;
+            z-index: 100;
+        }
+        #mini-map-canvas {
+            width: 100%;
+            height: 100%;
+        }
+        #mini-map-label {
+            position: absolute;
+            bottom: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #888;
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+
+    </style>
+</head>
+<body>
+    <!-- Start Screen -->
+    <div id="start-screen">
+        <h1>Tokyo Night Driver</h1>
+        <p>Drive through neon-lit Tokyo streets, collect coins, buy cars!<br>Watch out for traffic and obey red lights...<br>Find the portal to explore new areas!</p>
+        <button id="start-btn">START GAME</button>
+    </div>
+
+    <div id="game-container">
+        <!-- Collision Flash -->
+        <div id="collision-flash"></div>
+
+        <!-- HUD -->
+        <div id="hud">
+            <div id="speed-display">Speed: <span>0</span> mph</div>
+            <div id="limit-display">Speed Limit: <span>60</span> mph</div>
+            <div id="coins-display">Coins: <span>0</span></div>
+            <div id="car-display">Car: <span>Starter</span></div>
+            <div id="area-display">Area: <span>Shibuya</span></div>
+        </div>
+
+        <!-- Shop Button -->
+        <button id="shop-btn">GARAGE</button>
+
+        <!-- Mini-map -->
+        <div id="mini-map">
+            <canvas id="mini-map-canvas"></canvas>
+            <div id="mini-map-label">I-80 CORRIDOR</div>
+        </div>
+
+        <!-- Controls Hint -->
+        <div id="controls-hint">
+            <kbd>W</kbd> or <kbd>↑</kbd> Accelerate &nbsp;|&nbsp;
+            <kbd>S</kbd> or <kbd>↓</kbd> Brake &nbsp;|&nbsp;
+            <kbd>A</kbd>/<kbd>D</kbd> or <kbd>←</kbd>/<kbd>→</kbd> Steer
+        </div>
+
+        <!-- Mobile Controls -->
+        <div id="mobile-controls">
+            <div id="left-controls">
+                <button class="control-btn" id="left-btn">←</button>
+                <button class="control-btn" id="right-btn">→</button>
+            </div>
+            <div id="right-controls">
+                <button class="control-btn" id="brake">■</button>
+                <button class="control-btn" id="accelerate">▲</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shop Modal -->
+    <div id="shop-modal">
+        <button id="close-shop">&times;</button>
+        <div id="shop-content">
+            <h2>GARAGE</h2>
+            <div class="cars-grid" id="cars-grid"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+    <script>
+        // Game State
+        const gameState = {
+            coins: parseInt(localStorage.getItem('coins')) || 0,
+            ownedCars: JSON.parse(localStorage.getItem('ownedCars')) || ['starter'],
+            selectedCar: localStorage.getItem('selectedCar') || 'starter',
+            gameStarted: false,
+            wanted: false,
+            wantedTimer: 0
+        };
+
+        // Car definitions
+        const cars = {
+            starter: {
+                name: 'Starter',
+                price: 0,
+                maxSpeed: 80,
+                acceleration: 12,
+                handling: 0.012,
+                color: 0x4488ff,
+                bodyColor: 0x4488ff
+            },
+            sport: {
+                name: 'Sport GT',
+                price: 500,
+                maxSpeed: 120,
+                acceleration: 18,
+                handling: 0.015,
+                color: 0xff4444,
+                bodyColor: 0xff4444
+            },
+            muscle: {
+                name: 'Muscle King',
+                price: 1000,
+                maxSpeed: 140,
+                acceleration: 22,
+                handling: 0.013,
+                color: 0x44ff44,
+                bodyColor: 0x44ff44
+            },
+            super: {
+                name: 'Supercar',
+                price: 2500,
+                maxSpeed: 180,
+                acceleration: 30,
+                handling: 0.018,
+                color: 0xffcc00,
+                bodyColor: 0xffcc00
+            },
+            hyper: {
+                name: 'Hyperion',
+                price: 5000,
+                maxSpeed: 220,
+                acceleration: 40,
+                handling: 0.02,
+                color: 0xff00ff,
+                bodyColor: 0xff00ff
+            },
+            legend: {
+                name: 'Legend X',
+                price: 10000,
+                maxSpeed: 320,
+                acceleration: 50,
+                handling: 0.022,
+                color: 0x00ffff,
+                bodyColor: 0x00ffff
+            },
+            electric: {
+                name: 'Tokyo EV',
+                price: 1500,
+                maxSpeed: 150,
+                acceleration: 35,
+                handling: 0.017,
+                color: 0x00ff88,
+                bodyColor: 0x00ff88,
+                isElectric: true
+            }
+        };
+
+        // City configuration
+        const CITY_SIZE = 5;
+        const BLOCK_SIZE = 60;
+        const ROAD_WIDTH = 15;
+        const CITY_EXTENT = CITY_SIZE * BLOCK_SIZE + (CITY_SIZE + 1) * ROAD_WIDTH;
+
+        // Three.js setup
+        let scene, camera, renderer;
+        let car, carGroup;
+        let coins = [];
+        let trafficCars = [];
+        let freewayTrafficCars = [];
+        let trafficLights = [];
+        let policeCars = [];
+        let buildings = [];
+        let speedLimitSigns = [];
+        let portal = null;
+        let portalLight = null;
+        let currentMap = 1;
+        let speed = 0;
+        let steering = 0;
+        let collisionCooldown = 0;
+        let currentSpeedLimit = 60; // Speed limit in mph
+        let speedingTimer = 0; // How long player has been speeding
+
+        // Road network for traffic
+        let roadSegments = [];
+
+        // Physics (Cannon.js)
+        let world;
+        let carBody;
+        let groundBody;
+        let vehicleBody;
+        let vehicle;
+        let wheelBodies = [];
+
+        // Ramp references for debug adjustment
+        let rampRefs = {
+            ramp1: { mesh: null, body: null, baseY: 0 },
+            ramp2: { mesh: null, body: null, baseY: 0 },
+            ramp3: { mesh: null, body: null, baseY: 0 }
+        };
+
+        // Cached quaternion for wheel rotation (avoid creating new objects every frame)
+        const wheelCylinderRotation = new THREE.Quaternion();
+        wheelCylinderRotation.setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
+        let carWheelMeshes = [];
+
+        // Controls
+        const keys = {
+            forward: false,
+            backward: false,
+            left: false,
+            right: false
+        };
+
+        // Initialize Three.js and Physics
+        function init() {
+            // Setup physics world
+            initPhysics();
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a1a);
+            scene.fog = new THREE.Fog(0x0a0a1a, 100, 400);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 8, 15);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.getElementById('game-container').appendChild(renderer.domElement);
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(100, 150, 100);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 4096;
+            directionalLight.shadow.mapSize.height = 4096;
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = 500;
+            directionalLight.shadow.camera.left = -200;
+            directionalLight.shadow.camera.right = 200;
+            directionalLight.shadow.camera.top = 200;
+            directionalLight.shadow.camera.bottom = -200;
+            scene.add(directionalLight);
+
+            createGround();
+            buildRoadNetwork();
+            createCity();
+            createTokyoTower();
+            createFreeway();
+            createCar();
+            spawnCoins();
+            createTrafficCars();
+            createTrafficLights();
+            createSpeedLimitSigns();
+            createPortal();
+
+            window.addEventListener('resize', onWindowResize);
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+
+            setupMobileControls();
+            updateUI();
+        }
+
+        function initPhysics() {
+            // Create physics world
+            world = new CANNON.World();
+            world.gravity.set(0, -30, 0); // Gravity
+            world.broadphase = new CANNON.NaiveBroadphase();
+            world.solver.iterations = 10;
+
+            // Ground physics material
+            const groundMaterial = new CANNON.Material('ground');
+            const wheelMaterial = new CANNON.Material('wheel');
+
+            // Contact material for wheel-ground interaction
+            const wheelGroundContact = new CANNON.ContactMaterial(wheelMaterial, groundMaterial, {
+                friction: 0.5,
+                restitution: 0.1
+            });
+            world.addContactMaterial(wheelGroundContact);
+
+            // Store materials for later use
+            world.groundMaterial = groundMaterial;
+            world.wheelMaterial = wheelMaterial;
+        }
+
+        function createGround() {
+            // Visual ground
+            const groundGeometry = new THREE.PlaneGeometry(800, 800);
+            const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x1a1a2e });
+            const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.y = -0.1;
+            ground.receiveShadow = true;
+            scene.add(ground);
+
+            // Physics ground (infinite plane)
+            const groundShape = new CANNON.Plane();
+            groundBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            groundBody.addShape(groundShape);
+            groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+            world.addBody(groundBody);
+        }
+
+        function buildRoadNetwork() {
+            const cityOffset = -CITY_EXTENT / 2;
+            roadSegments = [];
+
+            // Create road segments for traffic to follow
+            for (let i = 0; i <= CITY_SIZE; i++) {
+                const roadPos = cityOffset + i * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2;
+
+                // Horizontal roads (going east-west)
+                roadSegments.push({
+                    type: 'horizontal',
+                    z: roadPos,
+                    xMin: -CITY_EXTENT / 2,
+                    xMax: CITY_EXTENT / 2,
+                    lanes: [roadPos - 4, roadPos + 4] // Two lanes
+                });
+
+                // Vertical roads (going north-south)
+                roadSegments.push({
+                    type: 'vertical',
+                    x: roadPos,
+                    zMin: -CITY_EXTENT / 2,
+                    zMax: CITY_EXTENT / 2,
+                    lanes: [roadPos - 4, roadPos + 4]
+                });
+            }
+        }
+
+        function createCity() {
+            const cityOffset = -CITY_EXTENT / 2;
+
+            // Create roads
+            for (let i = 0; i <= CITY_SIZE; i++) {
+                const hRoadGeom = new THREE.PlaneGeometry(CITY_EXTENT, ROAD_WIDTH);
+                const roadMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+                const hRoad = new THREE.Mesh(hRoadGeom, roadMat);
+                hRoad.rotation.x = -Math.PI / 2;
+                hRoad.position.set(0, 0.01, cityOffset + i * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2);
+                hRoad.receiveShadow = true;
+                scene.add(hRoad);
+
+                const vRoadGeom = new THREE.PlaneGeometry(ROAD_WIDTH, CITY_EXTENT);
+                const vRoad = new THREE.Mesh(vRoadGeom, roadMat);
+                vRoad.rotation.x = -Math.PI / 2;
+                vRoad.position.set(cityOffset + i * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2, 0.01, 0);
+                vRoad.receiveShadow = true;
+                scene.add(vRoad);
+
+                // Center lines
+                const lineGeom = new THREE.PlaneGeometry(CITY_EXTENT, 0.3);
+                const lineMat = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+
+                const hLine = new THREE.Mesh(lineGeom, lineMat);
+                hLine.rotation.x = -Math.PI / 2;
+                hLine.position.set(0, 0.02, cityOffset + i * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2);
+                scene.add(hLine);
+
+                const vLineGeom = new THREE.PlaneGeometry(0.3, CITY_EXTENT);
+                const vLine = new THREE.Mesh(vLineGeom, lineMat);
+                vLine.rotation.x = -Math.PI / 2;
+                vLine.position.set(cityOffset + i * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2, 0.02, 0);
+                scene.add(vLine);
+            }
+
+            // Create city blocks with buildings
+            for (let bx = 0; bx < CITY_SIZE; bx++) {
+                for (let bz = 0; bz < CITY_SIZE; bz++) {
+                    const blockX = cityOffset + ROAD_WIDTH + bx * (BLOCK_SIZE + ROAD_WIDTH) + BLOCK_SIZE / 2;
+                    const blockZ = cityOffset + ROAD_WIDTH + bz * (BLOCK_SIZE + ROAD_WIDTH) + BLOCK_SIZE / 2;
+
+                    // Sidewalk
+                    const sidewalkGeom = new THREE.BoxGeometry(BLOCK_SIZE, 0.3, BLOCK_SIZE);
+                    const sidewalkMat = new THREE.MeshLambertMaterial({ color: 0x888888 });
+                    const sidewalk = new THREE.Mesh(sidewalkGeom, sidewalkMat);
+                    sidewalk.position.set(blockX, 0.15, blockZ);
+                    sidewalk.receiveShadow = true;
+                    scene.add(sidewalk);
+
+                    // Buildings
+                    const numBuildings = 2 + Math.floor(Math.random() * 3);
+                    for (let b = 0; b < numBuildings; b++) {
+                        createBuilding(
+                            blockX + (Math.random() - 0.5) * (BLOCK_SIZE - 20),
+                            blockZ + (Math.random() - 0.5) * (BLOCK_SIZE - 20)
+                        );
+                    }
+
+                    // Trees
+                    if (Math.random() > 0.5) {
+                        createTree(blockX + BLOCK_SIZE / 2 - 3, blockZ + BLOCK_SIZE / 2 - 3);
+                    }
+                    if (Math.random() > 0.5) {
+                        createTree(blockX - BLOCK_SIZE / 2 + 3, blockZ - BLOCK_SIZE / 2 + 3);
+                    }
+                }
+            }
+
+            // Crosswalks
+            for (let i = 0; i <= CITY_SIZE; i++) {
+                for (let j = 0; j <= CITY_SIZE; j++) {
+                    const ix = cityOffset + i * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2;
+                    const iz = cityOffset + j * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2;
+                    createCrosswalk(ix, iz);
+                }
+            }
+        }
+
+        function createTokyoTower() {
+            const towerGroup = new THREE.Group();
+            const towerX = CITY_EXTENT / 2 - 50;
+            const towerZ = -CITY_EXTENT / 2 + 50;
+
+            // Tower base - four legs
+            const legMaterial = new THREE.MeshLambertMaterial({ color: 0xff4400 });
+            const legGeometry = new THREE.CylinderGeometry(1.5, 3, 80, 8);
+
+            // Four angled legs
+            const legPositions = [
+                { x: -12, z: -12, rotX: 0.15, rotZ: -0.15 },
+                { x: 12, z: -12, rotX: 0.15, rotZ: 0.15 },
+                { x: -12, z: 12, rotX: -0.15, rotZ: -0.15 },
+                { x: 12, z: 12, rotX: -0.15, rotZ: 0.15 }
+            ];
+
+            legPositions.forEach(pos => {
+                const leg = new THREE.Mesh(legGeometry, legMaterial);
+                leg.position.set(pos.x, 40, pos.z);
+                leg.rotation.x = pos.rotX;
+                leg.rotation.z = pos.rotZ;
+                leg.castShadow = true;
+                towerGroup.add(leg);
+            });
+
+            // Main tower body (upper section)
+            const upperBodyGeom = new THREE.CylinderGeometry(2, 6, 60, 8);
+            const upperBody = new THREE.Mesh(upperBodyGeom, legMaterial);
+            upperBody.position.y = 110;
+            upperBody.castShadow = true;
+            towerGroup.add(upperBody);
+
+            // Observation deck 1
+            const deck1Geom = new THREE.CylinderGeometry(15, 15, 5, 8);
+            const deck1Mat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+            const deck1 = new THREE.Mesh(deck1Geom, deck1Mat);
+            deck1.position.y = 80;
+            deck1.castShadow = true;
+            towerGroup.add(deck1);
+
+            // Observation deck 2
+            const deck2Geom = new THREE.CylinderGeometry(8, 8, 4, 8);
+            const deck2 = new THREE.Mesh(deck2Geom, deck1Mat);
+            deck2.position.y = 120;
+            deck2.castShadow = true;
+            towerGroup.add(deck2);
+
+            // Antenna spire
+            const spireGeom = new THREE.CylinderGeometry(0.3, 1, 30, 8);
+            const spire = new THREE.Mesh(spireGeom, legMaterial);
+            spire.position.y = 155;
+            spire.castShadow = true;
+            towerGroup.add(spire);
+
+            // Red blinking light at top
+            const topLightGeom = new THREE.SphereGeometry(1, 8, 8);
+            const topLightMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const topLight = new THREE.Mesh(topLightGeom, topLightMat);
+            topLight.position.y = 170;
+            towerGroup.add(topLight);
+
+            // Add point light for the red glow
+            const redLight = new THREE.PointLight(0xff0000, 1, 50);
+            redLight.position.y = 170;
+            towerGroup.add(redLight);
+
+            // Tower lights (white lights along the structure)
+            for (let i = 0; i < 8; i++) {
+                const lightGeom = new THREE.SphereGeometry(0.5, 8, 8);
+                const lightMat = new THREE.MeshBasicMaterial({ color: 0xffffcc });
+                const towerLight = new THREE.Mesh(lightGeom, lightMat);
+                towerLight.position.y = 40 + i * 15;
+                towerLight.position.x = (i % 2 === 0 ? 3 : -3);
+                towerGroup.add(towerLight);
+            }
+
+            // Cross beams for lattice effect
+            const beamMat = new THREE.MeshLambertMaterial({ color: 0xff4400 });
+            for (let h = 0; h < 6; h++) {
+                const beamGeom = new THREE.BoxGeometry(24 - h * 3, 1, 1);
+                const beam1 = new THREE.Mesh(beamGeom, beamMat);
+                beam1.position.y = 20 + h * 12;
+                towerGroup.add(beam1);
+
+                const beam2 = new THREE.Mesh(beamGeom.clone(), beamMat);
+                beam2.position.y = 20 + h * 12;
+                beam2.rotation.y = Math.PI / 2;
+                towerGroup.add(beam2);
+            }
+
+            towerGroup.position.set(towerX, 0, towerZ);
+            scene.add(towerGroup);
+
+            // Store reference for animation
+            towerGroup.userData.topLight = topLight;
+            towerGroup.userData.redLight = redLight;
+            window.tokyoTower = towerGroup;
+        }
+
+        // Freeway variables
+        let freewayData = null;
+        let freewaySegments = []; // For infinite freeway
+
+        function createFreeway() {
+            const cityOffset = -CITY_EXTENT / 2;
+
+            // Connect to a vertical road (one that runs north-south)
+            const rampX = cityOffset + 3 * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2;
+            const roadEndZ = CITY_EXTENT / 2;
+
+            const freewayY = 0; // Ground level freeway - no elevation
+            const rampLength = 50; // Short connection
+            const freewayWidth = ROAD_WIDTH + 10; // Wide freeway
+            const segmentLength = 500; // Length of each freeway segment
+            const numSegments = 5; // ~1 mile freeway to San Francisco
+
+            const rampMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+            const barrierMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+            const freewayMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+
+            // === FLAT FREEWAY AT GROUND LEVEL ===
+            const freewayStartZ = roadEndZ;
+            const totalFreewayLength = numSegments * segmentLength + 20; // Extra length for overlap
+
+            // === ENTRY RAMP - smooth transition from city road to freeway ===
+            // Ramp goes from city (front, y=0) up to freeway surface (back, y=0.5)
+            const rampLen = 60;
+            const rampThickness = 0.2;
+            const freewayTopY = 0.5; // Freeway surface height
+            const rampAngle = Math.atan(freewayTopY / rampLen);
+
+            // Position ramp so front edge top surface is at y=0, back edge at freeway height
+            // Center Y = average of front and back heights + half thickness
+            const rampCenterY = freewayTopY / 2 + rampThickness / 2;
+
+            // Visual ramp (sloped box) - negative rotation so front is low, back is high
+            const rampGeom = new THREE.BoxGeometry(freewayWidth, rampThickness, rampLen);
+            const ramp = new THREE.Mesh(rampGeom, rampMat);
+            ramp.position.set(rampX, rampCenterY, freewayStartZ + rampLen / 2);
+            ramp.rotation.x = -rampAngle;
+            scene.add(ramp);
+
+            // Physics ramp body
+            const rampShape = new CANNON.Box(new CANNON.Vec3(freewayWidth / 2, rampThickness / 2, rampLen / 2));
+            const rampBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            rampBody.addShape(rampShape);
+            rampBody.position.set(rampX, rampCenterY, freewayStartZ + rampLen / 2);
+            rampBody.quaternion.setFromEuler(-rampAngle, 0, 0);
+            world.addBody(rampBody);
+
+            // Store reference for debug adjustment
+            rampRefs.ramp1 = { mesh: ramp, body: rampBody, baseY: rampCenterY };
+
+            // Adjust freeway start to after ramp
+            const actualFreewayStartZ = freewayStartZ + rampLen;
+
+            // Create visual freeway segments
+            for (let i = 0; i < numSegments; i++) {
+                const segZ = actualFreewayStartZ + i * segmentLength + segmentLength / 2;
+                const segment = createFreewaySegment(rampX, freewayY, segZ, freewayWidth, segmentLength, freewayMat, barrierMat, false); // false = no physics per segment
+                freewaySegments.push(segment);
+            }
+
+            // Create ONE continuous physics body for entire freeway at ground level
+            const fullFreewayShape = new CANNON.Box(new CANNON.Vec3(freewayWidth / 2, 0.25, totalFreewayLength / 2));
+            const fullFreewayBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            fullFreewayBody.addShape(fullFreewayShape);
+            fullFreewayBody.position.set(rampX, 0.25, actualFreewayStartZ + totalFreewayLength / 2);
+            world.addBody(fullFreewayBody);
+
+            // === FREEWAY TRAFFIC CARS === (more traffic)
+            createFreewayTraffic(rampX, freewayY, freewayStartZ, totalFreewayLength, freewayWidth);
+            createFreewayTraffic(rampX, freewayY, freewayStartZ + 100, totalFreewayLength - 100, freewayWidth);
+
+            // Freeway sign - more visible
+            createFreewaySign(rampX + 15, 6, roadEndZ - 30);
+
+            // Additional freeway entrance sign in city
+            createHighwaySign(rampX, 10, roadEndZ - 100, 'I-80 NORTH', 'SAN FRANCISCO');
+
+            // San Francisco location
+            const sfStartZ = freewayStartZ + totalFreewayLength;
+
+            // Store freeway data BEFORE creating SF (so Sacramento can update totalEndZ)
+            freewayData = {
+                rampStartZ: roadEndZ,
+                rampEndZ: roadEndZ + rampLength,
+                rampLength: rampLength,
+                rampX: rampX,
+                freewayY: freewayY,
+                freewayStartZ: freewayStartZ,
+                freewayWidth: freewayWidth,
+                segmentLength: segmentLength,
+                numSegments: numSegments,
+                roadWidth: freewayWidth,
+                sfStartZ: sfStartZ,
+                totalEndZ: sfStartZ + 5000 // Default, will be updated by Sacramento
+            };
+
+            // Create San Francisco at the end of freeway
+            createSanFrancisco(rampX, freewayY, sfStartZ);
+
+        }
+
+        function createFreewaySegment(x, y, z, width, length, roadMat, barrierMat, addPhysics = true) {
+            const segment = new THREE.Group();
+            const roadY = Math.max(y, 0.25); // At least slightly above ground
+
+            // Road surface (darker asphalt)
+            const roadGeom = new THREE.BoxGeometry(width, 0.5, length);
+            const road = new THREE.Mesh(roadGeom, roadMat);
+            road.position.set(x, roadY, z);
+            road.receiveShadow = true;
+            segment.add(road);
+            scene.add(road);
+
+            // Shoulder stripes (rumble strip effect - red/white on edges)
+            const shoulderWidth = 2;
+            const shoulderMat = new THREE.MeshBasicMaterial({ color: 0x666666 });
+            const shoulderL = new THREE.Mesh(new THREE.BoxGeometry(shoulderWidth, 0.1, length), shoulderMat);
+            shoulderL.position.set(x - width / 2 + shoulderWidth / 2, roadY + 0.26, z);
+            scene.add(shoulderL);
+            const shoulderR = new THREE.Mesh(new THREE.BoxGeometry(shoulderWidth, 0.1, length), shoulderMat);
+            shoulderR.position.set(x + width / 2 - shoulderWidth / 2, roadY + 0.26, z);
+            scene.add(shoulderR);
+
+            // Solid edge lines (white)
+            const edgeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const edgeGeom = new THREE.PlaneGeometry(0.3, length);
+            const edgeL = new THREE.Mesh(edgeGeom, edgeMat);
+            edgeL.rotation.x = -Math.PI / 2;
+            edgeL.position.set(x - width / 2 + shoulderWidth + 0.2, roadY + 0.27, z);
+            scene.add(edgeL);
+            const edgeR = new THREE.Mesh(edgeGeom, edgeMat);
+            edgeR.rotation.x = -Math.PI / 2;
+            edgeR.position.set(x + width / 2 - shoulderWidth - 0.2, roadY + 0.27, z);
+            scene.add(edgeR);
+
+            // Lane markings (dashed white lines - realistic 10ft dashes, 30ft gaps)
+            const dashLength = 3; // ~10 feet
+            const gapLength = 9; // ~30 feet
+            for (let dz = -length / 2 + 5; dz < length / 2; dz += dashLength + gapLength) {
+                const dashGeom = new THREE.PlaneGeometry(0.25, dashLength);
+                const dashMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+                // Lane dividers (3 lanes each direction = 2 dividers per side)
+                [-width / 6, width / 6].forEach(offset => {
+                    const dash = new THREE.Mesh(dashGeom, dashMat);
+                    dash.rotation.x = -Math.PI / 2;
+                    dash.position.set(x + offset, roadY + 0.27, z + dz);
+                    scene.add(dash);
+                });
+            }
+
+            // Center median (double yellow lines)
+            const yellowMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
+            const yellowGeom = new THREE.PlaneGeometry(0.2, length);
+            [-0.3, 0.3].forEach(offset => {
+                const yellowLine = new THREE.Mesh(yellowGeom, yellowMat);
+                yellowLine.rotation.x = -Math.PI / 2;
+                yellowLine.position.set(x + offset, roadY + 0.27, z);
+                scene.add(yellowLine);
+            });
+
+            // Reflective lane markers (Botts' dots)
+            for (let dz = -length / 2 + 15; dz < length / 2; dz += 12) {
+                const dotGeom = new THREE.CircleGeometry(0.15, 8);
+                const dotMat = new THREE.MeshBasicMaterial({ color: 0xffffaa });
+                [-width / 6, width / 6].forEach(offset => {
+                    const dot = new THREE.Mesh(dotGeom, dotMat);
+                    dot.rotation.x = -Math.PI / 2;
+                    dot.position.set(x + offset, roadY + 0.28, z + dz);
+                    scene.add(dot);
+                });
+            }
+
+            // Concrete barriers (Jersey barriers style) with PHYSICS
+            // Skip barriers for first 100 units to allow entry from city
+            const barrierStartOffset = 50; // Gap at beginning for entry
+            const effectiveBarrierLength = length - barrierStartOffset;
+
+            if (effectiveBarrierLength > 50) {
+                const barrierGeom = new THREE.BoxGeometry(1.2, 1.5, effectiveBarrierLength);
+                const barrierL = new THREE.Mesh(barrierGeom, barrierMat);
+                barrierL.position.set(x - width / 2 - 0.6, roadY + 0.75, z + barrierStartOffset / 2);
+                scene.add(barrierL);
+
+                const barrierR = new THREE.Mesh(barrierGeom, barrierMat);
+                barrierR.position.set(x + width / 2 + 0.6, roadY + 0.75, z + barrierStartOffset / 2);
+                scene.add(barrierR);
+
+                // Physics bodies for barriers (prevent falling off)
+                const barrierShape = new CANNON.Box(new CANNON.Vec3(0.6, 0.75, effectiveBarrierLength / 2));
+
+                const barrierBodyL = new CANNON.Body({ mass: 0 });
+                barrierBodyL.addShape(barrierShape);
+                barrierBodyL.position.set(x - width / 2 - 0.6, roadY + 0.75, z + barrierStartOffset / 2);
+                world.addBody(barrierBodyL);
+
+                const barrierBodyR = new CANNON.Body({ mass: 0 });
+                barrierBodyR.addShape(barrierShape);
+                barrierBodyR.position.set(x + width / 2 + 0.6, roadY + 0.75, z + barrierStartOffset / 2);
+                world.addBody(barrierBodyR);
+            }
+
+            return {
+                group: segment,
+                z: z,
+                body: null
+            };
+        }
+
+        function updateInfiniteFreeway() {
+            if (!freewayData || !carBody) return;
+            // Freeway now leads to San Francisco - no looping needed
+        }
+
+        function createExitRamp(freewayX, z, cityName, side = 1) {
+            // side: 1 = right, -1 = left
+            const rampWidth = 12;
+            const rampLength = 80;
+            const rampMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+            const barrierMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+
+            // Diagonal exit ramp
+            const rampGeom = new THREE.BoxGeometry(rampWidth, 0.3, rampLength);
+            const ramp = new THREE.Mesh(rampGeom, rampMat);
+            ramp.position.set(freewayX + side * 35, 0.15, z);
+            ramp.rotation.y = side * 0.3; // Angle outward
+            scene.add(ramp);
+
+            // Ramp physics
+            const rampShape = new CANNON.Box(new CANNON.Vec3(rampWidth / 2, 0.15, rampLength / 2));
+            const rampBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            rampBody.addShape(rampShape);
+            rampBody.position.set(freewayX + side * 35, 0.15, z);
+            rampBody.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), side * 0.3);
+            world.addBody(rampBody);
+
+            // Lane markings on ramp
+            const dashMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            for (let d = -30; d < 30; d += 15) {
+                const dash = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 5), dashMat);
+                dash.rotation.x = -Math.PI / 2;
+                dash.rotation.z = -side * 0.3;
+                dash.position.set(freewayX + side * 35 + Math.sin(side * 0.3) * d, 0.32, z + d);
+                scene.add(dash);
+            }
+
+            // Exit sign
+            const signCanvas = document.createElement('canvas');
+            signCanvas.width = 256;
+            signCanvas.height = 128;
+            const ctx = signCanvas.getContext('2d');
+            ctx.fillStyle = '#006633';
+            ctx.fillRect(0, 0, 256, 128);
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(5, 5, 246, 118);
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 24px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('EXIT', 128, 40);
+            ctx.font = 'bold 32px Arial';
+            ctx.fillText(cityName, 128, 80);
+            ctx.font = '18px Arial';
+            ctx.fillText('RIGHT LANE', 128, 110);
+
+            const signTexture = new THREE.CanvasTexture(signCanvas);
+            const signGeom = new THREE.PlaneGeometry(10, 5);
+            const signMesh = new THREE.Mesh(signGeom, new THREE.MeshBasicMaterial({ map: signTexture }));
+            signMesh.position.set(freewayX + side * 20, 8, z - 60);
+            scene.add(signMesh);
+
+            // Sign post
+            const postGeom = new THREE.CylinderGeometry(0.3, 0.3, 8, 8);
+            const postMat = new THREE.MeshLambertMaterial({ color: 0x444444 });
+            const post = new THREE.Mesh(postGeom, postMat);
+            post.position.set(freewayX + side * 20, 4, z - 60);
+            scene.add(post);
+        }
+
+        function createSanFrancisco(freewayX, freewayY, startZ) {
+            const freewayWidth = 30;
+            const freewayMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            const barrierMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+
+            // === CONTINUOUS FREEWAY THROUGH SF (~1 mile) ===
+            const sfFreewayLength = 2500; // ~1 mile
+
+            // Create freeway segment through SF
+            createFreewaySegment(freewayX, 0, startZ + sfFreewayLength / 2, freewayWidth, sfFreewayLength, freewayMat, barrierMat, false);
+
+            // Physics for SF freeway section
+            const sfFreewayShape = new CANNON.Box(new CANNON.Vec3(freewayWidth / 2, 0.25, sfFreewayLength / 2));
+            const sfFreewayBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            sfFreewayBody.addShape(sfFreewayShape);
+            sfFreewayBody.position.set(freewayX, 0.25, startZ + sfFreewayLength / 2);
+            world.addBody(sfFreewayBody);
+
+            // === EXIT RAMP FOR SAN FRANCISCO ===
+            createExitRamp(freewayX, startZ + 800, 'SAN FRANCISCO', 1);
+
+            // === GOLDEN GATE BRIDGE (visible off to the side) ===
+            const bridgeX = freewayX + 180;
+            const bridgeZ = startZ + 1200;
+            createGoldenGateBridge(bridgeX, bridgeZ);
+
+            // === SAN FRANCISCO SKYLINE (buildings beside freeway) ===
+            const sfColors = [0xE8B4B8, 0xA7C7E7, 0xC1E1C1, 0xFADADD, 0xC4A484, 0xF5DEB3, 0xDDA0DD];
+
+            for (let i = 0; i < 80; i++) {
+                // Buildings on both sides of freeway
+                const side = Math.random() > 0.5 ? 1 : -1;
+                const bx = freewayX + side * (freewayWidth / 2 + 30 + Math.random() * 100);
+                const bz = startZ + 100 + Math.random() * 2300;
+
+                const height = 20 + Math.random() * 60;
+                const width = 12 + Math.random() * 18;
+                const depth = 12 + Math.random() * 18;
+
+                const buildGeom = new THREE.BoxGeometry(width, height, depth);
+                const buildMat = new THREE.MeshLambertMaterial({
+                    color: sfColors[Math.floor(Math.random() * sfColors.length)]
+                });
+                const building = new THREE.Mesh(buildGeom, buildMat);
+                building.position.set(bx, height / 2, bz);
+                building.castShadow = true;
+                scene.add(building);
+            }
+
+            // === HIGHWAY OVERHEAD SIGN: SAN FRANCISCO ===
+            createHighwaySign(freewayX, 12, startZ + 50, 'SAN FRANCISCO', 'CITY LIMITS');
+
+            // === HIGHWAY OVERHEAD SIGN: SACRAMENTO NEXT ===
+            createHighwaySign(freewayX, 12, startZ + sfFreewayLength - 100, 'SACRAMENTO', '85 MILES');
+
+            // === CONTINUE TO SACRAMENTO ===
+            const sfEndZ = startZ + sfFreewayLength;
+            createSacramentoFreeway(freewayX, sfEndZ);
+        }
+
+        function createHighwaySign(x, y, z, city, subtitle) {
+            // Overhead highway sign (spans freeway)
+            const signCanvas = document.createElement('canvas');
+            signCanvas.width = 512;
+            signCanvas.height = 256;
+            const ctx = signCanvas.getContext('2d');
+
+            // Green background
+            ctx.fillStyle = '#006633';
+            ctx.fillRect(0, 0, 512, 256);
+
+            // White border
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 8;
+            ctx.strokeRect(10, 10, 492, 236);
+
+            // City name
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 64px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(city, 256, 100);
+
+            // Subtitle
+            ctx.font = '36px Arial';
+            ctx.fillText(subtitle, 256, 160);
+
+            // Exit arrow if applicable
+            ctx.font = 'bold 32px Arial';
+            ctx.fillText('I-80 NORTH', 256, 210);
+
+            const signTexture = new THREE.CanvasTexture(signCanvas);
+            const signGeom = new THREE.PlaneGeometry(24, 12);
+            const signMat = new THREE.MeshBasicMaterial({ map: signTexture });
+            const sign = new THREE.Mesh(signGeom, signMat);
+            sign.position.set(x, y, z);
+            scene.add(sign);
+
+            // Support poles
+            const poleMat = new THREE.MeshLambertMaterial({ color: 0x666666 });
+            const poleGeom = new THREE.CylinderGeometry(0.4, 0.4, y, 8);
+            [-18, 18].forEach(offset => {
+                const pole = new THREE.Mesh(poleGeom, poleMat);
+                pole.position.set(x + offset, y / 2, z);
+                scene.add(pole);
+            });
+
+            // Crossbar
+            const barGeom = new THREE.BoxGeometry(40, 0.6, 0.6);
+            const bar = new THREE.Mesh(barGeom, poleMat);
+            bar.position.set(x, y + 6, z);
+            scene.add(bar);
+        }
+
+        function createSacramentoFreeway(freewayX, startZ) {
+            const freewayWidth = 30;
+            const segmentLength = 500;
+            const numSegments = 10; // ~2 miles to Sacramento
+            const totalLength = numSegments * segmentLength;
+
+            const freewayMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            const barrierMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+
+            // Create freeway segments
+            for (let i = 0; i < numSegments; i++) {
+                const segZ = startZ + i * segmentLength + segmentLength / 2;
+                createFreewaySegment(freewayX, 0, segZ, freewayWidth, segmentLength, freewayMat, barrierMat, false);
+            }
+
+            // Physics body
+            const fullShape = new CANNON.Box(new CANNON.Vec3(freewayWidth / 2, 0.25, totalLength / 2));
+            const fullBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            fullBody.addShape(fullShape);
+            fullBody.position.set(freewayX, 0.25, startZ + totalLength / 2);
+            world.addBody(fullBody);
+
+            // Add traffic
+            createFreewayTraffic(freewayX, 0.5, startZ, totalLength, freewayWidth);
+
+            // Sacramento city at the end
+            const sacStartZ = startZ + totalLength;
+            createSacramento(freewayX, sacStartZ);
+
+            // Store total freeway end for boundary
+            freewayData.totalEndZ = sacStartZ + 1000;
+        }
+
+        function createSacramento(freewayX, startZ) {
+            const freewayWidth = 30;
+            const freewayMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            const barrierMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+
+            // Continue freeway through Sacramento
+            const sacFreewayLength = 1000;
+            createFreewaySegment(freewayX, 0, startZ + sacFreewayLength / 2, freewayWidth, sacFreewayLength, freewayMat, barrierMat, false);
+
+            // Physics
+            const sacShape = new CANNON.Box(new CANNON.Vec3(freewayWidth / 2, 0.25, sacFreewayLength / 2));
+            const sacBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            sacBody.addShape(sacShape);
+            sacBody.position.set(freewayX, 0.25, startZ + sacFreewayLength / 2);
+            world.addBody(sacBody);
+
+            // === SACRAMENTO WELCOME SIGN ===
+            createHighwaySign(freewayX, 12, startZ + 50, 'SACRAMENTO', 'STATE CAPITAL');
+
+            // === EXIT RAMP FOR SACRAMENTO ===
+            createExitRamp(freewayX, startZ + 400, 'SACRAMENTO', -1);
+
+            // === SACRAMENTO SKYLINE ===
+            const sacColors = [0x8B7355, 0x9C8B75, 0x6B5B4A, 0x7D6E5D, 0x5C4D3D];
+
+            for (let i = 0; i < 50; i++) {
+                const side = Math.random() > 0.5 ? 1 : -1;
+                const bx = freewayX + side * (freewayWidth / 2 + 25 + Math.random() * 120);
+                const bz = startZ + 100 + Math.random() * 800;
+
+                const height = 25 + Math.random() * 80;
+                const width = 15 + Math.random() * 20;
+                const depth = 15 + Math.random() * 20;
+
+                const buildGeom = new THREE.BoxGeometry(width, height, depth);
+                const buildMat = new THREE.MeshLambertMaterial({
+                    color: sacColors[Math.floor(Math.random() * sacColors.length)]
+                });
+                const building = new THREE.Mesh(buildGeom, buildMat);
+                building.position.set(bx, height / 2, bz);
+                building.castShadow = true;
+                scene.add(building);
+            }
+
+            // === CALIFORNIA STATE CAPITOL (dome building) ===
+            const capitolX = freewayX + 100;
+            const capitolZ = startZ + 500;
+
+            // Main building
+            const mainGeom = new THREE.BoxGeometry(60, 30, 40);
+            const mainMat = new THREE.MeshLambertMaterial({ color: 0xf5f5dc });
+            const main = new THREE.Mesh(mainGeom, mainMat);
+            main.position.set(capitolX, 15, capitolZ);
+            scene.add(main);
+
+            // Dome
+            const domeGeom = new THREE.SphereGeometry(12, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+            const dome = new THREE.Mesh(domeGeom, mainMat);
+            dome.position.set(capitolX, 30, capitolZ);
+            scene.add(dome);
+
+            // Cupola
+            const cupolaGeom = new THREE.CylinderGeometry(3, 5, 15, 16);
+            const cupola = new THREE.Mesh(cupolaGeom, mainMat);
+            cupola.position.set(capitolX, 47, capitolZ);
+            scene.add(cupola);
+
+            // Gold dome top
+            const goldGeom = new THREE.SphereGeometry(4, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+            const goldMat = new THREE.MeshLambertMaterial({ color: 0xffd700 });
+            const goldDome = new THREE.Mesh(goldGeom, goldMat);
+            goldDome.position.set(capitolX, 54, capitolZ);
+            scene.add(goldDome);
+
+            // Traffic through Sacramento
+            createFreewayTraffic(freewayX, 0.5, startZ, sacFreewayLength, freewayWidth);
+
+            // === SIGN FOR TRUCKEE ===
+            createHighwaySign(freewayX, 12, startZ + sacFreewayLength - 100, 'TRUCKEE', 'LAKE TAHOE');
+
+            // === CONTINUE TO TRUCKEE ===
+            const sacEndZ = startZ + sacFreewayLength;
+            createTruckeeFreeway(freewayX, sacEndZ);
+        }
+
+        function createTruckeeFreeway(freewayX, startZ) {
+            const freewayWidth = 30;
+            const segmentLength = 500;
+            const numSegments = 8; // ~2 miles through the mountains
+            const totalLength = numSegments * segmentLength;
+
+            const freewayMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            const barrierMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+
+            // Create freeway segments through mountains
+            for (let i = 0; i < numSegments; i++) {
+                const segZ = startZ + i * segmentLength + segmentLength / 2;
+                createFreewaySegment(freewayX, 0, segZ, freewayWidth, segmentLength, freewayMat, barrierMat, false);
+            }
+
+            // Physics body
+            const fullShape = new CANNON.Box(new CANNON.Vec3(freewayWidth / 2, 0.25, totalLength / 2));
+            const fullBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            fullBody.addShape(fullShape);
+            fullBody.position.set(freewayX, 0.25, startZ + totalLength / 2);
+            world.addBody(fullBody);
+
+            // === PINE TREES along the mountain freeway ===
+            const treeMat = new THREE.MeshLambertMaterial({ color: 0x2d5a27 });
+            const trunkMat = new THREE.MeshLambertMaterial({ color: 0x4a3728 });
+
+            for (let i = 0; i < 150; i++) {
+                const side = Math.random() > 0.5 ? 1 : -1;
+                const tx = freewayX + side * (freewayWidth / 2 + 15 + Math.random() * 150);
+                const tz = startZ + Math.random() * totalLength;
+
+                // Pine tree (cone shape)
+                const treeHeight = 15 + Math.random() * 20;
+                const treeGeom = new THREE.ConeGeometry(4 + Math.random() * 3, treeHeight, 8);
+                const tree = new THREE.Mesh(treeGeom, treeMat);
+                tree.position.set(tx, treeHeight / 2 + 2, tz);
+                tree.castShadow = true;
+                scene.add(tree);
+
+                // Trunk
+                const trunkGeom = new THREE.CylinderGeometry(0.8, 1, 4, 8);
+                const trunk = new THREE.Mesh(trunkGeom, trunkMat);
+                trunk.position.set(tx, 2, tz);
+                scene.add(trunk);
+            }
+
+            // === SNOW-CAPPED MOUNTAINS in background ===
+            const mountainMat = new THREE.MeshLambertMaterial({ color: 0x6b6b6b });
+            const snowMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+
+            for (let i = 0; i < 12; i++) {
+                const side = i % 2 === 0 ? 1 : -1;
+                const mx = freewayX + side * (200 + Math.random() * 150);
+                const mz = startZ + i * (totalLength / 12) + Math.random() * 200;
+                const mHeight = 80 + Math.random() * 120;
+
+                // Mountain
+                const mtnGeom = new THREE.ConeGeometry(60 + Math.random() * 40, mHeight, 6);
+                const mountain = new THREE.Mesh(mtnGeom, mountainMat);
+                mountain.position.set(mx, mHeight / 2, mz);
+                scene.add(mountain);
+
+                // Snow cap
+                const snowGeom = new THREE.ConeGeometry(20 + Math.random() * 15, mHeight * 0.3, 6);
+                const snow = new THREE.Mesh(snowGeom, snowMat);
+                snow.position.set(mx, mHeight * 0.85, mz);
+                scene.add(snow);
+            }
+
+            // Add traffic
+            createFreewayTraffic(freewayX, 0.5, startZ, totalLength, freewayWidth);
+
+            // Truckee town at the end
+            const truckeeStartZ = startZ + totalLength;
+            createTruckee(freewayX, truckeeStartZ);
+        }
+
+        function createTruckee(freewayX, startZ) {
+            const freewayWidth = 30;
+            const freewayMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            const barrierMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+
+            // Freeway through Truckee
+            const truckeeLength = 1500;
+            createFreewaySegment(freewayX, 0, startZ + truckeeLength / 2, freewayWidth, truckeeLength, freewayMat, barrierMat, false);
+
+            // Physics
+            const truckeeShape = new CANNON.Box(new CANNON.Vec3(freewayWidth / 2, 0.25, truckeeLength / 2));
+            const truckeeBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            truckeeBody.addShape(truckeeShape);
+            truckeeBody.position.set(freewayX, 0.25, startZ + truckeeLength / 2);
+            world.addBody(truckeeBody);
+
+            // === WELCOME TO TRUCKEE ===
+            createHighwaySign(freewayX, 12, startZ + 50, 'TRUCKEE', 'ELEVATION 5,817 FT');
+
+            // === MOUNTAIN TOWN BUILDINGS (wooden lodge style) ===
+            const woodColors = [0x8B4513, 0xA0522D, 0x6B4423, 0x8B5A2B, 0x704214];
+
+            for (let i = 0; i < 40; i++) {
+                const side = Math.random() > 0.5 ? 1 : -1;
+                const bx = freewayX + side * (freewayWidth / 2 + 25 + Math.random() * 80);
+                const bz = startZ + 150 + Math.random() * 1200;
+
+                const height = 10 + Math.random() * 20;
+                const width = 12 + Math.random() * 15;
+                const depth = 10 + Math.random() * 12;
+
+                // Lodge-style building
+                const buildGeom = new THREE.BoxGeometry(width, height, depth);
+                const buildMat = new THREE.MeshLambertMaterial({
+                    color: woodColors[Math.floor(Math.random() * woodColors.length)]
+                });
+                const building = new THREE.Mesh(buildGeom, buildMat);
+                building.position.set(bx, height / 2, bz);
+                building.castShadow = true;
+                scene.add(building);
+
+                // Peaked roof (triangle)
+                const roofGeom = new THREE.ConeGeometry(width * 0.8, height * 0.4, 4);
+                const roofMat = new THREE.MeshLambertMaterial({ color: 0x4a4a4a });
+                const roof = new THREE.Mesh(roofGeom, roofMat);
+                roof.position.set(bx, height + height * 0.2, bz);
+                roof.rotation.y = Math.PI / 4;
+                scene.add(roof);
+            }
+
+            // === MORE PINE TREES ===
+            const treeMat = new THREE.MeshLambertMaterial({ color: 0x2d5a27 });
+            const trunkMat = new THREE.MeshLambertMaterial({ color: 0x4a3728 });
+
+            for (let i = 0; i < 60; i++) {
+                const side = Math.random() > 0.5 ? 1 : -1;
+                const tx = freewayX + side * (freewayWidth / 2 + 50 + Math.random() * 120);
+                const tz = startZ + Math.random() * truckeeLength;
+
+                const treeHeight = 12 + Math.random() * 15;
+                const treeGeom = new THREE.ConeGeometry(3 + Math.random() * 2, treeHeight, 8);
+                const tree = new THREE.Mesh(treeGeom, treeMat);
+                tree.position.set(tx, treeHeight / 2 + 2, tz);
+                scene.add(tree);
+
+                const trunkGeom = new THREE.CylinderGeometry(0.6, 0.8, 3, 8);
+                const trunk = new THREE.Mesh(trunkGeom, trunkMat);
+                trunk.position.set(tx, 1.5, tz);
+                scene.add(trunk);
+            }
+
+            // === SKI LIFT (iconic Truckee feature) ===
+            const liftX = freewayX + 150;
+            const liftZ = startZ + 800;
+            const poleMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+
+            // Lift poles
+            for (let i = 0; i < 5; i++) {
+                const poleGeom = new THREE.CylinderGeometry(0.5, 0.5, 25, 8);
+                const pole = new THREE.Mesh(poleGeom, poleMat);
+                pole.position.set(liftX + i * 30, 12.5, liftZ);
+                scene.add(pole);
+            }
+
+            // Cable
+            const cableGeom = new THREE.CylinderGeometry(0.1, 0.1, 150, 8);
+            const cableMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+            const cable = new THREE.Mesh(cableGeom, cableMat);
+            cable.position.set(liftX + 60, 25, liftZ);
+            cable.rotation.z = Math.PI / 2;
+            scene.add(cable);
+
+            // Traffic
+            createFreewayTraffic(freewayX, 0.5, startZ, truckeeLength, freewayWidth);
+
+            // Update total end
+            freewayData.totalEndZ = startZ + truckeeLength;
+        }
+
+        function createWorldFreeway(x, startZ, destination, signColor, onComplete) {
+            const freewayWidth = 30;
+            const segmentLength = 500;
+            const numSegments = 20; // Long freeway between cities
+
+            const freewayMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            const barrierMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+
+            // Freeway sign
+            createDestinationSign(x + 20, 8, startZ - 20, destination, signColor);
+
+            // Main freeway (flat at ground level)
+            const freewayStartZ = startZ;
+            const totalLength = numSegments * segmentLength;
+
+            for (let i = 0; i < numSegments; i++) {
+                const segZ = freewayStartZ + i * segmentLength + segmentLength / 2;
+                createFreewaySegment(x, 0, segZ, freewayWidth, segmentLength, freewayMat, barrierMat, false);
+            }
+
+            // Single physics body for entire freeway
+            const fullShape = new CANNON.Box(new CANNON.Vec3(freewayWidth / 2, 0.25, totalLength / 2));
+            const fullBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            fullBody.addShape(fullShape);
+            fullBody.position.set(x, 0.25, freewayStartZ + totalLength / 2);
+            world.addBody(fullBody);
+
+            // Add traffic
+            createFreewayTraffic(x, 0.5, freewayStartZ, totalLength, freewayWidth);
+
+            // Call completion with end position
+            if (onComplete) {
+                onComplete(freewayStartZ + totalLength);
+            }
+        }
+
+        function createDestinationSign(x, y, z, destination, color) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 180;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#006633';
+            ctx.fillRect(0, 0, 512, 180);
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 32px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('WORLD TOUR', 256, 45);
+            ctx.font = 'bold 40px Arial';
+            ctx.fillText('→ ' + destination, 256, 95);
+            ctx.fillStyle = '#ffcc00';
+            ctx.font = 'bold 32px Arial';
+            ctx.fillText('280 MPH', 256, 145);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const geom = new THREE.PlaneGeometry(16, 5.6);
+            const mat = new THREE.MeshBasicMaterial({ map: texture });
+            const sign = new THREE.Mesh(geom, mat);
+            sign.position.set(x, y, z);
+            scene.add(sign);
+
+            // Poles
+            const poleMat = new THREE.MeshLambertMaterial({ color: 0x444444 });
+            const poleGeom = new THREE.CylinderGeometry(0.2, 0.2, y, 8);
+            [-6, 6].forEach(offset => {
+                const pole = new THREE.Mesh(poleGeom, poleMat);
+                pole.position.set(x + offset, y / 2, z);
+                scene.add(pole);
+            });
+        }
+
+        function createNewYork(freewayX, freewayY, startZ) {
+            // Ground
+            const groundSize = 800;
+            const groundGeom = new THREE.PlaneGeometry(groundSize, groundSize);
+            const groundMat = new THREE.MeshLambertMaterial({ color: 0x2d2d2d }); // Dark concrete
+            const ground = new THREE.Mesh(groundGeom, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.set(freewayX, 0, startZ + groundSize / 2);
+            scene.add(ground);
+
+            // Ground physics
+            const groundShape = new CANNON.Box(new CANNON.Vec3(groundSize / 2, 0.1, groundSize / 2));
+            const groundBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            groundBody.addShape(groundShape);
+            groundBody.position.set(freewayX, 0, startZ + groundSize / 2);
+            world.addBody(groundBody);
+
+            // NYC Buildings (tall skyscrapers, grey/silver)
+            const nycColors = [0x4a4a4a, 0x5c5c5c, 0x6e6e6e, 0x808080, 0x3d3d3d, 0x2b2b2b];
+            const cityStartZ = startZ + 100;
+
+            for (let i = 0; i < 100; i++) {
+                const bx = freewayX + (Math.random() - 0.5) * 700;
+                const bz = cityStartZ + Math.random() * 600;
+                if (Math.abs(bx - freewayX) < 25) continue;
+
+                const height = 40 + Math.random() * 120; // Tall buildings
+                const width = 15 + Math.random() * 25;
+                const depth = 15 + Math.random() * 25;
+
+                const buildGeom = new THREE.BoxGeometry(width, height, depth);
+                const buildMat = new THREE.MeshLambertMaterial({
+                    color: nycColors[Math.floor(Math.random() * nycColors.length)]
+                });
+                const building = new THREE.Mesh(buildGeom, buildMat);
+                building.position.set(bx, height / 2, bz);
+                building.castShadow = true;
+                scene.add(building);
+
+                // Windows (yellow lights)
+                addBuildingWindows(bx, bz, width, height, depth, 0xffffaa);
+            }
+
+            // Empire State Building
+            createEmpireState(freewayX + 100, cityStartZ + 300);
+
+            // Statue of Liberty (off to the side)
+            createStatueOfLiberty(freewayX - 200, cityStartZ + 200);
+
+            // Welcome sign
+            createCitySign(freewayX + 30, startZ + 30, 'NEW YORK CITY', 'The Big Apple');
+
+            // Roads
+            const roadMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+            const mainRoad = new THREE.Mesh(new THREE.BoxGeometry(25, 0.2, groundSize), roadMat);
+            mainRoad.position.set(freewayX, 0.1, startZ + groundSize / 2);
+            scene.add(mainRoad);
+
+            // Continue to London
+            const nyEndZ = startZ + groundSize;
+            createWorldFreeway(freewayX, nyEndZ, 'LONDON', 0xff0000, function(endZ) {
+                createLondon(freewayX, 8, endZ);
+            });
+        }
+
+        function createEmpireState(x, z) {
+            const baseMat = new THREE.MeshLambertMaterial({ color: 0x8b8b8b });
+
+            // Base
+            const base = new THREE.Mesh(new THREE.BoxGeometry(40, 80, 40), baseMat);
+            base.position.set(x, 40, z);
+            scene.add(base);
+
+            // Middle section
+            const mid = new THREE.Mesh(new THREE.BoxGeometry(30, 100, 30), baseMat);
+            mid.position.set(x, 130, z);
+            scene.add(mid);
+
+            // Upper section
+            const upper = new THREE.Mesh(new THREE.BoxGeometry(20, 60, 20), baseMat);
+            upper.position.set(x, 210, z);
+            scene.add(upper);
+
+            // Spire
+            const spire = new THREE.Mesh(new THREE.ConeGeometry(3, 50, 8), baseMat);
+            spire.position.set(x, 265, z);
+            scene.add(spire);
+
+            // Antenna light
+            const light = new THREE.PointLight(0xff0000, 2, 100);
+            light.position.set(x, 290, z);
+            scene.add(light);
+        }
+
+        function createStatueOfLiberty(x, z) {
+            const greenMat = new THREE.MeshLambertMaterial({ color: 0x4a9c6d });
+
+            // Pedestal
+            const pedestal = new THREE.Mesh(new THREE.BoxGeometry(20, 30, 20), new THREE.MeshLambertMaterial({ color: 0x8b8b8b }));
+            pedestal.position.set(x, 15, z);
+            scene.add(pedestal);
+
+            // Body
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(5, 8, 40, 8), greenMat);
+            body.position.set(x, 50, z);
+            scene.add(body);
+
+            // Head
+            const head = new THREE.Mesh(new THREE.SphereGeometry(6, 8, 8), greenMat);
+            head.position.set(x, 75, z);
+            scene.add(head);
+
+            // Crown
+            const crown = new THREE.Mesh(new THREE.CylinderGeometry(7, 5, 8, 7), greenMat);
+            crown.position.set(x, 82, z);
+            scene.add(crown);
+
+            // Torch arm
+            const arm = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 25, 8), greenMat);
+            arm.position.set(x + 8, 70, z);
+            arm.rotation.z = -0.5;
+            scene.add(arm);
+
+            // Torch flame
+            const flame = new THREE.Mesh(new THREE.ConeGeometry(3, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffaa00 }));
+            flame.position.set(x + 18, 85, z);
+            scene.add(flame);
+
+            const flameLight = new THREE.PointLight(0xffaa00, 3, 50);
+            flameLight.position.set(x + 18, 85, z);
+            scene.add(flameLight);
+        }
+
+        function createLondon(freewayX, freewayY, startZ) {
+            // Ground
+            const groundSize = 800;
+            const groundGeom = new THREE.PlaneGeometry(groundSize, groundSize);
+            const groundMat = new THREE.MeshLambertMaterial({ color: 0x3d4a3d }); // Greenish
+            const ground = new THREE.Mesh(groundGeom, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.set(freewayX, 0, startZ + groundSize / 2);
+            scene.add(ground);
+
+            const groundBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            groundBody.addShape(new CANNON.Box(new CANNON.Vec3(groundSize / 2, 0.1, groundSize / 2)));
+            groundBody.position.set(freewayX, 0, startZ + groundSize / 2);
+            world.addBody(groundBody);
+
+            // London buildings (brick red, grey)
+            const londonColors = [0x8b4513, 0xa0522d, 0x6b4423, 0x5c5c5c, 0x4a4a4a];
+            const cityStartZ = startZ + 100;
+
+            for (let i = 0; i < 80; i++) {
+                const bx = freewayX + (Math.random() - 0.5) * 700;
+                const bz = cityStartZ + Math.random() * 600;
+                if (Math.abs(bx - freewayX) < 25) continue;
+
+                const height = 20 + Math.random() * 50;
+                const width = 12 + Math.random() * 18;
+                const depth = 12 + Math.random() * 18;
+
+                const building = new THREE.Mesh(
+                    new THREE.BoxGeometry(width, height, depth),
+                    new THREE.MeshLambertMaterial({ color: londonColors[Math.floor(Math.random() * londonColors.length)] })
+                );
+                building.position.set(bx, height / 2, bz);
+                scene.add(building);
+
+                addBuildingWindows(bx, bz, width, height, depth, 0xffffcc);
+            }
+
+            // Big Ben
+            createBigBen(freewayX + 120, cityStartZ + 250);
+
+            // Tower Bridge
+            createTowerBridge(freewayX - 100, cityStartZ + 400);
+
+            createCitySign(freewayX + 30, startZ + 30, 'LONDON', 'United Kingdom');
+
+            // Roads
+            const mainRoad = new THREE.Mesh(new THREE.BoxGeometry(25, 0.2, groundSize), new THREE.MeshLambertMaterial({ color: 0x1a1a1a }));
+            mainRoad.position.set(freewayX, 0.1, startZ + groundSize / 2);
+            scene.add(mainRoad);
+
+            // Continue to Paris
+            createWorldFreeway(freewayX, startZ + groundSize, 'PARIS', 0x0055ff, function(endZ) {
+                createParis(freewayX, 8, endZ);
+            });
+        }
+
+        function createBigBen(x, z) {
+            const stoneMat = new THREE.MeshLambertMaterial({ color: 0xd4c4a8 });
+
+            // Tower base
+            const base = new THREE.Mesh(new THREE.BoxGeometry(15, 70, 15), stoneMat);
+            base.position.set(x, 35, z);
+            scene.add(base);
+
+            // Clock section
+            const clockSection = new THREE.Mesh(new THREE.BoxGeometry(18, 20, 18), stoneMat);
+            clockSection.position.set(x, 80, z);
+            scene.add(clockSection);
+
+            // Clock faces (4 sides)
+            const clockMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            [[0, 1], [0, -1], [1, 0], [-1, 0]].forEach(([dx, dz]) => {
+                const clock = new THREE.Mesh(new THREE.CircleGeometry(6, 32), clockMat);
+                clock.position.set(x + dx * 9.1, 80, z + dz * 9.1);
+                clock.rotation.y = Math.atan2(dx, dz);
+                scene.add(clock);
+            });
+
+            // Spire
+            const spire = new THREE.Mesh(new THREE.ConeGeometry(8, 25, 4), stoneMat);
+            spire.position.set(x, 102, z);
+            spire.rotation.y = Math.PI / 4;
+            scene.add(spire);
+        }
+
+        function createTowerBridge(x, z) {
+            const blueMat = new THREE.MeshLambertMaterial({ color: 0x4a6fa5 });
+            const stoneMat = new THREE.MeshLambertMaterial({ color: 0xd4c4a8 });
+
+            // Two towers
+            [-60, 60].forEach(offset => {
+                const tower = new THREE.Mesh(new THREE.BoxGeometry(15, 60, 15), stoneMat);
+                tower.position.set(x, 30, z + offset);
+                scene.add(tower);
+
+                const roof = new THREE.Mesh(new THREE.ConeGeometry(10, 15, 4), blueMat);
+                roof.position.set(x, 67, z + offset);
+                scene.add(roof);
+            });
+
+            // Upper walkway
+            const walkway = new THREE.Mesh(new THREE.BoxGeometry(8, 5, 120), blueMat);
+            walkway.position.set(x, 55, z);
+            scene.add(walkway);
+
+            // Road deck
+            const deck = new THREE.Mesh(new THREE.BoxGeometry(20, 2, 180), new THREE.MeshLambertMaterial({ color: 0x333333 }));
+            deck.position.set(x, 10, z);
+            scene.add(deck);
+
+            // Deck physics
+            const deckBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            deckBody.addShape(new CANNON.Box(new CANNON.Vec3(10, 1, 90)));
+            deckBody.position.set(x, 10, z);
+            world.addBody(deckBody);
+        }
+
+        function createParis(freewayX, freewayY, startZ) {
+            // Ground
+            const groundSize = 800;
+            const ground = new THREE.Mesh(
+                new THREE.PlaneGeometry(groundSize, groundSize),
+                new THREE.MeshLambertMaterial({ color: 0x4a4a3d })
+            );
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.set(freewayX, 0, startZ + groundSize / 2);
+            scene.add(ground);
+
+            const groundBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            groundBody.addShape(new CANNON.Box(new CANNON.Vec3(groundSize / 2, 0.1, groundSize / 2)));
+            groundBody.position.set(freewayX, 0, startZ + groundSize / 2);
+            world.addBody(groundBody);
+
+            // Paris buildings (cream, beige - Haussmann style)
+            const parisColors = [0xf5f5dc, 0xfaf0e6, 0xfffaf0, 0xe8e4c9, 0xd4c4a8];
+            const cityStartZ = startZ + 100;
+
+            for (let i = 0; i < 80; i++) {
+                const bx = freewayX + (Math.random() - 0.5) * 700;
+                const bz = cityStartZ + Math.random() * 600;
+                if (Math.abs(bx - freewayX) < 25) continue;
+
+                const height = 20 + Math.random() * 35; // Lower buildings
+                const width = 15 + Math.random() * 20;
+                const depth = 15 + Math.random() * 20;
+
+                const building = new THREE.Mesh(
+                    new THREE.BoxGeometry(width, height, depth),
+                    new THREE.MeshLambertMaterial({ color: parisColors[Math.floor(Math.random() * parisColors.length)] })
+                );
+                building.position.set(bx, height / 2, bz);
+                scene.add(building);
+
+                // Mansard roof
+                const roof = new THREE.Mesh(
+                    new THREE.ConeGeometry(Math.max(width, depth) * 0.6, 8, 4),
+                    new THREE.MeshLambertMaterial({ color: 0x2f4f4f })
+                );
+                roof.position.set(bx, height + 4, bz);
+                roof.rotation.y = Math.PI / 4;
+                scene.add(roof);
+            }
+
+            // Eiffel Tower
+            createEiffelTower(freewayX + 150, cityStartZ + 350);
+
+            // Arc de Triomphe
+            createArcDeTriomphe(freewayX - 100, cityStartZ + 200);
+
+            createCitySign(freewayX + 30, startZ + 30, 'PARIS', 'France');
+
+            // Roads
+            const mainRoad = new THREE.Mesh(new THREE.BoxGeometry(25, 0.2, groundSize), new THREE.MeshLambertMaterial({ color: 0x1a1a1a }));
+            mainRoad.position.set(freewayX, 0.1, startZ + groundSize / 2);
+            scene.add(mainRoad);
+
+            // Final sign - World Tour Complete or loop back
+            createCitySign(freewayX, startZ + groundSize - 50, 'WORLD TOUR', 'Complete! Keep Driving!');
+        }
+
+        function createEiffelTower(x, z) {
+            const ironMat = new THREE.MeshLambertMaterial({ color: 0x4a3c2a });
+
+            // Four legs
+            const legHeight = 80;
+            [[-15, -15], [-15, 15], [15, -15], [15, 15]].forEach(([dx, dz]) => {
+                const leg = new THREE.Mesh(new THREE.BoxGeometry(8, legHeight, 8), ironMat);
+                leg.position.set(x + dx * 0.7, legHeight / 2, z + dz * 0.7);
+                leg.rotation.x = dz * 0.008;
+                leg.rotation.z = -dx * 0.008;
+                scene.add(leg);
+            });
+
+            // First platform
+            const platform1 = new THREE.Mesh(new THREE.BoxGeometry(35, 5, 35), ironMat);
+            platform1.position.set(x, 75, z);
+            scene.add(platform1);
+
+            // Middle section
+            const mid = new THREE.Mesh(new THREE.BoxGeometry(20, 60, 20), ironMat);
+            mid.position.set(x, 110, z);
+            scene.add(mid);
+
+            // Second platform
+            const platform2 = new THREE.Mesh(new THREE.BoxGeometry(25, 5, 25), ironMat);
+            platform2.position.set(x, 145, z);
+            scene.add(platform2);
+
+            // Upper section
+            const upper = new THREE.Mesh(new THREE.BoxGeometry(10, 80, 10), ironMat);
+            upper.position.set(x, 190, z);
+            scene.add(upper);
+
+            // Antenna
+            const antenna = new THREE.Mesh(new THREE.CylinderGeometry(1, 2, 40, 8), ironMat);
+            antenna.position.set(x, 250, z);
+            scene.add(antenna);
+
+            // Light at top
+            const light = new THREE.PointLight(0xffffaa, 3, 200);
+            light.position.set(x, 270, z);
+            scene.add(light);
+        }
+
+        function createArcDeTriomphe(x, z) {
+            const stoneMat = new THREE.MeshLambertMaterial({ color: 0xd4c4a8 });
+
+            // Main structure
+            const main = new THREE.Mesh(new THREE.BoxGeometry(50, 50, 25), stoneMat);
+            main.position.set(x, 25, z);
+            scene.add(main);
+
+            // Arch cutout (simplified as dark rectangle)
+            const arch = new THREE.Mesh(
+                new THREE.BoxGeometry(20, 35, 26),
+                new THREE.MeshLambertMaterial({ color: 0x1a1a1a })
+            );
+            arch.position.set(x, 17, z);
+            scene.add(arch);
+
+            // Top decoration
+            const top = new THREE.Mesh(new THREE.BoxGeometry(55, 8, 30), stoneMat);
+            top.position.set(x, 54, z);
+            scene.add(top);
+        }
+
+        function addBuildingWindows(bx, bz, width, height, depth, windowColor) {
+            const windowRows = Math.floor(height / 6);
+            const windowCols = Math.floor(width / 5);
+            for (let row = 0; row < windowRows; row++) {
+                for (let col = 0; col < windowCols; col++) {
+                    if (Math.random() > 0.4) {
+                        const win = new THREE.Mesh(
+                            new THREE.PlaneGeometry(2, 2.5),
+                            new THREE.MeshBasicMaterial({ color: windowColor })
+                        );
+                        win.position.set(bx - width / 2 - 0.1, row * 6 + 4, bz - depth / 2 + col * 5 + 3);
+                        win.rotation.y = Math.PI / 2;
+                        scene.add(win);
+                    }
+                }
+            }
+        }
+
+        function createCitySign(x, z, city, subtitle) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#006633';
+            ctx.fillRect(0, 0, 512, 128);
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 48px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('WELCOME TO', 256, 45);
+            ctx.fillText(city, 256, 95);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const sign = new THREE.Mesh(
+                new THREE.PlaneGeometry(20, 5),
+                new THREE.MeshBasicMaterial({ map: texture })
+            );
+            sign.position.set(x, 8, z);
+            sign.rotation.y = -Math.PI / 4;
+            scene.add(sign);
+
+            const post = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.3, 0.3, 10, 8),
+                new THREE.MeshLambertMaterial({ color: 0x444444 })
+            );
+            post.position.set(x, 5, z);
+            scene.add(post);
+        }
+
+        function createGoldenGateBridge(x, z) {
+            const bridgeGroup = new THREE.Group();
+            const gateRed = 0xC0362C; // International Orange
+
+            // Bridge deck
+            const deckLength = 300;
+            const deckWidth = 25;
+            const deckGeom = new THREE.BoxGeometry(deckWidth, 2, deckLength);
+            const deckMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+            const deck = new THREE.Mesh(deckGeom, deckMat);
+            deck.position.set(x, 15, z);
+            scene.add(deck);
+
+            // Bridge deck physics
+            const deckShape = new CANNON.Box(new CANNON.Vec3(deckWidth / 2, 1, deckLength / 2));
+            const deckBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            deckBody.addShape(deckShape);
+            deckBody.position.set(x, 15, z);
+            world.addBody(deckBody);
+
+            // Main towers
+            const towerMat = new THREE.MeshLambertMaterial({ color: gateRed });
+            for (let i = -1; i <= 1; i += 2) {
+                const towerZ = z + i * 100;
+
+                // Tower legs
+                for (let side = -1; side <= 1; side += 2) {
+                    const legGeom = new THREE.BoxGeometry(4, 100, 4);
+                    const leg = new THREE.Mesh(legGeom, towerMat);
+                    leg.position.set(x + side * 8, 50, towerZ);
+                    leg.castShadow = true;
+                    scene.add(leg);
+                }
+
+                // Tower cross beams
+                for (let h = 25; h <= 85; h += 20) {
+                    const crossGeom = new THREE.BoxGeometry(20, 3, 4);
+                    const cross = new THREE.Mesh(crossGeom, towerMat);
+                    cross.position.set(x, h, towerZ);
+                    scene.add(cross);
+                }
+
+                // Tower top
+                const topGeom = new THREE.BoxGeometry(24, 8, 6);
+                const top = new THREE.Mesh(topGeom, towerMat);
+                top.position.set(x, 104, towerZ);
+                scene.add(top);
+            }
+
+            // Main cables (catenary shape)
+            const cableMat = new THREE.MeshBasicMaterial({ color: gateRed });
+            for (let side = -1; side <= 1; side += 2) {
+                const cablePoints = [];
+                for (let t = -150; t <= 150; t += 10) {
+                    const sag = Math.pow(t / 150, 2) * 40;
+                    cablePoints.push(new THREE.Vector3(x + side * 10, 100 - sag, z + t));
+                }
+                const cableCurve = new THREE.CatmullRomCurve3(cablePoints);
+                const cableGeom = new THREE.TubeGeometry(cableCurve, 64, 0.4, 8, false);
+                const cable = new THREE.Mesh(cableGeom, cableMat);
+                scene.add(cable);
+            }
+
+            // Vertical suspender cables
+            for (let side = -1; side <= 1; side += 2) {
+                for (let t = -140; t <= 140; t += 15) {
+                    const sag = Math.pow(t / 150, 2) * 40;
+                    const cableHeight = 100 - sag - 16;
+                    if (cableHeight > 5) {
+                        const suspGeom = new THREE.CylinderGeometry(0.1, 0.1, cableHeight, 4);
+                        const susp = new THREE.Mesh(suspGeom, cableMat);
+                        susp.position.set(x + side * 10, 16 + cableHeight / 2, z + t);
+                        scene.add(susp);
+                    }
+                }
+            }
+
+            // Ramps to bridge from ground
+            const rampMat = new THREE.MeshLambertMaterial({ color: 0x444444 });
+            for (let end = -1; end <= 1; end += 2) {
+                const rampGeom = new THREE.BoxGeometry(deckWidth, 2, 80);
+                const ramp = new THREE.Mesh(rampGeom, rampMat);
+                const rampZ = z + end * (deckLength / 2 + 40);
+                ramp.position.set(x, 7.5, rampZ);
+                ramp.rotation.x = end * 0.1;
+                scene.add(ramp);
+
+                // Ramp physics
+                const rampShape = new CANNON.Box(new CANNON.Vec3(deckWidth / 2, 1, 40));
+                const rampBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+                rampBody.addShape(rampShape);
+                rampBody.position.set(x, 7.5, rampZ);
+                rampBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), end * 0.1);
+                world.addBody(rampBody);
+            }
+        }
+
+        function createFreewaySign(x, y, z) {
+            const signGroup = new THREE.Group();
+
+            // Sign poles
+            const poleGeom = new THREE.CylinderGeometry(0.2, 0.2, y, 8);
+            const poleMat = new THREE.MeshLambertMaterial({ color: 0x444444 });
+            const pole1 = new THREE.Mesh(poleGeom, poleMat);
+            pole1.position.set(-5, y / 2, 0);
+            signGroup.add(pole1);
+            const pole2 = new THREE.Mesh(poleGeom, poleMat);
+            pole2.position.set(5, y / 2, 0);
+            signGroup.add(pole2);
+
+            // Sign board
+            const boardGeom = new THREE.BoxGeometry(14, 5, 0.3);
+            const boardMat = new THREE.MeshLambertMaterial({ color: 0x006633 });
+            const board = new THREE.Mesh(boardGeom, boardMat);
+            board.position.y = y + 2.5;
+            signGroup.add(board);
+
+            // Create text texture
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 180;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#006633';
+            ctx.fillRect(0, 0, 512, 180);
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 36px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('サンフランシスコ', 256, 45);
+            ctx.font = 'bold 28px Arial';
+            ctx.fillText('TO SAN FRANCISCO ↑', 256, 85);
+            ctx.fillStyle = '#ffcc00';
+            ctx.font = 'bold 36px Arial';
+            ctx.fillText('280 MPH', 256, 140);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const textGeom = new THREE.PlaneGeometry(13, 4.5);
+            const textMat = new THREE.MeshBasicMaterial({ map: texture });
+            const textMesh = new THREE.Mesh(textGeom, textMat);
+            textMesh.position.set(0, y + 2.5, 0.2);
+            signGroup.add(textMesh);
+
+            signGroup.position.set(x, 0, z);
+            scene.add(signGroup);
+        }
+
+        function createBuilding(x, z) {
+            const height = 20 + Math.random() * 60;
+            const width = 8 + Math.random() * 12;
+            const depth = 8 + Math.random() * 12;
+
+            const buildingGeometry = new THREE.BoxGeometry(width, height, depth);
+            // Tokyo-style dark buildings with occasional colorful ones
+            const buildingColors = [0x1a1a2e, 0x16213e, 0x0f3460, 0x1a1a2e, 0x252540];
+            const buildingMaterial = new THREE.MeshLambertMaterial({
+                color: buildingColors[Math.floor(Math.random() * buildingColors.length)]
+            });
+            const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+            building.position.set(x, height / 2 + 0.3, z);
+            building.castShadow = true;
+            building.receiveShadow = true;
+            scene.add(building);
+
+            // Store building for collision
+            buildings.push({
+                mesh: building,
+                x: x,
+                z: z,
+                width: width,
+                depth: depth,
+                height: height
+            });
+
+            // Add physics body for building
+            const buildingShape = new CANNON.Box(new CANNON.Vec3(width / 2, height / 2, depth / 2));
+            const buildingBody = new CANNON.Body({ mass: 0 });
+            buildingBody.addShape(buildingShape);
+            buildingBody.position.set(x, height / 2 + 0.3, z);
+            world.addBody(buildingBody);
+
+            // Neon windows - Tokyo style
+            const windowGeometry = new THREE.PlaneGeometry(1.2, 1.8);
+            const floors = Math.floor(height / 4);
+            const windowsPerFloor = Math.floor(width / 3);
+
+            // Neon colors for Tokyo vibe
+            const neonColors = [0xff00ff, 0x00ffff, 0xff0080, 0x00ff80, 0xffff00, 0xff4444, 0x4444ff];
+
+            for (let floor = 0; floor < floors; floor++) {
+                for (let w = 0; w < windowsPerFloor; w++) {
+                    // Mix of warm lights and neon
+                    let windowColor;
+                    const rand = Math.random();
+                    if (rand > 0.7) {
+                        windowColor = neonColors[Math.floor(Math.random() * neonColors.length)];
+                    } else if (rand > 0.3) {
+                        windowColor = 0xffffcc; // Warm light
+                    } else {
+                        windowColor = 0x333355; // Dark/off
+                    }
+
+                    const windowMaterial = new THREE.MeshBasicMaterial({
+                        color: windowColor,
+                        side: THREE.DoubleSide
+                    });
+                    const windowMesh = new THREE.Mesh(windowGeometry, windowMaterial);
+                    windowMesh.position.set(
+                        x - width/2 + 2 + w * 3,
+                        2 + floor * 4 + 0.3,
+                        z + depth/2 + 0.1
+                    );
+                    scene.add(windowMesh);
+
+                    const windowMesh2 = new THREE.Mesh(windowGeometry, windowMaterial.clone());
+                    windowMesh2.position.z = z - depth/2 - 0.1;
+                    windowMesh2.position.x = windowMesh.position.x;
+                    windowMesh2.position.y = windowMesh.position.y;
+                    scene.add(windowMesh2);
+                }
+            }
+
+            // Add neon signs to some buildings
+            if (Math.random() > 0.6) {
+                createNeonSign(x, height * 0.7, z + depth/2 + 0.5);
+            }
+        }
+
+        function createNeonSign(x, y, z) {
+            const signGroup = new THREE.Group();
+            const neonColors = [0xff00ff, 0x00ffff, 0xff0080, 0x00ff80, 0xff4444];
+            const color = neonColors[Math.floor(Math.random() * neonColors.length)];
+
+            // Sign backing
+            const backGeom = new THREE.BoxGeometry(4, 2, 0.2);
+            const backMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+            const back = new THREE.Mesh(backGeom, backMat);
+            signGroup.add(back);
+
+            // Neon glow
+            const glowGeom = new THREE.PlaneGeometry(3.5, 1.5);
+            const glowMat = new THREE.MeshBasicMaterial({ color: color });
+            const glow = new THREE.Mesh(glowGeom, glowMat);
+            glow.position.z = 0.15;
+            signGroup.add(glow);
+
+            // Add point light for glow effect
+            const light = new THREE.PointLight(color, 0.5, 15);
+            light.position.z = 1;
+            signGroup.add(light);
+
+            signGroup.position.set(x, y, z);
+            scene.add(signGroup);
+        }
+
+        function createTree(x, z) {
+            const treeGroup = new THREE.Group();
+
+            // Cherry blossom tree for Tokyo style
+            const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.35, 4, 8);
+            const trunkMaterial = new THREE.MeshLambertMaterial({ color: 0x4a3728 });
+            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+            trunk.position.y = 2;
+            trunk.castShadow = true;
+            treeGroup.add(trunk);
+
+            // Pink cherry blossom foliage
+            const foliageColors = [0xffb7c5, 0xff91a4, 0xffc0cb];
+            for (let i = 0; i < 3; i++) {
+                const foliageGeometry = new THREE.SphereGeometry(1.5 + Math.random() * 0.5, 8, 8);
+                const foliageMaterial = new THREE.MeshLambertMaterial({
+                    color: foliageColors[Math.floor(Math.random() * foliageColors.length)]
+                });
+                const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
+                foliage.position.set(
+                    (Math.random() - 0.5) * 1.5,
+                    4 + Math.random() * 1,
+                    (Math.random() - 0.5) * 1.5
+                );
+                foliage.castShadow = true;
+                treeGroup.add(foliage);
+            }
+
+            treeGroup.position.set(x, 0.3, z);
+            scene.add(treeGroup);
+        }
+
+        function createCrosswalk(x, z) {
+            const stripeGeom = new THREE.PlaneGeometry(ROAD_WIDTH - 2, 1);
+            const stripeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+            for (let i = 0; i < 5; i++) {
+                const stripe1 = new THREE.Mesh(stripeGeom, stripeMat);
+                stripe1.rotation.x = -Math.PI / 2;
+                stripe1.position.set(x, 0.03, z - 5 + i * 2.5);
+                scene.add(stripe1);
+
+                const stripe2Geom = new THREE.PlaneGeometry(1, ROAD_WIDTH - 2);
+                const stripe2 = new THREE.Mesh(stripe2Geom, stripeMat);
+                stripe2.rotation.x = -Math.PI / 2;
+                stripe2.position.set(x - 5 + i * 2.5, 0.03, z);
+                scene.add(stripe2);
+            }
+        }
+
+        function createTrafficLights() {
+            const cityOffset = -CITY_EXTENT / 2;
+
+            for (let i = 1; i < CITY_SIZE; i++) {
+                for (let j = 1; j < CITY_SIZE; j++) {
+                    const ix = cityOffset + i * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2;
+                    const iz = cityOffset + j * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2;
+
+                    createTrafficLight(ix + 8, iz + 8, 0, i * CITY_SIZE + j, 'ns');
+                    createTrafficLight(ix - 8, iz - 8, Math.PI, i * CITY_SIZE + j, 'ns');
+                    createTrafficLight(ix + 8, iz - 8, -Math.PI / 2, i * CITY_SIZE + j + 100, 'ew');
+                    createTrafficLight(ix - 8, iz + 8, Math.PI / 2, i * CITY_SIZE + j + 100, 'ew');
+                }
+            }
+        }
+
+        function createTrafficLight(x, z, rotation, groupId, direction) {
+            const lightGroup = new THREE.Group();
+
+            const poleGeom = new THREE.CylinderGeometry(0.15, 0.15, 5, 8);
+            const poleMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+            const pole = new THREE.Mesh(poleGeom, poleMat);
+            pole.position.y = 2.5;
+            pole.castShadow = true;
+            lightGroup.add(pole);
+
+            const boxGeom = new THREE.BoxGeometry(0.6, 1.8, 0.4);
+            const boxMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            const box = new THREE.Mesh(boxGeom, boxMat);
+            box.position.y = 5.5;
+            box.castShadow = true;
+            lightGroup.add(box);
+
+            const redGeom = new THREE.CircleGeometry(0.2, 16);
+            const redMat = new THREE.MeshBasicMaterial({ color: 0x330000 });
+            const redLight = new THREE.Mesh(redGeom, redMat);
+            redLight.position.set(0, 6, 0.21);
+            lightGroup.add(redLight);
+
+            const yellowMat = new THREE.MeshBasicMaterial({ color: 0x333300 });
+            const yellowLight = new THREE.Mesh(redGeom.clone(), yellowMat);
+            yellowLight.position.set(0, 5.5, 0.21);
+            lightGroup.add(yellowLight);
+
+            const greenMat = new THREE.MeshBasicMaterial({ color: 0x003300 });
+            const greenLight = new THREE.Mesh(redGeom.clone(), greenMat);
+            greenLight.position.set(0, 5, 0.21);
+            lightGroup.add(greenLight);
+
+            lightGroup.position.set(x, 0, z);
+            lightGroup.rotation.y = rotation;
+            scene.add(lightGroup);
+
+            trafficLights.push({
+                group: lightGroup,
+                red: redLight,
+                yellow: yellowLight,
+                green: greenLight,
+                groupId: groupId,
+                direction: direction,
+                state: 'red',
+                x: x,
+                z: z
+            });
+        }
+
+        function updateTrafficLights(time) {
+            const cycleTime = 8000;
+            const phase = (time % cycleTime) / cycleTime;
+
+            trafficLights.forEach(light => {
+                const isGroupA = light.groupId < 100;
+                let state;
+
+                if (isGroupA) {
+                    if (phase < 0.4) state = 'green';
+                    else if (phase < 0.45) state = 'yellow';
+                    else state = 'red';
+                } else {
+                    if (phase < 0.45) state = 'red';
+                    else if (phase < 0.85) state = 'green';
+                    else if (phase < 0.9) state = 'yellow';
+                    else state = 'red';
+                }
+
+                light.state = state;
+                light.red.material.color.setHex(state === 'red' ? 0xff0000 : 0x330000);
+                light.yellow.material.color.setHex(state === 'yellow' ? 0xffff00 : 0x333300);
+                light.green.material.color.setHex(state === 'green' ? 0x00ff00 : 0x003300);
+            });
+        }
+
+        function createSpeedLimitSigns() {
+            const cityOffset = -CITY_EXTENT / 2;
+            const limits = [60]; // Speed limit 60 mph for all roads
+
+            // Place speed limit signs along roads
+            for (let i = 0; i <= CITY_SIZE; i++) {
+                const roadPos = cityOffset + i * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2;
+
+                // Signs on horizontal roads
+                for (let s = 0; s < 2; s++) {
+                    const signX = cityOffset + 50 + s * (CITY_EXTENT - 100);
+                    const limit = limits[Math.floor(Math.random() * limits.length)];
+                    createSpeedLimitSign(signX, roadPos + 8, limit);
+                }
+
+                // Signs on vertical roads
+                for (let s = 0; s < 2; s++) {
+                    const signZ = cityOffset + 50 + s * (CITY_EXTENT - 100);
+                    const limit = limits[Math.floor(Math.random() * limits.length)];
+                    createSpeedLimitSign(roadPos + 8, signZ, limit, true);
+                }
+            }
+        }
+
+        function createSpeedLimitSign(x, z, limit, vertical = false) {
+            const signGroup = new THREE.Group();
+
+            // Pole
+            const poleGeom = new THREE.CylinderGeometry(0.1, 0.1, 3, 8);
+            const poleMat = new THREE.MeshLambertMaterial({ color: 0x666666 });
+            const pole = new THREE.Mesh(poleGeom, poleMat);
+            pole.position.y = 1.5;
+            signGroup.add(pole);
+
+            // Sign background (white circle with red border)
+            const signGeom = new THREE.CircleGeometry(0.8, 32);
+            const signMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+            const sign = new THREE.Mesh(signGeom, signMat);
+            sign.position.y = 3.2;
+            sign.position.z = 0.05;
+            signGroup.add(sign);
+
+            // Red border ring
+            const ringGeom = new THREE.RingGeometry(0.65, 0.8, 32);
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0xff0000, side: THREE.DoubleSide });
+            const ring = new THREE.Mesh(ringGeom, ringMat);
+            ring.position.y = 3.2;
+            ring.position.z = 0.06;
+            signGroup.add(ring);
+
+            // Create canvas texture for the number
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, 128, 128);
+            ctx.fillStyle = 'black';
+            ctx.font = 'bold 64px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(limit.toString(), 64, 64);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const numberGeom = new THREE.PlaneGeometry(1, 1);
+            const numberMat = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+            const number = new THREE.Mesh(numberGeom, numberMat);
+            number.position.y = 3.2;
+            number.position.z = 0.07;
+            signGroup.add(number);
+
+            signGroup.position.set(x, 0, z);
+            if (vertical) {
+                signGroup.rotation.y = Math.PI / 2;
+            }
+            scene.add(signGroup);
+
+            speedLimitSigns.push({
+                group: signGroup,
+                x: x,
+                z: z,
+                limit: limit
+            });
+        }
+
+        // Map themes for different areas
+        const mapThemes = {
+            1: { name: 'Shibuya', skyColor: 0x0a0a1a, fogColor: 0x0a0a1a },
+            2: { name: 'Akihabara', skyColor: 0x1a0a2a, fogColor: 0x1a0a2a },
+            3: { name: 'Ginza', skyColor: 0x0a1a2a, fogColor: 0x0a1a2a }
+        };
+
+        function createPortal() {
+            // Place portal at a random intersection
+            const cityOffset = -CITY_EXTENT / 2;
+            const portalBlock = Math.floor(Math.random() * (CITY_SIZE - 1)) + 1;
+            const portalRoad = Math.floor(Math.random() * (CITY_SIZE - 1)) + 1;
+
+            const portalX = cityOffset + portalBlock * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2;
+            const portalZ = cityOffset + portalRoad * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2;
+
+            const portalGroup = new THREE.Group();
+
+            // Portal ring
+            const ringGeom = new THREE.TorusGeometry(3, 0.3, 16, 32);
+            const ringMat = new THREE.MeshBasicMaterial({ color: 0xff00ff });
+            const ring = new THREE.Mesh(ringGeom, ringMat);
+            ring.rotation.x = Math.PI / 2;
+            ring.position.y = 3;
+            portalGroup.add(ring);
+
+            // Inner portal glow
+            const innerGeom = new THREE.CircleGeometry(2.7, 32);
+            const innerMat = new THREE.MeshBasicMaterial({
+                color: 0x8800ff,
+                transparent: true,
+                opacity: 0.6,
+                side: THREE.DoubleSide
+            });
+            const inner = new THREE.Mesh(innerGeom, innerMat);
+            inner.rotation.x = Math.PI / 2;
+            inner.position.y = 3;
+            portalGroup.add(inner);
+
+            // Swirl effect
+            const swirlGeom = new THREE.RingGeometry(1, 2.5, 32, 1, 0, Math.PI * 1.5);
+            const swirlMat = new THREE.MeshBasicMaterial({
+                color: 0x00ffff,
+                transparent: true,
+                opacity: 0.4,
+                side: THREE.DoubleSide
+            });
+            const swirl = new THREE.Mesh(swirlGeom, swirlMat);
+            swirl.rotation.x = Math.PI / 2;
+            swirl.position.y = 3;
+            portalGroup.add(swirl);
+
+            // Portal light
+            const pLight = new THREE.PointLight(0xff00ff, 2, 30);
+            pLight.position.y = 3;
+            portalGroup.add(pLight);
+
+            // Vertical beam
+            const beamGeom = new THREE.CylinderGeometry(0.1, 0.1, 15, 8);
+            const beamMat = new THREE.MeshBasicMaterial({
+                color: 0xff00ff,
+                transparent: true,
+                opacity: 0.3
+            });
+            const beam = new THREE.Mesh(beamGeom, beamMat);
+            beam.position.y = 7.5;
+            portalGroup.add(beam);
+
+            portalGroup.position.set(portalX, 0, portalZ);
+            scene.add(portalGroup);
+
+            portal = {
+                group: portalGroup,
+                ring: ring,
+                inner: inner,
+                swirl: swirl,
+                x: portalX,
+                z: portalZ
+            };
+            portalLight = pLight;
+        }
+
+        function updatePortal(time) {
+            if (!portal) return;
+
+            // Rotate the swirl and ring
+            portal.swirl.rotation.z = time * 0.002;
+            portal.ring.rotation.z = time * 0.001;
+
+            // Pulse the light
+            portalLight.intensity = 1.5 + Math.sin(time * 0.005) * 0.5;
+
+            // Color shift
+            const hue = (time * 0.0001) % 1;
+            portal.inner.material.color.setHSL(hue, 1, 0.5);
+        }
+
+        function checkPortalCollision() {
+            if (!portal) return;
+
+            const carPos = car.position;
+            const dist = Math.sqrt(
+                Math.pow(carPos.x - portal.x, 2) +
+                Math.pow(carPos.z - portal.z, 2)
+            );
+
+            if (dist < 4) {
+                teleportToNextMap();
+            }
+        }
+
+        function teleportToNextMap() {
+            // Cycle through maps
+            currentMap = (currentMap % 3) + 1;
+            const theme = mapThemes[currentMap];
+
+            // Update sky and fog colors
+            scene.background = new THREE.Color(theme.skyColor);
+            scene.fog.color = new THREE.Color(theme.fogColor);
+
+            // Teleport car to a new random position
+            const cityOffset = -CITY_EXTENT / 2;
+            const newBlock = Math.floor(Math.random() * CITY_SIZE);
+            const newRoad = Math.floor(Math.random() * (CITY_SIZE + 1));
+
+            car.position.x = cityOffset + newRoad * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2;
+            car.position.z = cityOffset + newBlock * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2 + 20;
+            car.rotation.y = 0;
+            speed = 0;
+
+            // Move portal to new location
+            const newPortalBlock = Math.floor(Math.random() * (CITY_SIZE - 1)) + 1;
+            const newPortalRoad = Math.floor(Math.random() * (CITY_SIZE - 1)) + 1;
+            portal.x = cityOffset + newPortalBlock * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2;
+            portal.z = cityOffset + newPortalRoad * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2;
+            portal.group.position.set(portal.x, 0, portal.z);
+
+            // Visual feedback
+            showPortalFlash();
+
+            // Update HUD
+            document.querySelector('#area-display span').textContent = theme.name;
+        }
+
+        function showPortalFlash() {
+            const flash = document.getElementById('collision-flash');
+            flash.style.background = 'rgba(255, 0, 255, 0.5)';
+            flash.classList.add('active');
+            setTimeout(() => {
+                flash.classList.remove('active');
+                flash.style.background = 'rgba(255, 0, 0, 0.3)';
+            }, 300);
+        }
+
+        function updateSpeedLimit() {
+            const carPos = car.position;
+            let nearestSign = null;
+            let nearestDist = Infinity;
+
+            speedLimitSigns.forEach(sign => {
+                const dist = Math.sqrt(
+                    Math.pow(carPos.x - sign.x, 2) +
+                    Math.pow(carPos.z - sign.z, 2)
+                );
+                if (dist < nearestDist) {
+                    nearestDist = dist;
+                    nearestSign = sign;
+                }
+            });
+
+            // Update speed limit based on nearest sign (within 30 units)
+            if (nearestSign && nearestDist < 30) {
+                currentSpeedLimit = nearestSign.limit;
+            }
+
+            // Check if on freeway (elevated) - speed limit 280
+            if (carPos.y > 5) {
+                currentSpeedLimit = 280;
+            }
+
+            // Update HUD
+            document.querySelector('#limit-display span').textContent = currentSpeedLimit;
+        }
+
+        function checkSpeeding(delta) {
+            const currentSpeed = Math.abs(speed * 2.237); // Convert to mph
+
+            if (currentSpeed > currentSpeedLimit + 10) {
+                // Speeding by more than 10 km/h
+                speedingTimer += delta;
+
+                // If speeding for more than 2 seconds, police notice
+                if (speedingTimer > 2 && !gameState.wanted) {
+                    triggerPoliceChase();
+                }
+            } else {
+                speedingTimer = 0;
+            }
+
+            // Visual feedback - turn speed red if speeding
+            const speedSpan = document.querySelector('#speed-display span');
+            if (currentSpeed > currentSpeedLimit) {
+                speedSpan.classList.add('speeding');
+            } else {
+                speedSpan.classList.remove('speeding');
+            }
+        }
+
+        function checkRedLightViolation() {
+            if (gameState.wanted) return;
+            if (Math.abs(speed) < 5) return;
+
+            const carPos = car.position;
+
+            // Determine player's travel direction (ns or ew) based on car rotation
+            const carAngle = car.rotation.y % (Math.PI * 2);
+            const normalizedAngle = carAngle < 0 ? carAngle + Math.PI * 2 : carAngle;
+            // NS traffic: heading roughly north (0) or south (PI)
+            // EW traffic: heading roughly east (PI/2) or west (3*PI/2)
+            const isPlayerGoingNS = (normalizedAngle < Math.PI / 4 || normalizedAngle > 7 * Math.PI / 4) ||
+                                    (normalizedAngle > 3 * Math.PI / 4 && normalizedAngle < 5 * Math.PI / 4);
+            const playerDirection = isPlayerGoingNS ? 'ns' : 'ew';
+
+            trafficLights.forEach(light => {
+                // Only check lights that apply to the player's direction of travel
+                if (light.state === 'red' && light.direction === playerDirection) {
+                    const dist = Math.sqrt(
+                        Math.pow(carPos.x - light.x, 2) +
+                        Math.pow(carPos.z - light.z, 2)
+                    );
+
+                    if (dist < 12) {
+                        triggerPoliceChase();
+                    }
+                }
+            });
+        }
+
+        function triggerPoliceChase() {
+            // Police chases disabled
+            return;
+        }
+
+        function spawnPoliceCar() {
+            const carGroup = new THREE.Group();
+
+            // Police car body (white with blue accents)
+            const bodyGeometry = new THREE.BoxGeometry(2, 0.8, 4.2);
+            const bodyMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.position.y = 0.6;
+            body.castShadow = true;
+            carGroup.add(body);
+
+            // Blue stripe
+            const stripeGeom = new THREE.BoxGeometry(2.02, 0.3, 4.22);
+            const stripeMat = new THREE.MeshLambertMaterial({ color: 0x0044aa });
+            const stripe = new THREE.Mesh(stripeGeom, stripeMat);
+            stripe.position.y = 0.7;
+            carGroup.add(stripe);
+
+            // Roof
+            const roofGeometry = new THREE.BoxGeometry(1.6, 0.5, 2);
+            const roof = new THREE.Mesh(roofGeometry, bodyMaterial);
+            roof.position.y = 1.25;
+            roof.position.z = -0.3;
+            roof.castShadow = true;
+            carGroup.add(roof);
+
+            // Light bar
+            const lightBarGeom = new THREE.BoxGeometry(1.8, 0.25, 0.5);
+            const lightBarMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            const lightBar = new THREE.Mesh(lightBarGeom, lightBarMat);
+            lightBar.position.y = 1.6;
+            lightBar.position.z = -0.3;
+            carGroup.add(lightBar);
+
+            // Red light
+            const redLightGeom = new THREE.BoxGeometry(0.4, 0.2, 0.4);
+            const redLightMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const redSiren = new THREE.Mesh(redLightGeom, redLightMat);
+            redSiren.position.set(-0.5, 1.75, -0.3);
+            carGroup.add(redSiren);
+
+            // Blue light
+            const blueLightMat = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+            const blueSiren = new THREE.Mesh(redLightGeom, blueLightMat);
+            blueSiren.position.set(0.5, 1.75, -0.3);
+            carGroup.add(blueSiren);
+
+            // Wheels
+            const wheelGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.3, 16);
+            const wheelMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            const wheelPositions = [
+                { x: -1, y: 0.4, z: 1.2 },
+                { x: 1, y: 0.4, z: 1.2 },
+                { x: -1, y: 0.4, z: -1.2 },
+                { x: 1, y: 0.4, z: -1.2 }
+            ];
+            wheelPositions.forEach(pos => {
+                const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+                wheel.position.set(pos.x, pos.y, pos.z);
+                wheel.rotation.z = Math.PI / 2;
+                carGroup.add(wheel);
+            });
+
+            // Spawn behind player
+            const spawnDist = 50;
+            const angle = car.rotation.y + Math.PI;
+            carGroup.position.set(
+                car.position.x + Math.sin(angle) * spawnDist,
+                0,
+                car.position.z + Math.cos(angle) * spawnDist
+            );
+            carGroup.rotation.y = car.rotation.y;
+
+            scene.add(carGroup);
+
+            policeCars.push({
+                mesh: carGroup,
+                redLight: redSiren,
+                blueLight: blueSiren,
+                speed: 0
+            });
+        }
+
+        function updatePoliceCars(delta, time) {
+            if (!gameState.wanted) return;
+
+            gameState.wantedTimer += delta;
+
+            // Escape after 30 seconds of evading
+            if (gameState.wantedTimer > 30) {
+                endPoliceChase();
+                return;
+            }
+
+            policeCars.forEach(police => {
+                // Siren lights
+                const sirenPhase = Math.floor(time / 150) % 2;
+                police.redLight.material.color.setHex(sirenPhase === 0 ? 0xff0000 : 0x330000);
+                police.blueLight.material.color.setHex(sirenPhase === 1 ? 0x0000ff : 0x000033);
+
+                // Chase player
+                const dx = car.position.x - police.mesh.position.x;
+                const dz = car.position.z - police.mesh.position.z;
+                const dist = Math.sqrt(dx * dx + dz * dz);
+
+                // Target angle towards player
+                const targetAngle = Math.atan2(dx, dz);
+
+                // Smoothly rotate towards player
+                let angleDiff = targetAngle - police.mesh.rotation.y;
+                while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+                police.mesh.rotation.y += angleDiff * 0.05;
+
+                // Accelerate towards player
+                const policeMaxSpeed = 25;
+                if (dist > 10) {
+                    police.speed = Math.min(police.speed + 20 * delta, policeMaxSpeed);
+                } else {
+                    police.speed = Math.max(police.speed - 30 * delta, 5);
+                }
+
+                // Move police car
+                police.mesh.position.x += Math.sin(police.mesh.rotation.y) * police.speed * delta;
+                police.mesh.position.z += Math.cos(police.mesh.rotation.y) * police.speed * delta;
+
+                // Check if caught player
+                if (dist < 4) {
+                    // Caught! Penalty - only 10 coins
+                    gameState.coins = Math.max(0, gameState.coins - 10);
+                    localStorage.setItem('coins', gameState.coins);
+                    updateUI();
+                    endPoliceChase();
+                    showCollisionFlash();
+                }
+            });
+        }
+
+        function endPoliceChase() {
+            gameState.wanted = false;
+            gameState.wantedTimer = 0;
+            document.getElementById('wanted-display').classList.remove('active');
+
+            // Remove police cars
+            policeCars.forEach(police => {
+                scene.remove(police.mesh);
+            });
+            policeCars = [];
+        }
+
+        function createTrafficCar(x, z, direction, isHorizontal) {
+            const carGroup = new THREE.Group();
+            const carColors = [0xff4444, 0x4444ff, 0x44ff44, 0xffff44, 0xff44ff, 0x44ffff, 0xffffff, 0x888888, 0xff8800, 0x8800ff];
+            const color = carColors[Math.floor(Math.random() * carColors.length)];
+
+            const bodyGeometry = new THREE.BoxGeometry(1.8, 0.7, 3.5);
+            const bodyMaterial = new THREE.MeshLambertMaterial({ color: color });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.position.y = 0.55;
+            body.castShadow = true;
+            carGroup.add(body);
+
+            const roofGeometry = new THREE.BoxGeometry(1.4, 0.5, 1.8);
+            const roof = new THREE.Mesh(roofGeometry, bodyMaterial);
+            roof.position.y = 1.15;
+            roof.position.z = -0.2;
+            roof.castShadow = true;
+            carGroup.add(roof);
+
+            const wheelGeometry = new THREE.CylinderGeometry(0.35, 0.35, 0.25, 12);
+            const wheelMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            const wheelPositions = [
+                { x: -0.9, y: 0.35, z: 1 },
+                { x: 0.9, y: 0.35, z: 1 },
+                { x: -0.9, y: 0.35, z: -1 },
+                { x: 0.9, y: 0.35, z: -1 }
+            ];
+            wheelPositions.forEach(pos => {
+                const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+                wheel.position.set(pos.x, pos.y, pos.z);
+                wheel.rotation.z = Math.PI / 2;
+                carGroup.add(wheel);
+            });
+
+            carGroup.position.set(x, 0, z);
+            carGroup.rotation.y = direction;
+            scene.add(carGroup);
+
+            return {
+                mesh: carGroup,
+                baseSpeed: 6 + Math.random() * 8,
+                speed: 6 + Math.random() * 8,
+                direction: direction,
+                isHorizontal: isHorizontal,
+                laneZ: z,
+                laneX: x,
+                stoppedAtLight: false
+            };
+        }
+
+        function createTrafficCars() {
+            const cityOffset = -CITY_EXTENT / 2;
+
+            // Create cars on each road
+            for (let i = 0; i <= CITY_SIZE; i++) {
+                const roadPos = cityOffset + i * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2;
+
+                // Horizontal roads - 2-3 cars per road (cars move east-west along X axis)
+                for (let c = 0; c < 2 + Math.floor(Math.random() * 2); c++) {
+                    const x = (Math.random() - 0.5) * CITY_EXTENT * 0.7;
+                    const lane = Math.random() > 0.5 ? roadPos - 4 : roadPos + 4;
+                    const dir = lane < roadPos ? -Math.PI / 2 : Math.PI / 2;
+                    trafficCars.push(createTrafficCar(x, lane, dir, true));
+                }
+
+                // Vertical roads - 2-3 cars per road (cars move north-south along Z axis)
+                for (let c = 0; c < 2 + Math.floor(Math.random() * 2); c++) {
+                    const z = (Math.random() - 0.5) * CITY_EXTENT * 0.7;
+                    const lane = Math.random() > 0.5 ? roadPos - 4 : roadPos + 4;
+                    const dir = lane < roadPos ? Math.PI : 0;
+                    trafficCars.push(createTrafficCar(lane, z, dir, false));
+                }
+            }
+        }
+
+        function createFreewayTraffic(freewayX, freewayY, freewayStartZ, freewayLength, freewayWidth) {
+            const numCars = 15; // Number of cars on freeway
+            const carColors = [0xff0000, 0x0066ff, 0x00cc00, 0xffcc00, 0xff6600, 0x9900ff, 0x00ffff, 0xffffff, 0x333333];
+
+            for (let i = 0; i < numCars; i++) {
+                const carGroup = new THREE.Group();
+                const color = carColors[Math.floor(Math.random() * carColors.length)];
+
+                // Sports car body (sleeker for high speed)
+                const bodyGeom = new THREE.BoxGeometry(2, 0.6, 4);
+                const bodyMat = new THREE.MeshLambertMaterial({ color: color });
+                const body = new THREE.Mesh(bodyGeom, bodyMat);
+                body.position.y = 0.5;
+                body.castShadow = true;
+                carGroup.add(body);
+
+                // Low roof
+                const roofGeom = new THREE.BoxGeometry(1.6, 0.4, 2);
+                const roof = new THREE.Mesh(roofGeom, bodyMat);
+                roof.position.y = 1;
+                roof.position.z = -0.3;
+                carGroup.add(roof);
+
+                // Wheels
+                const wheelGeom = new THREE.CylinderGeometry(0.35, 0.35, 0.3, 12);
+                const wheelMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+                [[-1, 1.2], [1, 1.2], [-1, -1.2], [1, -1.2]].forEach(([x, z]) => {
+                    const wheel = new THREE.Mesh(wheelGeom, wheelMat);
+                    wheel.position.set(x, 0.35, z);
+                    wheel.rotation.z = Math.PI / 2;
+                    carGroup.add(wheel);
+                });
+
+                // Position on freeway
+                const laneOffset = (Math.random() > 0.5 ? -1 : 1) * (freewayWidth / 4 - 2);
+                const zPos = freewayStartZ + Math.random() * freewayLength * 0.8;
+                carGroup.position.set(freewayX + laneOffset, freewayY + 0.5, zPos);
+                carGroup.rotation.y = 0; // Facing north (positive Z)
+                scene.add(carGroup);
+
+                freewayTrafficCars.push({
+                    mesh: carGroup,
+                    speed: 100 + Math.random() * 30, // 100-130 game units/sec (displays as ~280 mph)
+                    lane: laneOffset,
+                    freewayX: freewayX,
+                    freewayY: freewayY,
+                    freewayStartZ: freewayStartZ,
+                    freewayLength: freewayLength
+                });
+            }
+        }
+
+        function updateFreewayTraffic(delta) {
+            freewayTrafficCars.forEach(ftc => {
+                // Move car forward (north)
+                ftc.mesh.position.z += ftc.speed * delta;
+
+                // Loop back to very start when reaching end of entire freeway system
+                const totalEndZ = freewayData.totalEndZ || (ftc.freewayStartZ + ftc.freewayLength);
+                if (ftc.mesh.position.z > totalEndZ) {
+                    // Loop back to the beginning of the main freeway
+                    ftc.mesh.position.z = freewayData.freewayStartZ + 50;
+                    // Randomize lane
+                    const newLane = (Math.random() > 0.5 ? -1 : 1) * (freewayData.freewayWidth / 4 - 2);
+                    ftc.mesh.position.x = freewayData.rampX + newLane;
+                }
+
+                // Keep on freeway height (ground level)
+                ftc.mesh.position.y = 0.5;
+            });
+        }
+
+        function updateTrafficCars(delta) {
+            const cityBound = CITY_EXTENT / 2;
+
+            trafficCars.forEach(tc => {
+                // Check if approaching a red light
+                let shouldStop = false;
+                const carX = tc.mesh.position.x;
+                const carZ = tc.mesh.position.z;
+
+                // Determine which direction the traffic car is going
+                const isGoingEast = Math.abs(tc.direction - Math.PI / 2) < 0.1;
+                const isGoingWest = Math.abs(tc.direction + Math.PI / 2) < 0.1;
+                const isGoingNorth = Math.abs(tc.direction) < 0.1;
+                const isGoingSouth = Math.abs(tc.direction - Math.PI) < 0.1;
+
+                trafficLights.forEach(light => {
+                    if (light.state !== 'red' && light.state !== 'yellow') return;
+
+                    const dist = Math.sqrt(
+                        Math.pow(carX - light.x, 2) +
+                        Math.pow(carZ - light.z, 2)
+                    );
+
+                    // Check if traffic light applies to this car's direction
+                    const lightAppliesToCar = (
+                        (tc.isHorizontal && light.direction === 'ew') ||
+                        (!tc.isHorizontal && light.direction === 'ns')
+                    );
+
+                    if (lightAppliesToCar && dist < 20 && dist > 3) {
+                        // Check if car is approaching the light (not past it)
+                        const dx = light.x - carX;
+                        const dz = light.z - carZ;
+
+                        const isApproaching = (
+                            (isGoingEast && dx > 0) ||
+                            (isGoingWest && dx < 0) ||
+                            (isGoingNorth && dz > 0) ||
+                            (isGoingSouth && dz < 0)
+                        );
+
+                        if (isApproaching) {
+                            shouldStop = true;
+                        }
+                    }
+                });
+
+                // Smoothly slow down or speed up
+                if (shouldStop) {
+                    tc.speed = Math.max(0, tc.speed - 15 * delta);
+                    tc.stoppedAtLight = true;
+                } else {
+                    tc.speed = Math.min(tc.baseSpeed, tc.speed + 10 * delta);
+                    tc.stoppedAtLight = false;
+                }
+
+                const moveX = Math.sin(tc.direction) * tc.speed * delta;
+                const moveZ = Math.cos(tc.direction) * tc.speed * delta;
+
+                tc.mesh.position.x += moveX;
+                tc.mesh.position.z += moveZ;
+
+                // Wrap around
+                if (tc.mesh.position.x > cityBound) tc.mesh.position.x = -cityBound;
+                if (tc.mesh.position.x < -cityBound) tc.mesh.position.x = cityBound;
+                if (tc.mesh.position.z > cityBound) tc.mesh.position.z = -cityBound;
+                if (tc.mesh.position.z < -cityBound) tc.mesh.position.z = cityBound;
+
+                // Keep in lane
+                if (tc.isHorizontal) {
+                    tc.mesh.position.z = tc.laneZ;
+                } else {
+                    tc.mesh.position.x = tc.laneX;
+                }
+            });
+        }
+
+        function createCar() {
+            const carData = cars[gameState.selectedCar];
+
+            // Create visual car group (body only, wheels separate)
+            carGroup = new THREE.Group();
+
+            const bodyGeometry = new THREE.BoxGeometry(2, 0.8, 4);
+            const bodyMaterial = new THREE.MeshLambertMaterial({ color: carData.bodyColor });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.position.y = 0.6;
+            body.castShadow = true;
+            carGroup.add(body);
+
+            const roofGeometry = new THREE.BoxGeometry(1.6, 0.6, 2);
+            const roofMaterial = new THREE.MeshLambertMaterial({ color: carData.bodyColor });
+            const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+            roof.position.y = 1.3;
+            roof.position.z = -0.3;
+            roof.castShadow = true;
+            carGroup.add(roof);
+
+            const windshieldGeometry = new THREE.BoxGeometry(1.4, 0.5, 0.1);
+            const windshieldMaterial = new THREE.MeshLambertMaterial({ color: 0x88ccff, transparent: true, opacity: 0.6 });
+            const windshield = new THREE.Mesh(windshieldGeometry, windshieldMaterial);
+            windshield.position.set(0, 1.2, 0.7);
+            windshield.rotation.x = Math.PI / 6;
+            carGroup.add(windshield);
+
+            const headlightGeometry = new THREE.BoxGeometry(0.3, 0.2, 0.1);
+            const headlightMaterial = new THREE.MeshBasicMaterial({ color: 0xffffcc });
+            [-0.6, 0.6].forEach(x => {
+                const headlight = new THREE.Mesh(headlightGeometry, headlightMaterial);
+                headlight.position.set(x, 0.6, 2);
+                carGroup.add(headlight);
+            });
+
+            const taillightMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            [-0.6, 0.6].forEach(x => {
+                const taillight = new THREE.Mesh(headlightGeometry, taillightMaterial);
+                taillight.position.set(x, 0.6, -2);
+                carGroup.add(taillight);
+            });
+
+            carGroup.position.set(0, 2, 0);
+            scene.add(carGroup);
+            car = carGroup;
+
+            // Create wheel visuals (separate from car body for physics sync)
+            const wheelGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.3, 16);
+            const wheelMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            carWheelMeshes = [];
+
+            const wheelPositions = [
+                { x: -0.9, y: 0.3, z: 1.3 },   // Front left
+                { x: 0.9, y: 0.3, z: 1.3 },    // Front right
+                { x: -0.9, y: 0.3, z: -1.3 },  // Rear left
+                { x: 0.9, y: 0.3, z: -1.3 }    // Rear right
+            ];
+
+            wheelPositions.forEach(pos => {
+                const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+                wheel.castShadow = true;
+                scene.add(wheel);
+                carWheelMeshes.push(wheel);
+            });
+
+            // === RaycastVehicle Physics ===
+
+            // Chassis body
+            const chassisShape = new CANNON.Box(new CANNON.Vec3(1, 0.4, 2));
+            carBody = new CANNON.Body({
+                mass: 150,
+                material: world.wheelMaterial,
+                linearDamping: 0.1,
+                angularDamping: 0.5,
+                allowSleep: false
+            });
+            carBody.addShape(chassisShape, new CANNON.Vec3(0, 0.6, 0));
+            // Spawn at a road intersection (center of city grid)
+            // Road position = -CITY_EXTENT/2 + roadIndex * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH/2
+            carBody.position.set(37.5, 1, 37.5);
+            world.addBody(carBody);
+
+            // Create RaycastVehicle
+            vehicle = new CANNON.RaycastVehicle({
+                chassisBody: carBody,
+                indexRightAxis: 0,    // x
+                indexUpAxis: 1,       // y
+                indexForwardAxis: 2   // z
+            });
+
+            // Wheel options tuned for realistic but fun handling
+            const wheelOptions = {
+                radius: 0.4,
+                directionLocal: new CANNON.Vec3(0, -1, 0),
+                suspensionStiffness: 30,
+                suspensionRestLength: 0.3,
+                frictionSlip: 3,
+                dampingRelaxation: 2.3,
+                dampingCompression: 4.4,
+                maxSuspensionForce: 100000,
+                rollInfluence: 0.01,
+                axleLocal: new CANNON.Vec3(1, 0, 0),
+                chassisConnectionPointLocal: new CANNON.Vec3(0, 0, 0),
+                maxSuspensionTravel: 0.3,
+                customSlidingRotationalSpeed: -30,
+                useCustomSlidingRotationalSpeed: true
+            };
+
+            // Add 4 wheels at car corners
+            const physicsWheelPositions = [
+                { x: -0.9, y: 0.3, z: 1.3 },   // Front left
+                { x: 0.9, y: 0.3, z: 1.3 },    // Front right
+                { x: -0.9, y: 0.3, z: -1.3 },  // Rear left
+                { x: 0.9, y: 0.3, z: -1.3 }    // Rear right
+            ];
+
+            physicsWheelPositions.forEach(pos => {
+                wheelOptions.chassisConnectionPointLocal.set(pos.x, pos.y, pos.z);
+                vehicle.addWheel(wheelOptions);
+            });
+
+            vehicle.addToWorld(world);
+
+            // Create wheel bodies for physics
+            wheelBodies = [];
+            vehicle.wheelInfos.forEach(wheel => {
+                const wheelBody = new CANNON.Body({ mass: 0 });
+                wheelBody.type = CANNON.Body.KINEMATIC;
+                wheelBody.collisionFilterGroup = 0;
+                world.addBody(wheelBody);
+                wheelBodies.push(wheelBody);
+            });
+        }
+
+        function spawnCoins() {
+            coins.forEach(coin => scene.remove(coin));
+            coins = [];
+
+            const cityOffset = -CITY_EXTENT / 2;
+            const coinGeometry = new THREE.CylinderGeometry(0.6, 0.6, 0.15, 16);
+            const coinMaterial = new THREE.MeshLambertMaterial({ color: 0xffcc00, emissive: 0x664400 });
+
+            // City coins - 60 total
+            for (let i = 0; i < 60; i++) {
+                const coin = new THREE.Mesh(coinGeometry, coinMaterial);
+
+                const roadIndex = Math.floor(Math.random() * (CITY_SIZE + 1));
+                const isHorizontal = Math.random() > 0.5;
+
+                if (isHorizontal) {
+                    coin.position.x = (Math.random() - 0.5) * CITY_EXTENT * 0.9;
+                    coin.position.z = cityOffset + roadIndex * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2 + (Math.random() - 0.5) * 8;
+                } else {
+                    coin.position.x = cityOffset + roadIndex * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2 + (Math.random() - 0.5) * 8;
+                    coin.position.z = (Math.random() - 0.5) * CITY_EXTENT * 0.9;
+                }
+
+                coin.position.y = 1.2;
+                coin.rotation.x = Math.PI / 2;
+                coin.userData.collected = false;
+                coins.push(coin);
+                scene.add(coin);
+            }
+
+            // Freeway coins - spawn after freewayData is ready
+            setTimeout(() => {
+                if (!freewayData) return;
+                const freewayX = freewayData.rampX;
+                const freewayStart = freewayData.freewayStartZ;
+                const freewayEnd = freewayData.totalEndZ || freewayStart + 10000;
+                const laneOffsets = [-8, -4, 4, 8]; // Multiple lanes
+
+                // 100 coins along the freeway
+                for (let i = 0; i < 100; i++) {
+                    const coin = new THREE.Mesh(coinGeometry, coinMaterial);
+                    const laneOffset = laneOffsets[Math.floor(Math.random() * laneOffsets.length)];
+                    coin.position.x = freewayX + laneOffset;
+                    coin.position.z = freewayStart + Math.random() * (freewayEnd - freewayStart);
+                    coin.position.y = 1.2;
+                    coin.rotation.x = Math.PI / 2;
+                    coin.userData.collected = false;
+                    coins.push(coin);
+                    scene.add(coin);
+                }
+            }, 100);
+        }
+
+        function checkCollisions() {
+            if (collisionCooldown > 0) return;
+
+            const carPos = car.position;
+
+            // Check collision with traffic cars
+            trafficCars.forEach(tc => {
+                const dx = carPos.x - tc.mesh.position.x;
+                const dz = carPos.z - tc.mesh.position.z;
+                const dist = Math.sqrt(dx * dx + dz * dz);
+
+                if (dist < 3.5) {
+                    handleCollision();
+                    // Push away from traffic car
+                    const pushDir = new CANNON.Vec3(dx, 0, dz);
+                    pushDir.normalize();
+                    pushDir.scale(10, pushDir);
+                    carBody.velocity.x = pushDir.x;
+                    carBody.velocity.z = pushDir.z;
+                }
+            });
+            // Building collisions are handled by physics engine
+        }
+
+        function handleCollision() {
+            if (collisionCooldown > 0) return;
+
+            collisionCooldown = 0.5;
+            // Let physics handle the bounce - just reduce velocity
+            carBody.velocity.scale(0.5, carBody.velocity);
+
+            showCollisionFlash();
+        }
+
+        function showCollisionFlash() {
+            const flash = document.getElementById('collision-flash');
+            flash.classList.add('active');
+            setTimeout(() => flash.classList.remove('active'), 150);
+        }
+
+        function setupMobileControls() {
+            const accelerate = document.getElementById('accelerate');
+            const brake = document.getElementById('brake');
+            const leftBtn = document.getElementById('left-btn');
+            const rightBtn = document.getElementById('right-btn');
+
+            accelerate.addEventListener('touchstart', (e) => { e.preventDefault(); keys.forward = true; });
+            accelerate.addEventListener('touchend', () => keys.forward = false);
+
+            brake.addEventListener('touchstart', (e) => { e.preventDefault(); keys.backward = true; });
+            brake.addEventListener('touchend', () => keys.backward = false);
+
+            leftBtn.addEventListener('touchstart', (e) => { e.preventDefault(); keys.left = true; });
+            leftBtn.addEventListener('touchend', () => keys.left = false);
+
+            rightBtn.addEventListener('touchstart', (e) => { e.preventDefault(); keys.right = true; });
+            rightBtn.addEventListener('touchend', () => keys.right = false);
+
+            accelerate.addEventListener('mousedown', () => keys.forward = true);
+            accelerate.addEventListener('mouseup', () => keys.forward = false);
+            accelerate.addEventListener('mouseleave', () => keys.forward = false);
+
+            brake.addEventListener('mousedown', () => keys.backward = true);
+            brake.addEventListener('mouseup', () => keys.backward = false);
+            brake.addEventListener('mouseleave', () => keys.backward = false);
+
+            leftBtn.addEventListener('mousedown', () => keys.left = true);
+            leftBtn.addEventListener('mouseup', () => keys.left = false);
+            leftBtn.addEventListener('mouseleave', () => keys.left = false);
+
+            rightBtn.addEventListener('mousedown', () => keys.right = true);
+            rightBtn.addEventListener('mouseup', () => keys.right = false);
+            rightBtn.addEventListener('mouseleave', () => keys.right = false);
+        }
+
+        function onKeyDown(e) {
+            switch(e.key.toLowerCase()) {
+                case 'w':
+                case 'arrowup':
+                    keys.forward = true;
+                    e.preventDefault();
+                    break;
+                case 's':
+                case 'arrowdown':
+                    keys.backward = true;
+                    e.preventDefault();
+                    break;
+                case 'a':
+                case 'arrowleft':
+                    keys.left = true;
+                    e.preventDefault();
+                    break;
+                case 'd':
+                case 'arrowright':
+                    keys.right = true;
+                    e.preventDefault();
+                    break;
+            }
+        }
+
+        function onKeyUp(e) {
+            switch(e.key.toLowerCase()) {
+                case 'w':
+                case 'arrowup':
+                    keys.forward = false;
+                    break;
+                case 's':
+                case 'arrowdown':
+                    keys.backward = false;
+                    break;
+                case 'a':
+                case 'arrowleft':
+                    keys.left = false;
+                    break;
+                case 'd':
+                case 'arrowright':
+                    keys.right = false;
+                    break;
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function updateCar(delta) {
+            if (!vehicle || !carBody) return;
+
+            const carData = cars[gameState.selectedCar];
+
+            // Physics-based control parameters scaled by car stats
+            const maxForce = carData.acceleration * 100;    // Engine force
+            const maxBrake = 50;
+            const maxSteer = 4.0 * carData.handling;        // Steering angle scaled by handling
+
+            if (collisionCooldown > 0) {
+                collisionCooldown -= delta;
+            }
+
+            // === PHYSICS-BASED CAR CONTROLS ===
+
+            let engineForce = 0;
+            let brakeForce = 0;
+
+            // Simple controls: negative force = forward in CANNON.js RaycastVehicle
+            if (keys.forward) {
+                engineForce = -maxForce;
+            }
+            if (keys.backward) {
+                engineForce = maxForce;
+            }
+
+            // Apply engine force to rear wheels (RWD)
+            vehicle.applyEngineForce(engineForce, 2); // Rear left
+            vehicle.applyEngineForce(engineForce, 3); // Rear right
+
+            // Apply brakes when not accelerating
+            if (!keys.forward && !keys.backward) {
+                brakeForce = 5; // Light rolling resistance
+            }
+            for (let i = 0; i < 4; i++) {
+                vehicle.setBrake(brakeForce, i);
+            }
+
+            // Steering - always responsive
+            let steerValue = 0;
+            if (keys.left) steerValue = maxSteer;
+            if (keys.right) steerValue = -maxSteer;
+
+            // Apply steering to front wheels
+            vehicle.setSteeringValue(steerValue, 0); // Front left
+            vehicle.setSteeringValue(steerValue, 1); // Front right
+
+            // Update wheel transforms and sync visuals
+            for (let i = 0; i < vehicle.wheelInfos.length; i++) {
+                vehicle.updateWheelTransform(i);
+                const transform = vehicle.wheelInfos[i].worldTransform;
+                wheelBodies[i].position.copy(transform.position);
+                wheelBodies[i].quaternion.copy(transform.quaternion);
+
+                // Sync visual wheel meshes
+                if (carWheelMeshes[i]) {
+                    carWheelMeshes[i].position.copy(transform.position);
+                    // Copy physics quaternion then apply cylinder orientation
+                    carWheelMeshes[i].quaternion.copy(transform.quaternion);
+                    carWheelMeshes[i].quaternion.multiply(wheelCylinderRotation);
+                }
+            }
+
+            // Sync visual car mesh with physics body
+            car.position.copy(carBody.position);
+            car.quaternion.copy(carBody.quaternion);
+
+            // Boundary check
+            const cityBound = CITY_EXTENT / 2 + 50;
+
+            // Check if player is on the freeway (allows travel to San Francisco)
+            const onFreeway = freewayData &&
+                Math.abs(carBody.position.x - freewayData.rampX) < freewayData.freewayWidth &&
+                carBody.position.z > freewayData.freewayStartZ - 50;
+
+            if (onFreeway) {
+                // On freeway: only bound X to stay on freeway, allow full travel to Sacramento
+                const freewayXMin = freewayData.rampX - freewayData.freewayWidth / 2 - 10;
+                const freewayXMax = freewayData.rampX + freewayData.freewayWidth / 2 + 10;
+                if (carBody.position.x < freewayXMin) {
+                    carBody.position.x = freewayXMin;
+                    carBody.velocity.x = 0;
+                }
+                if (carBody.position.x > freewayXMax) {
+                    carBody.position.x = freewayXMax;
+                    carBody.velocity.x = 0;
+                }
+                // Allow travel all the way to Sacramento (uses totalEndZ set by createSacramento)
+                const maxZ = freewayData.totalEndZ || freewayData.sfStartZ + 10000;
+                if (carBody.position.z > maxZ) {
+                    carBody.position.z = maxZ;
+                    carBody.velocity.z = 0;
+                }
+            } else {
+                // In city: original boundaries
+                if (Math.abs(carBody.position.x) > cityBound) {
+                    carBody.position.x = Math.sign(carBody.position.x) * cityBound;
+                    carBody.velocity.x = 0;
+                }
+                if (Math.abs(carBody.position.z) > cityBound + 200) {
+                    carBody.position.z = Math.sign(carBody.position.z) * (cityBound + 200);
+                    carBody.velocity.z = 0;
+                }
+            }
+
+            // Always bound negative Z (south of city)
+            if (carBody.position.z < -cityBound) {
+                carBody.position.z = -cityBound;
+                carBody.velocity.z = 0;
+            }
+
+            // Camera follow with smooth lerp
+            const cameraOffset = new THREE.Vector3(0, 6, -14);
+            cameraOffset.applyQuaternion(car.quaternion);
+            const targetCameraPos = car.position.clone().add(cameraOffset);
+            camera.position.lerp(targetCameraPos, 0.08);
+
+            const lookAtPos = car.position.clone();
+            lookAtPos.y += 1;
+            camera.lookAt(lookAtPos);
+
+            // Update speed display - calculate from actual velocity
+            const velocity = carBody.velocity;
+            const speedMph = Math.sqrt(velocity.x ** 2 + velocity.z ** 2) * 2.237;
+            document.querySelector('#speed-display span').textContent = Math.round(speedMph);
+        }
+
+        function checkCoinCollection() {
+            const carPos = car.position;
+
+            coins.forEach((coin) => {
+                if (coin.userData.collected) return;
+
+                const distance = carPos.distanceTo(coin.position);
+                if (distance < 3.5) {
+                    coin.userData.collected = true;
+                    scene.remove(coin);
+
+                    gameState.coins += 10;
+                    localStorage.setItem('coins', gameState.coins);
+                    updateUI();
+
+                    showCoinPopup();
+
+                    setTimeout(() => {
+                        const cityOffset = -CITY_EXTENT / 2;
+                        const roadIndex = Math.floor(Math.random() * (CITY_SIZE + 1));
+                        const isHorizontal = Math.random() > 0.5;
+
+                        if (isHorizontal) {
+                            coin.position.x = (Math.random() - 0.5) * CITY_EXTENT * 0.9;
+                            coin.position.z = cityOffset + roadIndex * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2 + (Math.random() - 0.5) * 8;
+                        } else {
+                            coin.position.x = cityOffset + roadIndex * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2 + (Math.random() - 0.5) * 8;
+                            coin.position.z = (Math.random() - 0.5) * CITY_EXTENT * 0.9;
+                        }
+                        coin.userData.collected = false;
+                        scene.add(coin);
+                    }, 5000);
+                }
+            });
+        }
+
+        function showCoinPopup() {
+            const popup = document.createElement('div');
+            popup.className = 'coin-popup';
+            popup.textContent = '+10';
+            popup.style.left = Math.random() * 200 + 100 + 'px';
+            popup.style.top = Math.random() * 100 + 100 + 'px';
+            document.body.appendChild(popup);
+
+            setTimeout(() => popup.remove(), 1000);
+        }
+
+        function updateUI() {
+            document.querySelector('#coins-display span').textContent = gameState.coins;
+            document.querySelector('#car-display span').textContent = cars[gameState.selectedCar].name;
+        }
+
+        function animateCoins(time) {
+            coins.forEach((coin, i) => {
+                if (!coin.userData.collected) {
+                    coin.position.y = 1.2 + Math.sin(time * 0.003 + i) * 0.3;
+                    coin.rotation.y = time * 0.002;
+                }
+            });
+        }
+
+        function updateTokyoTower(time) {
+            if (!window.tokyoTower) return;
+            // Blink the top light
+            const blinkPhase = Math.floor(time / 500) % 2;
+            window.tokyoTower.userData.topLight.material.color.setHex(blinkPhase === 0 ? 0xff0000 : 0x330000);
+            window.tokyoTower.userData.redLight.intensity = blinkPhase === 0 ? 2 : 0.3;
+        }
+
+        let lastTime = 0;
+        // Mini-map setup
+        const miniMapCanvas = document.getElementById('mini-map-canvas');
+        const miniMapCtx = miniMapCanvas.getContext('2d');
+        miniMapCanvas.width = 200;
+        miniMapCanvas.height = 300;
+
+        function updateMiniMap() {
+            if (!car || !freewayData) return;
+
+            const ctx = miniMapCtx;
+            ctx.clearRect(0, 0, 200, 300);
+
+            // Background
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(0, 0, 200, 300);
+
+            // Calculate map scale and position
+            const totalLength = freewayData.totalEndZ || 15000;
+            const mapScale = 280 / totalLength;
+            const carZ = car.position.z;
+
+            // Draw freeway as vertical line
+            ctx.strokeStyle = '#444';
+            ctx.lineWidth = 20;
+            ctx.beginPath();
+            ctx.moveTo(100, 10);
+            ctx.lineTo(100, 290);
+            ctx.stroke();
+
+            // Lane markings
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 10]);
+            ctx.beginPath();
+            ctx.moveTo(95, 10);
+            ctx.lineTo(95, 290);
+            ctx.moveTo(105, 10);
+            ctx.lineTo(105, 290);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // City markers
+            const cities = [
+                { name: 'CITY', z: 0, color: '#ff6600' },
+                { name: 'SF', z: freewayData.sfStartZ, color: '#ff4488' },
+                { name: 'SAC', z: freewayData.sfStartZ + 2500 + 5000, color: '#44ff88' },
+                { name: 'TRUCKEE', z: totalLength - 1500, color: '#4488ff' }
+            ];
+
+            cities.forEach(city => {
+                const y = 290 - (city.z * mapScale);
+                if (y >= 10 && y <= 290) {
+                    ctx.fillStyle = city.color;
+                    ctx.fillRect(60, y - 2, 80, 4);
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 9px Arial';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(city.name, 145, y + 3);
+                }
+            });
+
+            // Player position (arrow)
+            const playerY = 290 - (carZ * mapScale);
+            const clampedY = Math.max(20, Math.min(280, playerY));
+
+            ctx.fillStyle = '#00ff00';
+            ctx.beginPath();
+            ctx.moveTo(100, clampedY - 8);
+            ctx.lineTo(94, clampedY + 4);
+            ctx.lineTo(106, clampedY + 4);
+            ctx.closePath();
+            ctx.fill();
+
+            // Current location text
+            let locationName = 'City';
+            if (carZ > freewayData.sfStartZ) locationName = 'San Francisco';
+            if (carZ > freewayData.sfStartZ + 2500) locationName = 'To Sacramento';
+            if (carZ > freewayData.sfStartZ + 7500) locationName = 'Sacramento';
+            if (carZ > freewayData.sfStartZ + 8500) locationName = 'To Truckee';
+            if (carZ > freewayData.sfStartZ + 12500) locationName = 'Truckee';
+
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 11px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(locationName, 100, 295);
+        }
+
+        function animate(time) {
+            requestAnimationFrame(animate);
+
+            const delta = (time - lastTime) / 1000;
+            lastTime = time;
+
+            if (gameState.gameStarted && delta < 0.1) {
+                // Step physics world
+                world.step(1/60, delta, 3);
+
+                updateCar(delta);
+                updateTrafficCars(delta);
+                updateFreewayTraffic(delta);
+                updateTrafficLights(time);
+                updateSpeedLimit();
+                checkCollisions();
+                checkCoinCollection();
+                checkPortalCollision();
+                updateInfiniteFreeway();
+                updatePortal(time);
+                updateTokyoTower(time);
+                animateCoins(time);
+                updateMiniMap();
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Shop
+        function renderShop() {
+            const grid = document.getElementById('cars-grid');
+            grid.innerHTML = '';
+
+            Object.entries(cars).forEach(([id, carData]) => {
+                const owned = gameState.ownedCars.includes(id);
+                const selected = gameState.selectedCar === id;
+
+                const card = document.createElement('div');
+                card.className = `car-card ${owned ? 'owned' : ''} ${selected ? 'selected' : ''}`;
+
+                card.innerHTML = `
+                    <div class="car-preview" style="background: linear-gradient(135deg, #${carData.bodyColor.toString(16).padStart(6, '0')}, #222);">
+                        <span style="font-size: 40px;">🚗</span>
+                    </div>
+                    <h3>${carData.name}</h3>
+                    <div class="car-stats">
+                        <div>
+                            <span>Speed</span>
+                            <div class="stat-bar"><div class="stat-fill" style="width: ${carData.maxSpeed / 2.6}%"></div></div>
+                        </div>
+                        <div>
+                            <span>Accel</span>
+                            <div class="stat-bar"><div class="stat-fill" style="width: ${carData.acceleration * 2}%"></div></div>
+                        </div>
+                        <div>
+                            <span>Handling</span>
+                            <div class="stat-bar"><div class="stat-fill" style="width: ${carData.handling * 4500}%"></div></div>
+                        </div>
+                    </div>
+                    ${owned ? '' : `<div class="car-price">${carData.price} coins</div>`}
+                    ${owned
+                        ? `<button class="car-btn ${selected ? 'selected-btn' : 'select-btn'}" ${selected ? 'disabled' : ''} onclick="selectCar('${id}')">${selected ? 'EQUIPPED' : 'SELECT'}</button>`
+                        : `<button class="car-btn buy-btn" ${gameState.coins < carData.price ? 'disabled' : ''} onclick="buyCar('${id}')">BUY</button>`
+                    }
+                `;
+
+                grid.appendChild(card);
+            });
+        }
+
+        function buyCar(carId) {
+            const carData = cars[carId];
+            if (gameState.coins >= carData.price && !gameState.ownedCars.includes(carId)) {
+                gameState.coins -= carData.price;
+                gameState.ownedCars.push(carId);
+
+                localStorage.setItem('coins', gameState.coins);
+                localStorage.setItem('ownedCars', JSON.stringify(gameState.ownedCars));
+
+                updateUI();
+                renderShop();
+            }
+        }
+
+        function selectCar(carId) {
+            if (gameState.ownedCars.includes(carId)) {
+                gameState.selectedCar = carId;
+                localStorage.setItem('selectedCar', carId);
+
+                scene.remove(car);
+                createCar();
+
+                updateUI();
+                renderShop();
+            }
+        }
+
+        window.buyCar = buyCar;
+        window.selectCar = selectCar;
+
+        document.getElementById('shop-btn').addEventListener('click', () => {
+            document.getElementById('shop-modal').classList.add('active');
+            renderShop();
+        });
+
+        document.getElementById('close-shop').addEventListener('click', () => {
+            document.getElementById('shop-modal').classList.remove('active');
+        });
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            document.getElementById('start-screen').style.display = 'none';
+            gameState.gameStarted = true;
+        });
+
+        init();
+        animate(0);
+    </script>
+</body>
+</html>
