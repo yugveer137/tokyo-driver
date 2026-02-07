@@ -172,7 +172,7 @@
         /* Shop button */
         #shop-btn {
             position: absolute;
-            top: 20px;
+            top: 340px;
             right: 20px;
             padding: 15px 30px;
             font-size: 18px;
@@ -562,7 +562,7 @@
             },
             sport: {
                 name: 'Sport GT',
-                price: 500,
+                price: 150,
                 maxSpeed: 120,
                 acceleration: 18,
                 handling: 0.015,
@@ -571,7 +571,7 @@
             },
             muscle: {
                 name: 'Muscle King',
-                price: 1000,
+                price: 150,
                 maxSpeed: 140,
                 acceleration: 22,
                 handling: 0.013,
@@ -580,7 +580,7 @@
             },
             super: {
                 name: 'Supercar',
-                price: 2500,
+                price: 150,
                 maxSpeed: 180,
                 acceleration: 30,
                 handling: 0.018,
@@ -589,7 +589,7 @@
             },
             hyper: {
                 name: 'Hyperion',
-                price: 5000,
+                price: 150,
                 maxSpeed: 220,
                 acceleration: 40,
                 handling: 0.02,
@@ -598,7 +598,7 @@
             },
             legend: {
                 name: 'Legend X',
-                price: 10000,
+                price: 150,
                 maxSpeed: 320,
                 acceleration: 50,
                 handling: 0.022,
@@ -607,13 +607,54 @@
             },
             electric: {
                 name: 'Tokyo EV',
-                price: 1500,
+                price: 150,
                 maxSpeed: 150,
                 acceleration: 35,
                 handling: 0.017,
                 color: 0x00ff88,
                 bodyColor: 0x00ff88,
                 isElectric: true
+            },
+            trailer: {
+                name: 'Trailer Truck',
+                price: 150,
+                maxSpeed: 60,
+                acceleration: 15,
+                handling: 0.007,
+                color: 0x2255aa,
+                bodyColor: 0x2255aa,
+                isTruck: true
+            },
+            supra: {
+                name: 'Supra MK4',
+                price: 150,
+                maxSpeed: 1000,
+                acceleration: 80,
+                handling: 0.010,
+                color: 0xff6600,
+                bodyColor: 0xff6600,
+                isDrift: true,
+                heavyCar: true
+            },
+            ferrari: {
+                name: 'Ferrari SF90',
+                price: 50,
+                maxSpeed: 1000,
+                acceleration: 80,
+                handling: 0.018,
+                color: 0xcc0000,
+                bodyColor: 0xcc0000,
+                heavyCar: true
+            },
+            mclaren: {
+                name: 'McLaren P1',
+                price: 50,
+                maxSpeed: 1000,
+                acceleration: 80,
+                handling: 0.018,
+                color: 0xff8800,
+                bodyColor: 0xff8800,
+                heavyCar: true
             }
         };
 
@@ -622,6 +663,24 @@
         const BLOCK_SIZE = 60;
         const ROAD_WIDTH = 15;
         const CITY_EXTENT = CITY_SIZE * BLOCK_SIZE + (CITY_SIZE + 1) * ROAD_WIDTH;
+
+        // Street names (Japanese + English romanization)
+        const STREET_NAMES_H = [
+            { jp: '桜通り', en: 'Sakura-dori' },
+            { jp: '明治通り', en: 'Meiji-dori' },
+            { jp: '表参道', en: 'Omotesando' },
+            { jp: '靖国通り', en: 'Yasukuni-dori' },
+            { jp: '青山通り', en: 'Aoyama-dori' },
+            { jp: '六本木通り', en: 'Roppongi-dori' }
+        ];
+        const STREET_NAMES_V = [
+            { jp: '駒沢通り', en: 'Komazawa-dori' },
+            { jp: '外苑西通り', en: 'Gaien-nishi-dori' },
+            { jp: '外堀通り', en: 'Sotobori-dori' },
+            { jp: '昭和通り', en: 'Showa-dori' },
+            { jp: '中央通り', en: 'Chuo-dori' },
+            { jp: '日比谷通り', en: 'Hibiya-dori' }
+        ];
 
         // Three.js setup
         let scene, camera, renderer;
@@ -717,6 +776,7 @@
             createTrafficCars();
             createTrafficLights();
             createSpeedLimitSigns();
+            createStreetSigns();
             createPortal();
 
             window.addEventListener('resize', onWindowResize);
@@ -988,7 +1048,7 @@
 
             const freewayY = 0; // Ground level freeway - no elevation
             const rampLength = 50; // Short connection
-            const freewayWidth = ROAD_WIDTH + 10; // Wide freeway
+            const freewayWidth = 40; // Wide two-way freeway
             const segmentLength = 500; // Length of each freeway segment
             const numSegments = 5; // ~1 mile freeway to San Francisco
 
@@ -1046,9 +1106,9 @@
             fullFreewayBody.position.set(rampX, 0.25, actualFreewayStartZ + totalFreewayLength / 2);
             world.addBody(fullFreewayBody);
 
-            // === FREEWAY TRAFFIC CARS === (more traffic)
-            createFreewayTraffic(rampX, freewayY, freewayStartZ, totalFreewayLength, freewayWidth);
-            createFreewayTraffic(rampX, freewayY, freewayStartZ + 100, totalFreewayLength - 100, freewayWidth);
+            // === FREEWAY TRAFFIC CARS === (northbound + southbound)
+            createFreewayTraffic(rampX, freewayY, freewayStartZ, totalFreewayLength, freewayWidth, 'northbound');
+            createFreewayTraffic(rampX, freewayY, freewayStartZ, totalFreewayLength, freewayWidth, 'southbound');
 
             // Freeway sign - more visible
             createFreewaySign(rampX + 15, 6, roadEndZ - 30);
@@ -1115,14 +1175,14 @@
             scene.add(edgeR);
 
             // Lane markings (dashed white lines - realistic 10ft dashes, 30ft gaps)
+            // 2 dividers per side: northbound lanes at +8, +14 from center; southbound at -8, -14
             const dashLength = 3; // ~10 feet
             const gapLength = 9; // ~30 feet
             for (let dz = -length / 2 + 5; dz < length / 2; dz += dashLength + gapLength) {
                 const dashGeom = new THREE.PlaneGeometry(0.25, dashLength);
                 const dashMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
 
-                // Lane dividers (3 lanes each direction = 2 dividers per side)
-                [-width / 6, width / 6].forEach(offset => {
+                [-14, -8, 8, 14].forEach(offset => {
                     const dash = new THREE.Mesh(dashGeom, dashMat);
                     dash.rotation.x = -Math.PI / 2;
                     dash.position.set(x + offset, roadY + 0.27, z + dz);
@@ -1130,10 +1190,29 @@
                 });
             }
 
-            // Center median (double yellow lines)
+            // Concrete median barrier (center divider between directions)
+            const medianBarrierStartOffset = 50; // Gap at beginning for entry
+            const effectiveMedianLength = length - medianBarrierStartOffset;
+
+            if (effectiveMedianLength > 50) {
+                const medianGeom = new THREE.BoxGeometry(3, 1.2, effectiveMedianLength);
+                const medianMat = new THREE.MeshLambertMaterial({ color: 0x888888 });
+                const median = new THREE.Mesh(medianGeom, medianMat);
+                median.position.set(x, roadY + 0.85, z + medianBarrierStartOffset / 2);
+                scene.add(median);
+
+                // Median physics body
+                const medianShape = new CANNON.Box(new CANNON.Vec3(1.5, 0.6, effectiveMedianLength / 2));
+                const medianBody = new CANNON.Body({ mass: 0 });
+                medianBody.addShape(medianShape);
+                medianBody.position.set(x, roadY + 0.85, z + medianBarrierStartOffset / 2);
+                world.addBody(medianBody);
+            }
+
+            // Yellow edge lines on both sides of median
             const yellowMat = new THREE.MeshBasicMaterial({ color: 0xffcc00 });
             const yellowGeom = new THREE.PlaneGeometry(0.2, length);
-            [-0.3, 0.3].forEach(offset => {
+            [-2, 2].forEach(offset => {
                 const yellowLine = new THREE.Mesh(yellowGeom, yellowMat);
                 yellowLine.rotation.x = -Math.PI / 2;
                 yellowLine.position.set(x + offset, roadY + 0.27, z);
@@ -1144,7 +1223,7 @@
             for (let dz = -length / 2 + 15; dz < length / 2; dz += 12) {
                 const dotGeom = new THREE.CircleGeometry(0.15, 8);
                 const dotMat = new THREE.MeshBasicMaterial({ color: 0xffffaa });
-                [-width / 6, width / 6].forEach(offset => {
+                [-14, -8, 8, 14].forEach(offset => {
                     const dot = new THREE.Mesh(dotGeom, dotMat);
                     dot.rotation.x = -Math.PI / 2;
                     dot.position.set(x + offset, roadY + 0.28, z + dz);
@@ -1259,30 +1338,94 @@
         }
 
         function createSanFrancisco(freewayX, freewayY, startZ) {
-            const freewayWidth = 30;
+            const freewayWidth = 40;
             const freewayMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
             const barrierMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
 
-            // === CONTINUOUS FREEWAY THROUGH SF (~1 mile) ===
+            // === FREEWAY THROUGH SF WITH EXIT GAP FOR GOLDEN GATE BRIDGE ===
             const sfFreewayLength = 2500; // ~1 mile
+            const exitGapStart = 700; // Right barrier gap begins here
+            const exitGapEnd = 900;   // Right barrier gap ends here
 
-            // Create freeway segment through SF
-            createFreewaySegment(freewayX, 0, startZ + sfFreewayLength / 2, freewayWidth, sfFreewayLength, freewayMat, barrierMat, false);
+            // Freeway segment before exit gap
+            const seg1Len = exitGapStart;
+            createFreewaySegment(freewayX, 0, startZ + seg1Len / 2, freewayWidth, seg1Len, freewayMat, barrierMat, false);
 
-            // Physics for SF freeway section
+            // Gap area: road surface + left barrier + median (right side open for exit)
+            const gapLen = exitGapEnd - exitGapStart;
+            const gapCenterZ = startZ + exitGapStart + gapLen / 2;
+            const gapRoadGeom = new THREE.BoxGeometry(freewayWidth, 0.5, gapLen);
+            const gapRoad = new THREE.Mesh(gapRoadGeom, freewayMat);
+            gapRoad.position.set(freewayX, 0.25, gapCenterZ);
+            gapRoad.receiveShadow = true;
+            scene.add(gapRoad);
+
+            // Left barrier through gap
+            const gapBarrierGeom = new THREE.BoxGeometry(1.2, 1.5, gapLen);
+            const gapBarrier = new THREE.Mesh(gapBarrierGeom, barrierMat);
+            gapBarrier.position.set(freewayX - freewayWidth / 2 - 0.6, 0.75, gapCenterZ);
+            scene.add(gapBarrier);
+            const gapBarrierShape = new CANNON.Box(new CANNON.Vec3(0.6, 0.75, gapLen / 2));
+            const gapBarrierBody = new CANNON.Body({ mass: 0 });
+            gapBarrierBody.addShape(gapBarrierShape);
+            gapBarrierBody.position.set(freewayX - freewayWidth / 2 - 0.6, 0.75, gapCenterZ);
+            world.addBody(gapBarrierBody);
+
+            // Median barrier through gap
+            const gapMedianGeom = new THREE.BoxGeometry(3, 1.2, gapLen);
+            const gapMedian = new THREE.Mesh(gapMedianGeom, new THREE.MeshLambertMaterial({ color: 0x888888 }));
+            gapMedian.position.set(freewayX, 0.85, gapCenterZ);
+            scene.add(gapMedian);
+            const gapMedianShape = new CANNON.Box(new CANNON.Vec3(1.5, 0.6, gapLen / 2));
+            const gapMedianBody = new CANNON.Body({ mass: 0 });
+            gapMedianBody.addShape(gapMedianShape);
+            gapMedianBody.position.set(freewayX, 0.85, gapCenterZ);
+            world.addBody(gapMedianBody);
+
+            // Freeway segment after exit gap
+            const seg2Len = sfFreewayLength - exitGapEnd;
+            createFreewaySegment(freewayX, 0, startZ + exitGapEnd + seg2Len / 2, freewayWidth, seg2Len, freewayMat, barrierMat, false);
+
+            // Physics for full SF freeway road surface (continuous)
             const sfFreewayShape = new CANNON.Box(new CANNON.Vec3(freewayWidth / 2, 0.25, sfFreewayLength / 2));
             const sfFreewayBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
             sfFreewayBody.addShape(sfFreewayShape);
             sfFreewayBody.position.set(freewayX, 0.25, startZ + sfFreewayLength / 2);
             world.addBody(sfFreewayBody);
 
-            // === EXIT RAMP FOR SAN FRANCISCO ===
-            createExitRamp(freewayX, startZ + 800, 'SAN FRANCISCO', 1);
+            // === EXIT RAMP TO GOLDEN GATE BRIDGE ===
+            createExitRamp(freewayX, startZ + 800, 'GOLDEN GATE', 1);
 
-            // === GOLDEN GATE BRIDGE (visible off to the side) ===
+            // === GOLDEN GATE BRIDGE ===
             const bridgeX = freewayX + 180;
             const bridgeZ = startZ + 1200;
             createGoldenGateBridge(bridgeX, bridgeZ);
+
+            // === CONNECTING ROAD FROM EXIT RAMP TO BRIDGE ===
+            const connRoadMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+            const connRoadWidth = 20;
+            const connStartX = freewayX + 55;
+            const connStartZ = startZ + 840;
+            const connEndX = bridgeX;
+            const connEndZ = bridgeZ - 300; // South ramp base
+            const connDx = connEndX - connStartX;
+            const connDz = connEndZ - connStartZ;
+            const connLen = Math.sqrt(connDx * connDx + connDz * connDz);
+            const connAngle = Math.atan2(connDx, connDz);
+
+            const connGeom = new THREE.BoxGeometry(connRoadWidth, 0.5, connLen);
+            const connRoad = new THREE.Mesh(connGeom, connRoadMat);
+            connRoad.position.set((connStartX + connEndX) / 2, 0.25, (connStartZ + connEndZ) / 2);
+            connRoad.rotation.y = -connAngle;
+            connRoad.receiveShadow = true;
+            scene.add(connRoad);
+
+            const connShape = new CANNON.Box(new CANNON.Vec3(connRoadWidth / 2, 0.25, connLen / 2));
+            const connBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            connBody.addShape(connShape);
+            connBody.position.set((connStartX + connEndX) / 2, 0.25, (connStartZ + connEndZ) / 2);
+            connBody.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), -connAngle);
+            world.addBody(connBody);
 
             // === SAN FRANCISCO SKYLINE (buildings beside freeway) ===
             const sfColors = [0xE8B4B8, 0xA7C7E7, 0xC1E1C1, 0xFADADD, 0xC4A484, 0xF5DEB3, 0xDDA0DD];
@@ -1358,21 +1501,21 @@
             // Support poles
             const poleMat = new THREE.MeshLambertMaterial({ color: 0x666666 });
             const poleGeom = new THREE.CylinderGeometry(0.4, 0.4, y, 8);
-            [-18, 18].forEach(offset => {
+            [-22, 22].forEach(offset => {
                 const pole = new THREE.Mesh(poleGeom, poleMat);
                 pole.position.set(x + offset, y / 2, z);
                 scene.add(pole);
             });
 
             // Crossbar
-            const barGeom = new THREE.BoxGeometry(40, 0.6, 0.6);
+            const barGeom = new THREE.BoxGeometry(48, 0.6, 0.6);
             const bar = new THREE.Mesh(barGeom, poleMat);
             bar.position.set(x, y + 6, z);
             scene.add(bar);
         }
 
         function createSacramentoFreeway(freewayX, startZ) {
-            const freewayWidth = 30;
+            const freewayWidth = 40;
             const segmentLength = 500;
             const numSegments = 10; // ~2 miles to Sacramento
             const totalLength = numSegments * segmentLength;
@@ -1394,7 +1537,8 @@
             world.addBody(fullBody);
 
             // Add traffic
-            createFreewayTraffic(freewayX, 0.5, startZ, totalLength, freewayWidth);
+            createFreewayTraffic(freewayX, 0.5, startZ, totalLength, freewayWidth, 'northbound');
+            createFreewayTraffic(freewayX, 0.5, startZ, totalLength, freewayWidth, 'southbound');
 
             // Sacramento city at the end
             const sacStartZ = startZ + totalLength;
@@ -1405,7 +1549,7 @@
         }
 
         function createSacramento(freewayX, startZ) {
-            const freewayWidth = 30;
+            const freewayWidth = 40;
             const freewayMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
             const barrierMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
 
@@ -1479,7 +1623,8 @@
             scene.add(goldDome);
 
             // Traffic through Sacramento
-            createFreewayTraffic(freewayX, 0.5, startZ, sacFreewayLength, freewayWidth);
+            createFreewayTraffic(freewayX, 0.5, startZ, sacFreewayLength, freewayWidth, 'northbound');
+            createFreewayTraffic(freewayX, 0.5, startZ, sacFreewayLength, freewayWidth, 'southbound');
 
             // === SIGN FOR TRUCKEE ===
             createHighwaySign(freewayX, 12, startZ + sacFreewayLength - 100, 'TRUCKEE', 'LAKE TAHOE');
@@ -1490,7 +1635,7 @@
         }
 
         function createTruckeeFreeway(freewayX, startZ) {
-            const freewayWidth = 30;
+            const freewayWidth = 40;
             const segmentLength = 500;
             const numSegments = 8; // ~2 miles through the mountains
             const totalLength = numSegments * segmentLength;
@@ -1559,7 +1704,8 @@
             }
 
             // Add traffic
-            createFreewayTraffic(freewayX, 0.5, startZ, totalLength, freewayWidth);
+            createFreewayTraffic(freewayX, 0.5, startZ, totalLength, freewayWidth, 'northbound');
+            createFreewayTraffic(freewayX, 0.5, startZ, totalLength, freewayWidth, 'southbound');
 
             // Truckee town at the end
             const truckeeStartZ = startZ + totalLength;
@@ -1567,7 +1713,7 @@
         }
 
         function createTruckee(freewayX, startZ) {
-            const freewayWidth = 30;
+            const freewayWidth = 40;
             const freewayMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
             const barrierMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
 
@@ -1659,14 +1805,15 @@
             scene.add(cable);
 
             // Traffic
-            createFreewayTraffic(freewayX, 0.5, startZ, truckeeLength, freewayWidth);
+            createFreewayTraffic(freewayX, 0.5, startZ, truckeeLength, freewayWidth, 'northbound');
+            createFreewayTraffic(freewayX, 0.5, startZ, truckeeLength, freewayWidth, 'southbound');
 
             // Update total end
             freewayData.totalEndZ = startZ + truckeeLength;
         }
 
         function createWorldFreeway(x, startZ, destination, signColor, onComplete) {
-            const freewayWidth = 30;
+            const freewayWidth = 40;
             const segmentLength = 500;
             const numSegments = 20; // Long freeway between cities
 
@@ -1693,7 +1840,8 @@
             world.addBody(fullBody);
 
             // Add traffic
-            createFreewayTraffic(x, 0.5, freewayStartZ, totalLength, freewayWidth);
+            createFreewayTraffic(x, 0.5, freewayStartZ, totalLength, freewayWidth, 'northbound');
+            createFreewayTraffic(x, 0.5, freewayStartZ, totalLength, freewayWidth, 'southbound');
 
             // Call completion with end position
             if (onComplete) {
@@ -2240,24 +2388,38 @@
                 }
             }
 
-            // Ramps to bridge from ground
+            // South approach ramp - long ramp from ground to bridge deck
             const rampMat = new THREE.MeshLambertMaterial({ color: 0x444444 });
-            for (let end = -1; end <= 1; end += 2) {
-                const rampGeom = new THREE.BoxGeometry(deckWidth, 2, 80);
-                const ramp = new THREE.Mesh(rampGeom, rampMat);
-                const rampZ = z + end * (deckLength / 2 + 40);
-                ramp.position.set(x, 7.5, rampZ);
-                ramp.rotation.x = end * 0.1;
-                scene.add(ramp);
+            const southRampLen = 150;
+            const southRampZ = z - deckLength / 2 - southRampLen / 2;
+            const southRampGeom = new THREE.BoxGeometry(deckWidth, 2, southRampLen);
+            const southRampMesh = new THREE.Mesh(southRampGeom, rampMat);
+            southRampMesh.position.set(x, 7.5, southRampZ);
+            southRampMesh.rotation.x = -0.1;
+            scene.add(southRampMesh);
 
-                // Ramp physics
-                const rampShape = new CANNON.Box(new CANNON.Vec3(deckWidth / 2, 1, 40));
-                const rampBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
-                rampBody.addShape(rampShape);
-                rampBody.position.set(x, 7.5, rampZ);
-                rampBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), end * 0.1);
-                world.addBody(rampBody);
-            }
+            const southRampShape = new CANNON.Box(new CANNON.Vec3(deckWidth / 2, 1, southRampLen / 2));
+            const southRampBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            southRampBody.addShape(southRampShape);
+            southRampBody.position.set(x, 7.5, southRampZ);
+            southRampBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -0.1);
+            world.addBody(southRampBody);
+
+            // North ramp - also reaches ground
+            const northRampLen = 150;
+            const northRampZ = z + deckLength / 2 + northRampLen / 2;
+            const northRampGeom = new THREE.BoxGeometry(deckWidth, 2, northRampLen);
+            const northRampMesh = new THREE.Mesh(northRampGeom, rampMat);
+            northRampMesh.position.set(x, 7.5, northRampZ);
+            northRampMesh.rotation.x = 0.1;
+            scene.add(northRampMesh);
+
+            const northRampShape = new CANNON.Box(new CANNON.Vec3(deckWidth / 2, 1, northRampLen / 2));
+            const northRampBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            northRampBody.addShape(northRampShape);
+            northRampBody.position.set(x, 7.5, northRampZ);
+            northRampBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), 0.1);
+            world.addBody(northRampBody);
         }
 
         function createFreewaySign(x, y, z) {
@@ -2641,6 +2803,73 @@
                 z: z,
                 limit: limit
             });
+        }
+
+        function createStreetSign(x, z, nameJp, nameEn, rotation) {
+            const signGroup = new THREE.Group();
+
+            // Pole
+            const poleGeom = new THREE.CylinderGeometry(0.08, 0.08, 3.5, 8);
+            const poleMat = new THREE.MeshLambertMaterial({ color: 0x444444 });
+            const pole = new THREE.Mesh(poleGeom, poleMat);
+            pole.position.y = 1.75;
+            signGroup.add(pole);
+
+            // Sign panel (canvas texture)
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 96;
+            const ctx = canvas.getContext('2d');
+
+            // Dark blue background
+            ctx.fillStyle = '#1a3a5c';
+            ctx.fillRect(0, 0, 256, 96);
+
+            // White border
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(4, 4, 248, 88);
+
+            // Japanese name (top line)
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 28px "Hiragino Kaku Gothic Pro", "Yu Gothic", "Meiryo", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(nameJp, 128, 34);
+
+            // English name (bottom line)
+            ctx.font = '18px Arial, sans-serif';
+            ctx.fillText(nameEn, 128, 66);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const signGeom = new THREE.PlaneGeometry(2.5, 0.9);
+            const signMat = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+            const sign = new THREE.Mesh(signGeom, signMat);
+            sign.position.y = 3.5;
+            signGroup.add(sign);
+
+            signGroup.position.set(x, 0, z);
+            signGroup.rotation.y = rotation;
+            scene.add(signGroup);
+        }
+
+        function createStreetSigns() {
+            const cityOffset = -CITY_EXTENT / 2;
+
+            for (let i = 0; i <= CITY_SIZE; i++) {
+                for (let j = 0; j <= CITY_SIZE; j++) {
+                    const ix = cityOffset + i * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2;
+                    const iz = cityOffset + j * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2;
+
+                    const hName = STREET_NAMES_H[j % STREET_NAMES_H.length];
+                    const vName = STREET_NAMES_V[i % STREET_NAMES_V.length];
+
+                    // E-W street sign (rotated to face N-S traffic), offset to corner
+                    createStreetSign(ix + 9, iz + 9, hName.jp, hName.en, 0);
+                    // N-S street sign (rotated to face E-W traffic), offset to corner
+                    createStreetSign(ix - 9, iz - 9, vName.jp, vName.en, Math.PI / 2);
+                }
+            }
         }
 
         // Map themes for different areas
@@ -3111,7 +3340,7 @@
             }
         }
 
-        function createFreewayTraffic(freewayX, freewayY, freewayStartZ, freewayLength, freewayWidth) {
+        function createFreewayTraffic(freewayX, freewayY, freewayStartZ, freewayLength, freewayWidth, direction = 'northbound') {
             const numCars = 15; // Number of cars on freeway
             const carColors = [0xff0000, 0x0066ff, 0x00cc00, 0xffcc00, 0xff6600, 0x9900ff, 0x00ffff, 0xffffff, 0x333333];
 
@@ -3144,38 +3373,53 @@
                     carGroup.add(wheel);
                 });
 
-                // Position on freeway
-                const laneOffset = (Math.random() > 0.5 ? -1 : 1) * (freewayWidth / 4 - 2);
+                // Position on freeway - northbound on positive side, southbound on negative side
+                const laneChoices = direction === 'northbound' ? [5, 11, 17] : [-5, -11, -17];
+                const laneOffset = laneChoices[Math.floor(Math.random() * laneChoices.length)];
                 const zPos = freewayStartZ + Math.random() * freewayLength * 0.8;
                 carGroup.position.set(freewayX + laneOffset, freewayY + 0.5, zPos);
-                carGroup.rotation.y = 0; // Facing north (positive Z)
+                carGroup.rotation.y = direction === 'southbound' ? Math.PI : 0;
                 scene.add(carGroup);
 
                 freewayTrafficCars.push({
                     mesh: carGroup,
-                    speed: 100 + Math.random() * 30, // 100-130 game units/sec (displays as ~280 mph)
+                    speed: 100 + Math.random() * 30,
                     lane: laneOffset,
                     freewayX: freewayX,
                     freewayY: freewayY,
                     freewayStartZ: freewayStartZ,
-                    freewayLength: freewayLength
+                    freewayLength: freewayLength,
+                    direction: direction
                 });
             }
         }
 
         function updateFreewayTraffic(delta) {
             freewayTrafficCars.forEach(ftc => {
-                // Move car forward (north)
-                ftc.mesh.position.z += ftc.speed * delta;
-
-                // Loop back to very start when reaching end of entire freeway system
                 const totalEndZ = freewayData.totalEndZ || (ftc.freewayStartZ + ftc.freewayLength);
-                if (ftc.mesh.position.z > totalEndZ) {
-                    // Loop back to the beginning of the main freeway
-                    ftc.mesh.position.z = freewayData.freewayStartZ + 50;
-                    // Randomize lane
-                    const newLane = (Math.random() > 0.5 ? -1 : 1) * (freewayData.freewayWidth / 4 - 2);
-                    ftc.mesh.position.x = freewayData.rampX + newLane;
+
+                if (ftc.direction === 'southbound') {
+                    // Move south (negative Z)
+                    ftc.mesh.position.z -= ftc.speed * delta;
+
+                    // Wrap at start back to far end
+                    if (ftc.mesh.position.z < freewayData.freewayStartZ) {
+                        ftc.mesh.position.z = totalEndZ - 50;
+                        const laneChoices = [-5, -11, -17];
+                        const newLane = laneChoices[Math.floor(Math.random() * laneChoices.length)];
+                        ftc.mesh.position.x = freewayData.rampX + newLane;
+                    }
+                } else {
+                    // Northbound: move north (positive Z)
+                    ftc.mesh.position.z += ftc.speed * delta;
+
+                    // Wrap at end back to start
+                    if (ftc.mesh.position.z > totalEndZ) {
+                        ftc.mesh.position.z = freewayData.freewayStartZ + 50;
+                        const laneChoices = [5, 11, 17];
+                        const newLane = laneChoices[Math.floor(Math.random() * laneChoices.length)];
+                        ftc.mesh.position.x = freewayData.rampX + newLane;
+                    }
                 }
 
                 // Keep on freeway height (ground level)
@@ -3262,57 +3506,159 @@
 
         function createCar() {
             const carData = cars[gameState.selectedCar];
+            const isTruck = carData.isTruck;
 
             // Create visual car group (body only, wheels separate)
             carGroup = new THREE.Group();
 
-            const bodyGeometry = new THREE.BoxGeometry(2, 0.8, 4);
-            const bodyMaterial = new THREE.MeshLambertMaterial({ color: carData.bodyColor });
-            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-            body.position.y = 0.6;
-            body.castShadow = true;
-            carGroup.add(body);
+            if (isTruck) {
+                // === TRAILER TRUCK MODEL ===
+                const bodyMat = new THREE.MeshLambertMaterial({ color: carData.bodyColor });
 
-            const roofGeometry = new THREE.BoxGeometry(1.6, 0.6, 2);
-            const roofMaterial = new THREE.MeshLambertMaterial({ color: carData.bodyColor });
-            const roof = new THREE.Mesh(roofGeometry, roofMaterial);
-            roof.position.y = 1.3;
-            roof.position.z = -0.3;
-            roof.castShadow = true;
-            carGroup.add(roof);
+                // Cab body
+                const cabGeom = new THREE.BoxGeometry(2.4, 1.4, 2.5);
+                const cab = new THREE.Mesh(cabGeom, bodyMat);
+                cab.position.set(0, 0.9, 2.5);
+                cab.castShadow = true;
+                carGroup.add(cab);
 
-            const windshieldGeometry = new THREE.BoxGeometry(1.4, 0.5, 0.1);
-            const windshieldMaterial = new THREE.MeshLambertMaterial({ color: 0x88ccff, transparent: true, opacity: 0.6 });
-            const windshield = new THREE.Mesh(windshieldGeometry, windshieldMaterial);
-            windshield.position.set(0, 1.2, 0.7);
-            windshield.rotation.x = Math.PI / 6;
-            carGroup.add(windshield);
+                // Cab roof
+                const cabRoofGeom = new THREE.BoxGeometry(2.2, 0.6, 2);
+                const cabRoof = new THREE.Mesh(cabRoofGeom, bodyMat);
+                cabRoof.position.set(0, 1.9, 2.3);
+                cabRoof.castShadow = true;
+                carGroup.add(cabRoof);
 
-            const headlightGeometry = new THREE.BoxGeometry(0.3, 0.2, 0.1);
-            const headlightMaterial = new THREE.MeshBasicMaterial({ color: 0xffffcc });
-            [-0.6, 0.6].forEach(x => {
-                const headlight = new THREE.Mesh(headlightGeometry, headlightMaterial);
-                headlight.position.set(x, 0.6, 2);
-                carGroup.add(headlight);
-            });
+                // Air deflector on cab roof
+                const deflectorGeom = new THREE.BoxGeometry(2, 0.8, 0.2);
+                const deflectorMat = new THREE.MeshLambertMaterial({ color: carData.bodyColor });
+                const deflector = new THREE.Mesh(deflectorGeom, deflectorMat);
+                deflector.position.set(0, 2.4, 1.5);
+                deflector.rotation.x = -0.3;
+                carGroup.add(deflector);
 
-            const taillightMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-            [-0.6, 0.6].forEach(x => {
-                const taillight = new THREE.Mesh(headlightGeometry, taillightMaterial);
-                taillight.position.set(x, 0.6, -2);
-                carGroup.add(taillight);
-            });
+                // Windshield
+                const windshieldGeom = new THREE.BoxGeometry(2, 0.8, 0.1);
+                const windshieldMat = new THREE.MeshLambertMaterial({ color: 0x88ccff, transparent: true, opacity: 0.6 });
+                const windshield = new THREE.Mesh(windshieldGeom, windshieldMat);
+                windshield.position.set(0, 1.6, 3.7);
+                windshield.rotation.x = Math.PI / 8;
+                carGroup.add(windshield);
+
+                // Cab headlights
+                const hlGeom = new THREE.BoxGeometry(0.4, 0.3, 0.1);
+                const hlMat = new THREE.MeshBasicMaterial({ color: 0xffffcc });
+                [-0.8, 0.8].forEach(x => {
+                    const hl = new THREE.Mesh(hlGeom, hlMat);
+                    hl.position.set(x, 0.6, 3.8);
+                    carGroup.add(hl);
+                });
+
+                // Front bumper
+                const bumperGeom = new THREE.BoxGeometry(2.6, 0.4, 0.3);
+                const bumperMat = new THREE.MeshLambertMaterial({ color: 0x888888 });
+                const bumper = new THREE.Mesh(bumperGeom, bumperMat);
+                bumper.position.set(0, 0.3, 3.9);
+                carGroup.add(bumper);
+
+                // Exhaust stacks
+                const stackMat = new THREE.MeshLambertMaterial({ color: 0x666666 });
+                [-1.3, 1.3].forEach(x => {
+                    const stackGeom = new THREE.CylinderGeometry(0.12, 0.12, 2, 8);
+                    const stack = new THREE.Mesh(stackGeom, stackMat);
+                    stack.position.set(x, 2.2, 1.8);
+                    carGroup.add(stack);
+                });
+
+                // Trailer body
+                const trailerGeom = new THREE.BoxGeometry(2.6, 2.8, 7);
+                const trailerMat = new THREE.MeshLambertMaterial({ color: 0xdddddd });
+                const trailer = new THREE.Mesh(trailerGeom, trailerMat);
+                trailer.position.set(0, 1.6, -2.3);
+                trailer.castShadow = true;
+                carGroup.add(trailer);
+
+                // Trailer undercarriage
+                const underGeom = new THREE.BoxGeometry(2.4, 0.3, 7);
+                const underMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+                const under = new THREE.Mesh(underGeom, underMat);
+                under.position.set(0, 0.15, -2.3);
+                carGroup.add(under);
+
+                // Trailer rear lights
+                const tlMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+                [-0.9, 0.9].forEach(x => {
+                    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.1), tlMat);
+                    tl.position.set(x, 1.0, -5.8);
+                    carGroup.add(tl);
+                });
+
+                // Reflective strips on trailer sides
+                const stripMat = new THREE.MeshBasicMaterial({ color: 0xff4400 });
+                [-1, 1].forEach(side => {
+                    for (let i = 0; i < 5; i++) {
+                        const strip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.15, 0.8), stripMat);
+                        strip.position.set(side * 1.31, 0.5, -0.5 - i * 1.2);
+                        carGroup.add(strip);
+                    }
+                });
+            } else {
+                // === STANDARD CAR MODEL ===
+                const bodyGeometry = new THREE.BoxGeometry(2, 0.8, 4);
+                const bodyMaterial = new THREE.MeshLambertMaterial({ color: carData.bodyColor });
+                const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+                body.position.y = 0.6;
+                body.castShadow = true;
+                carGroup.add(body);
+
+                const roofGeometry = new THREE.BoxGeometry(1.6, 0.6, 2);
+                const roofMaterial = new THREE.MeshLambertMaterial({ color: carData.bodyColor });
+                const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+                roof.position.y = 1.3;
+                roof.position.z = -0.3;
+                roof.castShadow = true;
+                carGroup.add(roof);
+
+                const windshieldGeometry = new THREE.BoxGeometry(1.4, 0.5, 0.1);
+                const windshieldMaterial = new THREE.MeshLambertMaterial({ color: 0x88ccff, transparent: true, opacity: 0.6 });
+                const windshield = new THREE.Mesh(windshieldGeometry, windshieldMaterial);
+                windshield.position.set(0, 1.2, 0.7);
+                windshield.rotation.x = Math.PI / 6;
+                carGroup.add(windshield);
+
+                const headlightGeometry = new THREE.BoxGeometry(0.3, 0.2, 0.1);
+                const headlightMaterial = new THREE.MeshBasicMaterial({ color: 0xffffcc });
+                [-0.6, 0.6].forEach(x => {
+                    const headlight = new THREE.Mesh(headlightGeometry, headlightMaterial);
+                    headlight.position.set(x, 0.6, 2);
+                    carGroup.add(headlight);
+                });
+
+                const taillightMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+                [-0.6, 0.6].forEach(x => {
+                    const taillight = new THREE.Mesh(headlightGeometry, taillightMaterial);
+                    taillight.position.set(x, 0.6, -2);
+                    carGroup.add(taillight);
+                });
+            }
 
             carGroup.position.set(0, 2, 0);
             scene.add(carGroup);
             car = carGroup;
 
             // Create wheel visuals (separate from car body for physics sync)
-            const wheelGeometry = new THREE.CylinderGeometry(0.4, 0.4, 0.3, 16);
+            const wheelRadius = isTruck ? 0.5 : 0.4;
+            const wheelWidth = isTruck ? 0.4 : 0.3;
+            const wheelGeometry = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 16);
             const wheelMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
             carWheelMeshes = [];
 
-            const wheelPositions = [
+            const wheelPositions = isTruck ? [
+                { x: -1.1, y: 0.4, z: 2.8 },   // Front left
+                { x: 1.1, y: 0.4, z: 2.8 },    // Front right
+                { x: -1.1, y: 0.4, z: -4.0 },  // Rear left
+                { x: 1.1, y: 0.4, z: -4.0 }    // Rear right
+            ] : [
                 { x: -0.9, y: 0.3, z: 1.3 },   // Front left
                 { x: 0.9, y: 0.3, z: 1.3 },    // Front right
                 { x: -0.9, y: 0.3, z: -1.3 },  // Rear left
@@ -3329,15 +3675,19 @@
             // === RaycastVehicle Physics ===
 
             // Chassis body
-            const chassisShape = new CANNON.Box(new CANNON.Vec3(1, 0.4, 2));
+            const isDrift = carData.isDrift;
+            const isHeavy = carData.heavyCar;
+            const chassisShape = isTruck
+                ? new CANNON.Box(new CANNON.Vec3(1.3, 0.7, 4.5))
+                : new CANNON.Box(new CANNON.Vec3(1, 0.4, 2));
             carBody = new CANNON.Body({
-                mass: 150,
+                mass: isTruck ? 250 : (isHeavy ? 400 : 150),
                 material: world.wheelMaterial,
-                linearDamping: 0.1,
-                angularDamping: 0.5,
+                linearDamping: isDrift ? 0.05 : (isTruck ? 0.15 : 0.1),
+                angularDamping: isHeavy ? 0.95 : (isTruck ? 0.7 : 0.5),
                 allowSleep: false
             });
-            carBody.addShape(chassisShape, new CANNON.Vec3(0, 0.6, 0));
+            carBody.addShape(chassisShape, new CANNON.Vec3(0, isTruck ? 0.9 : 0.6, isTruck ? -0.8 : 0));
             // Spawn at a road intersection (center of city grid)
             // Road position = -CITY_EXTENT/2 + roadIndex * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH/2
             carBody.position.set(37.5, 1, 37.5);
@@ -3353,32 +3703,41 @@
 
             // Wheel options tuned for realistic but fun handling
             const wheelOptions = {
-                radius: 0.4,
+                radius: wheelRadius,
                 directionLocal: new CANNON.Vec3(0, -1, 0),
-                suspensionStiffness: 30,
-                suspensionRestLength: 0.3,
-                frictionSlip: 3,
-                dampingRelaxation: 2.3,
-                dampingCompression: 4.4,
-                maxSuspensionForce: 100000,
-                rollInfluence: 0.01,
+                suspensionStiffness: isHeavy ? 50 : (isTruck ? 40 : 30),
+                suspensionRestLength: isTruck ? 0.4 : 0.3,
+                frictionSlip: isTruck ? 2.5 : 3,
+                dampingRelaxation: isHeavy ? 3.0 : 2.3,
+                dampingCompression: isHeavy ? 6.0 : 4.4,
+                maxSuspensionForce: 200000,
+                rollInfluence: isHeavy ? 0.001 : (isTruck ? 0.05 : 0.01),
                 axleLocal: new CANNON.Vec3(1, 0, 0),
                 chassisConnectionPointLocal: new CANNON.Vec3(0, 0, 0),
-                maxSuspensionTravel: 0.3,
+                maxSuspensionTravel: isTruck ? 0.4 : 0.3,
                 customSlidingRotationalSpeed: -30,
                 useCustomSlidingRotationalSpeed: true
             };
 
             // Add 4 wheels at car corners
-            const physicsWheelPositions = [
+            const physicsWheelPositions = isTruck ? [
+                { x: -1.1, y: 0.4, z: 2.8 },
+                { x: 1.1, y: 0.4, z: 2.8 },
+                { x: -1.1, y: 0.4, z: -4.0 },
+                { x: 1.1, y: 0.4, z: -4.0 }
+            ] : [
                 { x: -0.9, y: 0.3, z: 1.3 },   // Front left
                 { x: 0.9, y: 0.3, z: 1.3 },    // Front right
                 { x: -0.9, y: 0.3, z: -1.3 },  // Rear left
                 { x: 0.9, y: 0.3, z: -1.3 }    // Rear right
             ];
 
-            physicsWheelPositions.forEach(pos => {
+            physicsWheelPositions.forEach((pos, i) => {
                 wheelOptions.chassisConnectionPointLocal.set(pos.x, pos.y, pos.z);
+                if (isDrift) {
+                    // Front wheels grip, rear wheels slide for drift
+                    wheelOptions.frictionSlip = (i < 2) ? 4 : 1.2;
+                }
                 vehicle.addWheel(wheelOptions);
             });
 
@@ -3602,6 +3961,13 @@
                 engineForce = maxForce;
             }
 
+            // Speed cap: cut engine when at maxSpeed
+            const vel = carBody.velocity;
+            const currentMph = Math.sqrt(vel.x ** 2 + vel.z ** 2) * 2.237;
+            if (currentMph >= carData.maxSpeed && engineForce < 0) {
+                engineForce = 0;
+            }
+
             // Apply engine force to rear wheels (RWD)
             vehicle.applyEngineForce(engineForce, 2); // Rear left
             vehicle.applyEngineForce(engineForce, 3); // Rear right
@@ -3647,9 +4013,10 @@
             const cityBound = CITY_EXTENT / 2 + 50;
 
             // Check if player is on the freeway (allows travel to San Francisco)
+            // Only trigger once past the city edge and actually within the freeway lanes
             const onFreeway = freewayData &&
-                Math.abs(carBody.position.x - freewayData.rampX) < freewayData.freewayWidth &&
-                carBody.position.z > freewayData.freewayStartZ - 50;
+                Math.abs(carBody.position.x - freewayData.rampX) < freewayData.freewayWidth / 2 + 5 &&
+                carBody.position.z > freewayData.freewayStartZ;
 
             if (onFreeway) {
                 // On freeway: only bound X to stay on freeway, allow full travel to Sacramento
@@ -3794,9 +4161,23 @@
             const mapScale = 280 / totalLength;
             const carZ = car.position.z;
 
-            // Draw freeway as vertical line
+            // Draw freeway as dual carriageway (two parallel grey roads with median)
             ctx.strokeStyle = '#444';
-            ctx.lineWidth = 20;
+            ctx.lineWidth = 9;
+            // Southbound carriageway (left)
+            ctx.beginPath();
+            ctx.moveTo(93, 10);
+            ctx.lineTo(93, 290);
+            ctx.stroke();
+            // Northbound carriageway (right)
+            ctx.beginPath();
+            ctx.moveTo(107, 10);
+            ctx.lineTo(107, 290);
+            ctx.stroke();
+
+            // Median line (yellow)
+            ctx.strokeStyle = '#cc9900';
+            ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(100, 10);
             ctx.lineTo(100, 290);
@@ -3807,10 +4188,14 @@
             ctx.lineWidth = 1;
             ctx.setLineDash([5, 10]);
             ctx.beginPath();
-            ctx.moveTo(95, 10);
-            ctx.lineTo(95, 290);
-            ctx.moveTo(105, 10);
-            ctx.lineTo(105, 290);
+            ctx.moveTo(90, 10);
+            ctx.lineTo(90, 290);
+            ctx.moveTo(96, 10);
+            ctx.lineTo(96, 290);
+            ctx.moveTo(104, 10);
+            ctx.lineTo(104, 290);
+            ctx.moveTo(110, 10);
+            ctx.lineTo(110, 290);
             ctx.stroke();
             ctx.setLineDash([]);
 
@@ -3871,6 +4256,7 @@
                 world.step(1/60, delta, 3);
 
                 updateCar(delta);
+                updateEngineSound();
                 updateTrafficCars(delta);
                 updateFreewayTraffic(delta);
                 updateTrafficLights(time);
@@ -3949,7 +4335,27 @@
                 gameState.selectedCar = carId;
                 localStorage.setItem('selectedCar', carId);
 
+                // Remove old car visuals
                 scene.remove(car);
+
+                // Remove old wheel meshes from scene
+                if (carWheelMeshes) {
+                    carWheelMeshes.forEach(w => scene.remove(w));
+                    carWheelMeshes = [];
+                }
+
+                // Remove old physics bodies
+                if (vehicle) {
+                    vehicle.removeFromWorld(world);
+                }
+                if (carBody) {
+                    world.removeBody(carBody);
+                }
+                if (wheelBodies) {
+                    wheelBodies.forEach(wb => world.removeBody(wb));
+                    wheelBodies = [];
+                }
+
                 createCar();
 
                 updateUI();
@@ -3969,9 +4375,105 @@
             document.getElementById('shop-modal').classList.remove('active');
         });
 
+        // === ENGINE SOUND SYSTEM (Web Audio API) ===
+        let audioCtx = null;
+        let engineOsc1 = null;  // Main engine tone
+        let engineOsc2 = null;  // Lower rumble
+        let engineOsc3 = null;  // Exhaust crackle
+        let engineGain = null;
+        let engineGain2 = null;
+        let engineGain3 = null;
+
+        function initEngineSound() {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+            // Main engine oscillator - sawtooth for raw engine sound
+            engineOsc1 = audioCtx.createOscillator();
+            engineOsc1.type = 'sawtooth';
+            engineOsc1.frequency.value = 55; // Idle frequency
+            engineGain = audioCtx.createGain();
+            engineGain.gain.value = 0.06;
+
+            // Low rumble oscillator
+            engineOsc2 = audioCtx.createOscillator();
+            engineOsc2.type = 'triangle';
+            engineOsc2.frequency.value = 30;
+            engineGain2 = audioCtx.createGain();
+            engineGain2.gain.value = 0.08;
+
+            // Exhaust pop/crackle - square wave for grit
+            engineOsc3 = audioCtx.createOscillator();
+            engineOsc3.type = 'square';
+            engineOsc3.frequency.value = 27;
+            engineGain3 = audioCtx.createGain();
+            engineGain3.gain.value = 0.02;
+
+            // Distortion for realism
+            const distortion = audioCtx.createWaveShaper();
+            const curve = new Float32Array(256);
+            for (let i = 0; i < 256; i++) {
+                const x = (i * 2) / 256 - 1;
+                curve[i] = (Math.PI + 200) * x / (Math.PI + 200 * Math.abs(x));
+            }
+            distortion.curve = curve;
+
+            // Low-pass filter to tame harshness
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 800;
+            filter.Q.value = 1;
+
+            // Connect: oscillators -> gains -> distortion -> filter -> output
+            engineOsc1.connect(engineGain);
+            engineOsc2.connect(engineGain2);
+            engineOsc3.connect(engineGain3);
+            engineGain.connect(distortion);
+            engineGain2.connect(distortion);
+            engineGain3.connect(distortion);
+            distortion.connect(filter);
+            filter.connect(audioCtx.destination);
+
+            engineOsc1.start();
+            engineOsc2.start();
+            engineOsc3.start();
+        }
+
+        function updateEngineSound() {
+            if (!audioCtx || !carBody) return;
+
+            const vel = carBody.velocity;
+            const speedMph = Math.sqrt(vel.x ** 2 + vel.z ** 2) * 2.237;
+            const throttle = keys.forward ? 1 : 0;
+
+            // RPM simulation: idle at ~800 RPM, scales with speed
+            const idleRPM = 800;
+            const maxRPM = 8000;
+            const rpm = idleRPM + (speedMph / 300) * (maxRPM - idleRPM);
+            const rpmNorm = Math.min(rpm / maxRPM, 1);
+
+            // Main engine frequency: 55Hz idle -> 220Hz at high RPM
+            const baseFreq = 55 + rpmNorm * 165;
+            engineOsc1.frequency.setTargetAtTime(baseFreq, audioCtx.currentTime, 0.1);
+
+            // Rumble frequency: 30Hz idle -> 110Hz
+            engineOsc2.frequency.setTargetAtTime(30 + rpmNorm * 80, audioCtx.currentTime, 0.1);
+
+            // Exhaust: 27Hz idle -> 90Hz
+            engineOsc3.frequency.setTargetAtTime(27 + rpmNorm * 63, audioCtx.currentTime, 0.1);
+
+            // Volume: louder when accelerating, quieter at idle
+            const idleVol = 0.04;
+            const maxVol = 0.12;
+            const targetVol = throttle > 0 ? (idleVol + rpmNorm * (maxVol - idleVol)) : (idleVol + rpmNorm * 0.03);
+            engineGain.gain.setTargetAtTime(targetVol, audioCtx.currentTime, 0.15);
+            engineGain2.gain.setTargetAtTime(targetVol * 1.2, audioCtx.currentTime, 0.15);
+            engineGain3.gain.setTargetAtTime(throttle > 0 ? targetVol * 0.4 : 0.01, audioCtx.currentTime, 0.15);
+        }
+
         document.getElementById('start-btn').addEventListener('click', () => {
             document.getElementById('start-screen').style.display = 'none';
             gameState.gameStarted = true;
+            initEngineSound();
         });
 
         init();
