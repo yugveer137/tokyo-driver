@@ -481,7 +481,7 @@
     <!-- Start Screen -->
     <div id="start-screen">
         <h1>Tokyo Night Driver</h1>
-        <p>Drive through neon-lit Tokyo streets, collect coins, buy cars!<br>Watch out for traffic and obey red lights...<br>Find the portal to explore new areas!</p>
+        <p>Drive through neon-lit Tokyo streets, collect coins, buy cars!<br>Watch out for traffic and obey red lights...</p>
         <button id="start-btn">START GAME</button>
     </div>
 
@@ -496,6 +496,7 @@
             <div id="coins-display">Coins: <span>0</span></div>
             <div id="car-display">Car: <span>Starter</span></div>
             <div id="area-display">Area: <span>Shibuya</span></div>
+            <div id="lanelock-display" style="display:none; color:#00ff88;">LANE LOCK</div>
         </div>
 
         <!-- Shop Button -->
@@ -511,7 +512,9 @@
         <div id="controls-hint">
             <kbd>W</kbd> or <kbd>↑</kbd> Accelerate &nbsp;|&nbsp;
             <kbd>S</kbd> or <kbd>↓</kbd> Brake &nbsp;|&nbsp;
-            <kbd>A</kbd>/<kbd>D</kbd> or <kbd>←</kbd>/<kbd>→</kbd> Steer
+            <kbd>A</kbd>/<kbd>D</kbd> or <kbd>←</kbd>/<kbd>→</kbd> Steer &nbsp;|&nbsp;
+            <kbd>Q</kbd> Left Signal &nbsp;|&nbsp; <kbd>E</kbd> Right Signal &nbsp;|&nbsp;
+            <kbd>L</kbd> Lane Lock
         </div>
 
         <!-- Mobile Controls -->
@@ -655,6 +658,38 @@
                 color: 0xff8800,
                 bodyColor: 0xff8800,
                 heavyCar: true
+            },
+            m4supra: {
+                name: 'M4 Supra',
+                price: 150,
+                maxSpeed: 1000,
+                acceleration: 85,
+                handling: 0.016,
+                color: 0xffdd00,
+                bodyColor: 0xffdd00,
+                isDrift: true,
+                heavyCar: true
+            },
+            lec: {
+                name: 'LEC',
+                price: 200,
+                maxSpeed: 2000,
+                acceleration: 100,
+                handling: 0.020,
+                color: 0xaa00ff,
+                bodyColor: 0xaa00ff,
+                heavyCar: true
+            },
+            f550: {
+                name: 'F550',
+                price: 150,
+                maxSpeed: 90,
+                acceleration: 20,
+                handling: 0.009,
+                color: 0x222222,
+                bodyColor: 0x222222,
+                isPickup: true,
+                heavyCar: true
             }
         };
 
@@ -692,9 +727,6 @@
         let policeCars = [];
         let buildings = [];
         let speedLimitSigns = [];
-        let portal = null;
-        let portalLight = null;
-        let currentMap = 1;
         let speed = 0;
         let steering = 0;
         let collisionCooldown = 0;
@@ -731,6 +763,12 @@
             left: false,
             right: false
         };
+        let blinkerState = 'off'; // 'off', 'left', 'right'
+        let hazardLights = [];
+        let brakeLights = [];
+        let laneLockOn = false;
+        let laneLockTarget = null; // target X position
+        let laneLockHighlight = null;
 
         // Initialize Three.js and Physics
         function init() {
@@ -777,7 +815,6 @@
             createTrafficLights();
             createSpeedLimitSigns();
             createStreetSigns();
-            createPortal();
 
             window.addEventListener('resize', onWindowResize);
             document.addEventListener('keydown', onKeyDown);
@@ -826,6 +863,19 @@
             groundBody.addShape(groundShape);
             groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
             world.addBody(groundBody);
+
+            // Lane lock highlight (hidden until activated)
+            const laneHighlightGeom = new THREE.PlaneGeometry(6, 80);
+            const laneHighlightMat = new THREE.MeshBasicMaterial({
+                color: 0x00ff88,
+                transparent: true,
+                opacity: 0.15,
+                side: THREE.DoubleSide
+            });
+            laneLockHighlight = new THREE.Mesh(laneHighlightGeom, laneHighlightMat);
+            laneLockHighlight.rotation.x = -Math.PI / 2;
+            laneLockHighlight.visible = false;
+            scene.add(laneLockHighlight);
         }
 
         function buildRoadNetwork() {
@@ -1864,7 +1914,7 @@
             ctx.fillText('→ ' + destination, 256, 95);
             ctx.fillStyle = '#ffcc00';
             ctx.font = 'bold 32px Arial';
-            ctx.fillText('280 MPH', 256, 145);
+            ctx.fillText('60 MPH', 256, 145);
 
             const texture = new THREE.CanvasTexture(canvas);
             const geom = new THREE.PlaneGeometry(16, 5.6);
@@ -2389,36 +2439,38 @@
             }
 
             // South approach ramp - long ramp from ground to bridge deck
+            // Ramp angle calculated so south edge surface = ground (y=0) and north edge surface = deck (y=16)
             const rampMat = new THREE.MeshLambertMaterial({ color: 0x444444 });
             const southRampLen = 150;
+            const rampAngleBridge = Math.asin(8 / (southRampLen / 2)); // ~0.107 rad
             const southRampZ = z - deckLength / 2 - southRampLen / 2;
-            const southRampGeom = new THREE.BoxGeometry(deckWidth, 2, southRampLen);
+            const southRampGeom = new THREE.BoxGeometry(deckWidth, 1, southRampLen);
             const southRampMesh = new THREE.Mesh(southRampGeom, rampMat);
             southRampMesh.position.set(x, 7.5, southRampZ);
-            southRampMesh.rotation.x = -0.1;
+            southRampMesh.rotation.x = -rampAngleBridge;
             scene.add(southRampMesh);
 
-            const southRampShape = new CANNON.Box(new CANNON.Vec3(deckWidth / 2, 1, southRampLen / 2));
+            const southRampShape = new CANNON.Box(new CANNON.Vec3(deckWidth / 2, 0.5, southRampLen / 2));
             const southRampBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
             southRampBody.addShape(southRampShape);
             southRampBody.position.set(x, 7.5, southRampZ);
-            southRampBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -0.1);
+            southRampBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -rampAngleBridge);
             world.addBody(southRampBody);
 
             // North ramp - also reaches ground
             const northRampLen = 150;
             const northRampZ = z + deckLength / 2 + northRampLen / 2;
-            const northRampGeom = new THREE.BoxGeometry(deckWidth, 2, northRampLen);
+            const northRampGeom = new THREE.BoxGeometry(deckWidth, 1, northRampLen);
             const northRampMesh = new THREE.Mesh(northRampGeom, rampMat);
             northRampMesh.position.set(x, 7.5, northRampZ);
-            northRampMesh.rotation.x = 0.1;
+            northRampMesh.rotation.x = rampAngleBridge;
             scene.add(northRampMesh);
 
-            const northRampShape = new CANNON.Box(new CANNON.Vec3(deckWidth / 2, 1, northRampLen / 2));
+            const northRampShape = new CANNON.Box(new CANNON.Vec3(deckWidth / 2, 0.5, northRampLen / 2));
             const northRampBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
             northRampBody.addShape(northRampShape);
             northRampBody.position.set(x, 7.5, northRampZ);
-            northRampBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), 0.1);
+            northRampBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), rampAngleBridge);
             world.addBody(northRampBody);
         }
 
@@ -2457,7 +2509,7 @@
             ctx.fillText('TO SAN FRANCISCO ↑', 256, 85);
             ctx.fillStyle = '#ffcc00';
             ctx.font = 'bold 36px Arial';
-            ctx.fillText('280 MPH', 256, 140);
+            ctx.fillText('60 MPH', 256, 140);
 
             const texture = new THREE.CanvasTexture(canvas);
             const textGeom = new THREE.PlaneGeometry(13, 4.5);
@@ -2872,159 +2924,6 @@
             }
         }
 
-        // Map themes for different areas
-        const mapThemes = {
-            1: { name: 'Shibuya', skyColor: 0x0a0a1a, fogColor: 0x0a0a1a },
-            2: { name: 'Akihabara', skyColor: 0x1a0a2a, fogColor: 0x1a0a2a },
-            3: { name: 'Ginza', skyColor: 0x0a1a2a, fogColor: 0x0a1a2a }
-        };
-
-        function createPortal() {
-            // Place portal at a random intersection
-            const cityOffset = -CITY_EXTENT / 2;
-            const portalBlock = Math.floor(Math.random() * (CITY_SIZE - 1)) + 1;
-            const portalRoad = Math.floor(Math.random() * (CITY_SIZE - 1)) + 1;
-
-            const portalX = cityOffset + portalBlock * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2;
-            const portalZ = cityOffset + portalRoad * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2;
-
-            const portalGroup = new THREE.Group();
-
-            // Portal ring
-            const ringGeom = new THREE.TorusGeometry(3, 0.3, 16, 32);
-            const ringMat = new THREE.MeshBasicMaterial({ color: 0xff00ff });
-            const ring = new THREE.Mesh(ringGeom, ringMat);
-            ring.rotation.x = Math.PI / 2;
-            ring.position.y = 3;
-            portalGroup.add(ring);
-
-            // Inner portal glow
-            const innerGeom = new THREE.CircleGeometry(2.7, 32);
-            const innerMat = new THREE.MeshBasicMaterial({
-                color: 0x8800ff,
-                transparent: true,
-                opacity: 0.6,
-                side: THREE.DoubleSide
-            });
-            const inner = new THREE.Mesh(innerGeom, innerMat);
-            inner.rotation.x = Math.PI / 2;
-            inner.position.y = 3;
-            portalGroup.add(inner);
-
-            // Swirl effect
-            const swirlGeom = new THREE.RingGeometry(1, 2.5, 32, 1, 0, Math.PI * 1.5);
-            const swirlMat = new THREE.MeshBasicMaterial({
-                color: 0x00ffff,
-                transparent: true,
-                opacity: 0.4,
-                side: THREE.DoubleSide
-            });
-            const swirl = new THREE.Mesh(swirlGeom, swirlMat);
-            swirl.rotation.x = Math.PI / 2;
-            swirl.position.y = 3;
-            portalGroup.add(swirl);
-
-            // Portal light
-            const pLight = new THREE.PointLight(0xff00ff, 2, 30);
-            pLight.position.y = 3;
-            portalGroup.add(pLight);
-
-            // Vertical beam
-            const beamGeom = new THREE.CylinderGeometry(0.1, 0.1, 15, 8);
-            const beamMat = new THREE.MeshBasicMaterial({
-                color: 0xff00ff,
-                transparent: true,
-                opacity: 0.3
-            });
-            const beam = new THREE.Mesh(beamGeom, beamMat);
-            beam.position.y = 7.5;
-            portalGroup.add(beam);
-
-            portalGroup.position.set(portalX, 0, portalZ);
-            scene.add(portalGroup);
-
-            portal = {
-                group: portalGroup,
-                ring: ring,
-                inner: inner,
-                swirl: swirl,
-                x: portalX,
-                z: portalZ
-            };
-            portalLight = pLight;
-        }
-
-        function updatePortal(time) {
-            if (!portal) return;
-
-            // Rotate the swirl and ring
-            portal.swirl.rotation.z = time * 0.002;
-            portal.ring.rotation.z = time * 0.001;
-
-            // Pulse the light
-            portalLight.intensity = 1.5 + Math.sin(time * 0.005) * 0.5;
-
-            // Color shift
-            const hue = (time * 0.0001) % 1;
-            portal.inner.material.color.setHSL(hue, 1, 0.5);
-        }
-
-        function checkPortalCollision() {
-            if (!portal) return;
-
-            const carPos = car.position;
-            const dist = Math.sqrt(
-                Math.pow(carPos.x - portal.x, 2) +
-                Math.pow(carPos.z - portal.z, 2)
-            );
-
-            if (dist < 4) {
-                teleportToNextMap();
-            }
-        }
-
-        function teleportToNextMap() {
-            // Cycle through maps
-            currentMap = (currentMap % 3) + 1;
-            const theme = mapThemes[currentMap];
-
-            // Update sky and fog colors
-            scene.background = new THREE.Color(theme.skyColor);
-            scene.fog.color = new THREE.Color(theme.fogColor);
-
-            // Teleport car to a new random position
-            const cityOffset = -CITY_EXTENT / 2;
-            const newBlock = Math.floor(Math.random() * CITY_SIZE);
-            const newRoad = Math.floor(Math.random() * (CITY_SIZE + 1));
-
-            car.position.x = cityOffset + newRoad * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2;
-            car.position.z = cityOffset + newBlock * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2 + 20;
-            car.rotation.y = 0;
-            speed = 0;
-
-            // Move portal to new location
-            const newPortalBlock = Math.floor(Math.random() * (CITY_SIZE - 1)) + 1;
-            const newPortalRoad = Math.floor(Math.random() * (CITY_SIZE - 1)) + 1;
-            portal.x = cityOffset + newPortalBlock * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2;
-            portal.z = cityOffset + newPortalRoad * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH / 2;
-            portal.group.position.set(portal.x, 0, portal.z);
-
-            // Visual feedback
-            showPortalFlash();
-
-            // Update HUD
-            document.querySelector('#area-display span').textContent = theme.name;
-        }
-
-        function showPortalFlash() {
-            const flash = document.getElementById('collision-flash');
-            flash.style.background = 'rgba(255, 0, 255, 0.5)';
-            flash.classList.add('active');
-            setTimeout(() => {
-                flash.classList.remove('active');
-                flash.style.background = 'rgba(255, 0, 0, 0.3)';
-            }, 300);
-        }
 
         function updateSpeedLimit() {
             const carPos = car.position;
@@ -3047,9 +2946,9 @@
                 currentSpeedLimit = nearestSign.limit;
             }
 
-            // Check if on freeway (elevated) - speed limit 280
+            // Check if on freeway (elevated) - speed limit 60
             if (carPos.y > 5) {
-                currentSpeedLimit = 280;
+                currentSpeedLimit = 60;
             }
 
             // Update HUD
@@ -3269,35 +3168,67 @@
             const carGroup = new THREE.Group();
             const carColors = [0xff4444, 0x4444ff, 0x44ff44, 0xffff44, 0xff44ff, 0x44ffff, 0xffffff, 0x888888, 0xff8800, 0x8800ff];
             const color = carColors[Math.floor(Math.random() * carColors.length)];
-
-            const bodyGeometry = new THREE.BoxGeometry(1.8, 0.7, 3.5);
-            const bodyMaterial = new THREE.MeshLambertMaterial({ color: color });
-            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-            body.position.y = 0.55;
-            body.castShadow = true;
-            carGroup.add(body);
-
-            const roofGeometry = new THREE.BoxGeometry(1.4, 0.5, 1.8);
-            const roof = new THREE.Mesh(roofGeometry, bodyMaterial);
-            roof.position.y = 1.15;
-            roof.position.z = -0.2;
-            roof.castShadow = true;
-            carGroup.add(roof);
-
-            const wheelGeometry = new THREE.CylinderGeometry(0.35, 0.35, 0.25, 12);
+            const isPickup = Math.random() < 0.2;
             const wheelMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
-            const wheelPositions = [
-                { x: -0.9, y: 0.35, z: 1 },
-                { x: 0.9, y: 0.35, z: 1 },
-                { x: -0.9, y: 0.35, z: -1 },
-                { x: 0.9, y: 0.35, z: -1 }
-            ];
-            wheelPositions.forEach(pos => {
-                const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
-                wheel.position.set(pos.x, pos.y, pos.z);
-                wheel.rotation.z = Math.PI / 2;
-                carGroup.add(wheel);
-            });
+
+            if (isPickup) {
+                // Pickup truck
+                const bodyMat = new THREE.MeshLambertMaterial({ color: color });
+                const frame = new THREE.Mesh(new THREE.BoxGeometry(2, 0.7, 4.2), bodyMat);
+                frame.position.y = 0.55;
+                frame.castShadow = true;
+                carGroup.add(frame);
+
+                // Cab
+                const cab = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.8, 1.8), bodyMat);
+                cab.position.set(0, 1.3, 0.8);
+                cab.castShadow = true;
+                carGroup.add(cab);
+
+                // Bed walls
+                const bedMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+                const bedL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 2), bedMat);
+                bedL.position.set(-0.95, 1.15, -1.1);
+                carGroup.add(bedL);
+                const bedR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 2), bedMat);
+                bedR.position.set(0.95, 1.15, -1.1);
+                carGroup.add(bedR);
+                const tailgate = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.5, 0.08), bedMat);
+                tailgate.position.set(0, 1.15, -2.1);
+                carGroup.add(tailgate);
+
+                // Wheels
+                const wheelGeom = new THREE.CylinderGeometry(0.38, 0.38, 0.28, 12);
+                [[-0.95, 1.1], [0.95, 1.1], [-0.95, -1.1], [0.95, -1.1]].forEach(([wx, wz]) => {
+                    const wheel = new THREE.Mesh(wheelGeom, wheelMaterial);
+                    wheel.position.set(wx, 0.38, wz);
+                    wheel.rotation.z = Math.PI / 2;
+                    carGroup.add(wheel);
+                });
+            } else {
+                // Regular car
+                const bodyGeometry = new THREE.BoxGeometry(1.8, 0.7, 3.5);
+                const bodyMaterial = new THREE.MeshLambertMaterial({ color: color });
+                const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+                body.position.y = 0.55;
+                body.castShadow = true;
+                carGroup.add(body);
+
+                const roofGeometry = new THREE.BoxGeometry(1.4, 0.5, 1.8);
+                const roof = new THREE.Mesh(roofGeometry, bodyMaterial);
+                roof.position.y = 1.15;
+                roof.position.z = -0.2;
+                roof.castShadow = true;
+                carGroup.add(roof);
+
+                const wheelGeometry = new THREE.CylinderGeometry(0.35, 0.35, 0.25, 12);
+                [[-0.9, 1], [0.9, 1], [-0.9, -1], [0.9, -1]].forEach(([wx, wz]) => {
+                    const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+                    wheel.position.set(wx, 0.35, wz);
+                    wheel.rotation.z = Math.PI / 2;
+                    carGroup.add(wheel);
+                });
+            }
 
             carGroup.position.set(x, 0, z);
             carGroup.rotation.y = direction;
@@ -3305,8 +3236,8 @@
 
             return {
                 mesh: carGroup,
-                baseSpeed: 6 + Math.random() * 8,
-                speed: 6 + Math.random() * 8,
+                baseSpeed: 24 + Math.random() * 6,
+                speed: 24 + Math.random() * 6,
                 direction: direction,
                 isHorizontal: isHorizontal,
                 laneZ: z,
@@ -3347,31 +3278,96 @@
             for (let i = 0; i < numCars; i++) {
                 const carGroup = new THREE.Group();
                 const color = carColors[Math.floor(Math.random() * carColors.length)];
-
-                // Sports car body (sleeker for high speed)
-                const bodyGeom = new THREE.BoxGeometry(2, 0.6, 4);
-                const bodyMat = new THREE.MeshLambertMaterial({ color: color });
-                const body = new THREE.Mesh(bodyGeom, bodyMat);
-                body.position.y = 0.5;
-                body.castShadow = true;
-                carGroup.add(body);
-
-                // Low roof
-                const roofGeom = new THREE.BoxGeometry(1.6, 0.4, 2);
-                const roof = new THREE.Mesh(roofGeom, bodyMat);
-                roof.position.y = 1;
-                roof.position.z = -0.3;
-                carGroup.add(roof);
-
-                // Wheels
-                const wheelGeom = new THREE.CylinderGeometry(0.35, 0.35, 0.3, 12);
+                const roll = Math.random();
+                const isTruck = roll < 0.2;
+                const isPickup = roll >= 0.2 && roll < 0.4;
                 const wheelMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
-                [[-1, 1.2], [1, 1.2], [-1, -1.2], [1, -1.2]].forEach(([x, z]) => {
-                    const wheel = new THREE.Mesh(wheelGeom, wheelMat);
-                    wheel.position.set(x, 0.35, z);
-                    wheel.rotation.z = Math.PI / 2;
-                    carGroup.add(wheel);
-                });
+
+                if (isPickup) {
+                    // Pickup truck
+                    const bodyMat = new THREE.MeshLambertMaterial({ color: color });
+                    const frame = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.7, 4.5), bodyMat);
+                    frame.position.y = 0.55;
+                    frame.castShadow = true;
+                    carGroup.add(frame);
+
+                    const cab = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.9, 2), bodyMat);
+                    cab.position.set(0, 1.35, 0.9);
+                    cab.castShadow = true;
+                    carGroup.add(cab);
+
+                    // Bed walls
+                    const bedMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+                    const bedL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 2.2), bedMat);
+                    bedL.position.set(-1.05, 1.15, -1.2);
+                    carGroup.add(bedL);
+                    const bedR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 2.2), bedMat);
+                    bedR.position.set(1.05, 1.15, -1.2);
+                    carGroup.add(bedR);
+                    const tailgate = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.5, 0.08), bedMat);
+                    tailgate.position.set(0, 1.15, -2.25);
+                    carGroup.add(tailgate);
+
+                    const wheelGeom = new THREE.CylinderGeometry(0.4, 0.4, 0.3, 12);
+                    [[-1, 1.2], [1, 1.2], [-1, -1.2], [1, -1.2]].forEach(([x, z]) => {
+                        const wheel = new THREE.Mesh(wheelGeom, wheelMat);
+                        wheel.position.set(x, 0.4, z);
+                        wheel.rotation.z = Math.PI / 2;
+                        carGroup.add(wheel);
+                    });
+                } else if (isTruck) {
+                    // Truck cab
+                    const cabMat = new THREE.MeshLambertMaterial({ color: color });
+                    const cab = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.4, 3), cabMat);
+                    cab.position.set(0, 0.9, 2.5);
+                    cab.castShadow = true;
+                    carGroup.add(cab);
+
+                    const cabRoof = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.6, 2.5), cabMat);
+                    cabRoof.position.set(0, 1.9, 2.3);
+                    carGroup.add(cabRoof);
+
+                    // Trailer
+                    const trailerColors = [0xdddddd, 0xcc4444, 0x4466aa, 0xeeeeee];
+                    const trailerMat = new THREE.MeshLambertMaterial({ color: trailerColors[Math.floor(Math.random() * trailerColors.length)] });
+                    const trailer = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.8, 8), trailerMat);
+                    trailer.position.set(0, 1.6, -2.3);
+                    trailer.castShadow = true;
+                    carGroup.add(trailer);
+
+                    // Wheels - 3 axles
+                    const wheelGeom = new THREE.CylinderGeometry(0.45, 0.45, 0.3, 12);
+                    [[-1.2, 2.5], [1.2, 2.5], [-1.2, -1], [1.2, -1], [-1.2, -4.5], [1.2, -4.5]].forEach(([x, z]) => {
+                        const wheel = new THREE.Mesh(wheelGeom, wheelMat);
+                        wheel.position.set(x, 0.45, z);
+                        wheel.rotation.z = Math.PI / 2;
+                        carGroup.add(wheel);
+                    });
+                } else {
+                    // Regular car body
+                    const bodyGeom = new THREE.BoxGeometry(2, 0.6, 4);
+                    const bodyMat = new THREE.MeshLambertMaterial({ color: color });
+                    const body = new THREE.Mesh(bodyGeom, bodyMat);
+                    body.position.y = 0.5;
+                    body.castShadow = true;
+                    carGroup.add(body);
+
+                    // Low roof
+                    const roofGeom = new THREE.BoxGeometry(1.6, 0.4, 2);
+                    const roof = new THREE.Mesh(roofGeom, bodyMat);
+                    roof.position.y = 1;
+                    roof.position.z = -0.3;
+                    carGroup.add(roof);
+
+                    // Wheels
+                    const wheelGeom = new THREE.CylinderGeometry(0.35, 0.35, 0.3, 12);
+                    [[-1, 1.2], [1, 1.2], [-1, -1.2], [1, -1.2]].forEach(([x, z]) => {
+                        const wheel = new THREE.Mesh(wheelGeom, wheelMat);
+                        wheel.position.set(x, 0.35, z);
+                        wheel.rotation.z = Math.PI / 2;
+                        carGroup.add(wheel);
+                    });
+                }
 
                 // Position on freeway - northbound on positive side, southbound on negative side
                 const laneChoices = direction === 'northbound' ? [5, 11, 17] : [-5, -11, -17];
@@ -3383,7 +3379,7 @@
 
                 freewayTrafficCars.push({
                     mesh: carGroup,
-                    speed: 100 + Math.random() * 30,
+                    speed: 24 + Math.random() * 6,
                     lane: laneOffset,
                     freewayX: freewayX,
                     freewayY: freewayY,
@@ -3398,11 +3394,30 @@
             freewayTrafficCars.forEach(ftc => {
                 const totalEndZ = freewayData.totalEndZ || (ftc.freewayStartZ + ftc.freewayLength);
 
-                if (ftc.direction === 'southbound') {
-                    // Move south (negative Z)
-                    ftc.mesh.position.z -= ftc.speed * delta;
+                // Check for vehicle ahead in same lane
+                let effectiveSpeed = ftc.speed;
+                const myX = ftc.mesh.position.x;
+                const myZ = ftc.mesh.position.z;
 
-                    // Wrap at start back to far end
+                freewayTrafficCars.forEach(other => {
+                    if (other === ftc) return;
+                    // Same lane check (within 3 units on X)
+                    if (Math.abs(other.mesh.position.x - myX) > 3) return;
+                    if (other.direction !== ftc.direction) return;
+
+                    const dz = other.mesh.position.z - myZ;
+                    const ahead = ftc.direction === 'northbound' ? dz : -dz;
+
+                    // If vehicle is ahead and within 20 units, slow down
+                    if (ahead > 0 && ahead < 20) {
+                        const slowFactor = ahead / 20;
+                        effectiveSpeed = Math.min(effectiveSpeed, other.speed * slowFactor);
+                    }
+                });
+
+                if (ftc.direction === 'southbound') {
+                    ftc.mesh.position.z -= effectiveSpeed * delta;
+
                     if (ftc.mesh.position.z < freewayData.freewayStartZ) {
                         ftc.mesh.position.z = totalEndZ - 50;
                         const laneChoices = [-5, -11, -17];
@@ -3410,10 +3425,8 @@
                         ftc.mesh.position.x = freewayData.rampX + newLane;
                     }
                 } else {
-                    // Northbound: move north (positive Z)
-                    ftc.mesh.position.z += ftc.speed * delta;
+                    ftc.mesh.position.z += effectiveSpeed * delta;
 
-                    // Wrap at end back to start
                     if (ftc.mesh.position.z > totalEndZ) {
                         ftc.mesh.position.z = freewayData.freewayStartZ + 50;
                         const laneChoices = [5, 11, 17];
@@ -3511,7 +3524,84 @@
             // Create visual car group (body only, wheels separate)
             carGroup = new THREE.Group();
 
-            if (isTruck) {
+            const isPickup = carData.isPickup;
+
+            if (isPickup) {
+                // === PICKUP TRUCK MODEL (F550) ===
+                const bodyMat = new THREE.MeshLambertMaterial({ color: carData.bodyColor });
+
+                // Main body / frame
+                const frameGeom = new THREE.BoxGeometry(2.4, 0.8, 5);
+                const frame = new THREE.Mesh(frameGeom, bodyMat);
+                frame.position.set(0, 0.6, 0);
+                frame.castShadow = true;
+                carGroup.add(frame);
+
+                // Cab
+                const cabGeom = new THREE.BoxGeometry(2.3, 1.0, 2.2);
+                const cab = new THREE.Mesh(cabGeom, bodyMat);
+                cab.position.set(0, 1.5, 1.0);
+                cab.castShadow = true;
+                carGroup.add(cab);
+
+                // Cab roof
+                const cabRoofGeom = new THREE.BoxGeometry(2.2, 0.15, 2.1);
+                const cabRoof = new THREE.Mesh(cabRoofGeom, bodyMat);
+                cabRoof.position.set(0, 2.05, 1.0);
+                carGroup.add(cabRoof);
+
+                // Windshield
+                const windshieldMat = new THREE.MeshLambertMaterial({ color: 0x88ccff, transparent: true, opacity: 0.6 });
+                const windshield = new THREE.Mesh(new THREE.BoxGeometry(2, 0.7, 0.1), windshieldMat);
+                windshield.position.set(0, 1.6, 2.1);
+                windshield.rotation.x = Math.PI / 8;
+                carGroup.add(windshield);
+
+                // Rear window
+                const rearWin = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.5, 0.1), windshieldMat);
+                rearWin.position.set(0, 1.5, -0.1);
+                carGroup.add(rearWin);
+
+                // Truck bed walls
+                const bedMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+                const bedWallL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.6, 2.4), bedMat);
+                bedWallL.position.set(-1.15, 1.3, -1.3);
+                carGroup.add(bedWallL);
+                const bedWallR = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.6, 2.4), bedMat);
+                bedWallR.position.set(1.15, 1.3, -1.3);
+                carGroup.add(bedWallR);
+                const tailgate = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.6, 0.1), bedMat);
+                tailgate.position.set(0, 1.3, -2.5);
+                carGroup.add(tailgate);
+
+                // Headlights
+                const hlMat = new THREE.MeshBasicMaterial({ color: 0xffffcc });
+                [-0.9, 0.9].forEach(x => {
+                    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.1), hlMat);
+                    hl.position.set(x, 0.7, 2.5);
+                    carGroup.add(hl);
+                });
+
+                // Front bumper + grille
+                const bumper = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.35, 0.3), new THREE.MeshLambertMaterial({ color: 0x888888 }));
+                bumper.position.set(0, 0.3, 2.6);
+                carGroup.add(bumper);
+                const grille = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.5, 0.1), new THREE.MeshLambertMaterial({ color: 0x555555 }));
+                grille.position.set(0, 0.8, 2.5);
+                carGroup.add(grille);
+
+                // Taillights + rear bumper
+                const tlMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+                [-0.9, 0.9].forEach(x => {
+                    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.25, 0.1), tlMat);
+                    tl.position.set(x, 0.7, -2.5);
+                    carGroup.add(tl);
+                });
+                const rearBumper = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.3, 0.2), new THREE.MeshLambertMaterial({ color: 0x888888 }));
+                rearBumper.position.set(0, 0.25, -2.6);
+                carGroup.add(rearBumper);
+
+            } else if (isTruck) {
                 // === TRAILER TRUCK MODEL ===
                 const bodyMat = new THREE.MeshLambertMaterial({ color: carData.bodyColor });
 
@@ -3642,18 +3732,74 @@
                 });
             }
 
+            // Turn signal lights (amber indicators at four corners)
+            hazardLights = [];
+            const hazardMat = new THREE.MeshBasicMaterial({ color: 0xff8800, transparent: true, opacity: 0 });
+            const hazardSize = isPickup ? [0.25, 0.2, 0.08] : isTruck ? [0.3, 0.25, 0.08] : [0.2, 0.15, 0.08];
+            const hazardGeom = new THREE.BoxGeometry(...hazardSize);
+            const hazardPositions = isPickup ? [
+                { x: -1.2, y: 0.7, z: 2.5, side: 'left' },
+                { x: 1.2, y: 0.7, z: 2.5, side: 'right' },
+                { x: -1.2, y: 0.7, z: -2.5, side: 'left' },
+                { x: 1.2, y: 0.7, z: -2.5, side: 'right' }
+            ] : isTruck ? [
+                { x: -1.3, y: 0.6, z: 3.8, side: 'left' },
+                { x: 1.3, y: 0.6, z: 3.8, side: 'right' },
+                { x: -1.3, y: 1.0, z: -5.8, side: 'left' },
+                { x: 1.3, y: 1.0, z: -5.8, side: 'right' }
+            ] : [
+                { x: -1.0, y: 0.6, z: 2.0, side: 'left' },
+                { x: 1.0, y: 0.6, z: 2.0, side: 'right' },
+                { x: -1.0, y: 0.6, z: -2.0, side: 'left' },
+                { x: 1.0, y: 0.6, z: -2.0, side: 'right' }
+            ];
+            hazardPositions.forEach(pos => {
+                const light = new THREE.Mesh(hazardGeom.clone(), hazardMat.clone());
+                light.position.set(pos.x, pos.y, pos.z);
+                light.userData.side = pos.side;
+                carGroup.add(light);
+                hazardLights.push(light);
+            });
+
+            // Brake lights (bright red at rear)
+            brakeLights = [];
+            const brakeMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.3 });
+            const brakePositions = isPickup ? [
+                { x: -0.9, y: 0.7, z: -2.51 },
+                { x: 0.9, y: 0.7, z: -2.51 }
+            ] : isTruck ? [
+                { x: -0.9, y: 1.0, z: -5.81 },
+                { x: 0.9, y: 1.0, z: -5.81 }
+            ] : [
+                { x: -0.6, y: 0.6, z: -2.01 },
+                { x: 0.6, y: 0.6, z: -2.01 }
+            ];
+            const brakeSize = isPickup ? [0.35, 0.25, 0.08] : isTruck ? [0.4, 0.3, 0.08] : [0.3, 0.2, 0.08];
+            const brakeGeom = new THREE.BoxGeometry(...brakeSize);
+            brakePositions.forEach(pos => {
+                const light = new THREE.Mesh(brakeGeom.clone(), brakeMat.clone());
+                light.position.set(pos.x, pos.y, pos.z);
+                carGroup.add(light);
+                brakeLights.push(light);
+            });
+
             carGroup.position.set(0, 2, 0);
             scene.add(carGroup);
             car = carGroup;
 
             // Create wheel visuals (separate from car body for physics sync)
-            const wheelRadius = isTruck ? 0.5 : 0.4;
-            const wheelWidth = isTruck ? 0.4 : 0.3;
+            const wheelRadius = (isTruck || isPickup) ? 0.5 : 0.4;
+            const wheelWidth = (isTruck || isPickup) ? 0.4 : 0.3;
             const wheelGeometry = new THREE.CylinderGeometry(wheelRadius, wheelRadius, wheelWidth, 16);
             const wheelMaterial = new THREE.MeshLambertMaterial({ color: 0x222222 });
             carWheelMeshes = [];
 
-            const wheelPositions = isTruck ? [
+            const wheelPositions = isPickup ? [
+                { x: -1.1, y: 0.4, z: 2.0 },   // Front left
+                { x: 1.1, y: 0.4, z: 2.0 },    // Front right
+                { x: -1.1, y: 0.4, z: -2.0 },  // Rear left
+                { x: 1.1, y: 0.4, z: -2.0 }    // Rear right
+            ] : isTruck ? [
                 { x: -1.1, y: 0.4, z: 2.8 },   // Front left
                 { x: 1.1, y: 0.4, z: 2.8 },    // Front right
                 { x: -1.1, y: 0.4, z: -4.0 },  // Rear left
@@ -3677,17 +3823,19 @@
             // Chassis body
             const isDrift = carData.isDrift;
             const isHeavy = carData.heavyCar;
-            const chassisShape = isTruck
+            const chassisShape = isPickup
+                ? new CANNON.Box(new CANNON.Vec3(1.2, 0.5, 2.5))
+                : isTruck
                 ? new CANNON.Box(new CANNON.Vec3(1.3, 0.7, 4.5))
                 : new CANNON.Box(new CANNON.Vec3(1, 0.4, 2));
             carBody = new CANNON.Body({
-                mass: isTruck ? 250 : (isHeavy ? 400 : 150),
+                mass: isPickup ? 350 : (isTruck ? 250 : (isHeavy ? 400 : 150)),
                 material: world.wheelMaterial,
-                linearDamping: isDrift ? 0.05 : (isTruck ? 0.15 : 0.1),
-                angularDamping: isHeavy ? 0.95 : (isTruck ? 0.7 : 0.5),
+                linearDamping: isDrift ? 0.05 : ((isTruck || isPickup) ? 0.15 : 0.1),
+                angularDamping: isHeavy ? 0.95 : ((isTruck || isPickup) ? 0.7 : 0.5),
                 allowSleep: false
             });
-            carBody.addShape(chassisShape, new CANNON.Vec3(0, isTruck ? 0.9 : 0.6, isTruck ? -0.8 : 0));
+            carBody.addShape(chassisShape, new CANNON.Vec3(0, isPickup ? 0.7 : (isTruck ? 0.9 : 0.6), isTruck ? -0.8 : 0));
             // Spawn at a road intersection (center of city grid)
             // Road position = -CITY_EXTENT/2 + roadIndex * (BLOCK_SIZE + ROAD_WIDTH) + ROAD_WIDTH/2
             carBody.position.set(37.5, 1, 37.5);
@@ -3705,22 +3853,27 @@
             const wheelOptions = {
                 radius: wheelRadius,
                 directionLocal: new CANNON.Vec3(0, -1, 0),
-                suspensionStiffness: isHeavy ? 50 : (isTruck ? 40 : 30),
-                suspensionRestLength: isTruck ? 0.4 : 0.3,
-                frictionSlip: isTruck ? 2.5 : 3,
+                suspensionStiffness: isHeavy ? 50 : ((isTruck || isPickup) ? 40 : 30),
+                suspensionRestLength: (isTruck || isPickup) ? 0.4 : 0.3,
+                frictionSlip: (isTruck || isPickup) ? 2.5 : 3,
                 dampingRelaxation: isHeavy ? 3.0 : 2.3,
                 dampingCompression: isHeavy ? 6.0 : 4.4,
                 maxSuspensionForce: 200000,
-                rollInfluence: isHeavy ? 0.001 : (isTruck ? 0.05 : 0.01),
+                rollInfluence: isHeavy ? 0.001 : ((isTruck || isPickup) ? 0.05 : 0.01),
                 axleLocal: new CANNON.Vec3(1, 0, 0),
                 chassisConnectionPointLocal: new CANNON.Vec3(0, 0, 0),
-                maxSuspensionTravel: isTruck ? 0.4 : 0.3,
+                maxSuspensionTravel: (isTruck || isPickup) ? 0.4 : 0.3,
                 customSlidingRotationalSpeed: -30,
                 useCustomSlidingRotationalSpeed: true
             };
 
             // Add 4 wheels at car corners
-            const physicsWheelPositions = isTruck ? [
+            const physicsWheelPositions = isPickup ? [
+                { x: -1.1, y: 0.4, z: 2.0 },
+                { x: 1.1, y: 0.4, z: 2.0 },
+                { x: -1.1, y: 0.4, z: -2.0 },
+                { x: 1.1, y: 0.4, z: -2.0 }
+            ] : isTruck ? [
                 { x: -1.1, y: 0.4, z: 2.8 },
                 { x: 1.1, y: 0.4, z: 2.8 },
                 { x: -1.1, y: 0.4, z: -4.0 },
@@ -3904,6 +4057,16 @@
                     keys.right = true;
                     e.preventDefault();
                     break;
+                case 'q':
+                    blinkerState = blinkerState === 'left' ? 'off' : 'left';
+                    break;
+                case 'e':
+                    blinkerState = blinkerState === 'right' ? 'off' : 'right';
+                    break;
+                case 'l':
+                    laneLockOn = !laneLockOn;
+                    if (!laneLockOn) laneLockTarget = null;
+                    break;
             }
         }
 
@@ -3982,8 +4145,57 @@
 
             // Steering - always responsive
             let steerValue = 0;
-            if (keys.left) steerValue = maxSteer;
-            if (keys.right) steerValue = -maxSteer;
+
+            // Lane lock on freeway
+            const freewayLanes = [-17, -11, -5, 5, 11, 17];
+            const onFreewayForLaneLock = freewayData &&
+                Math.abs(carBody.position.x - freewayData.rampX) < freewayData.freewayWidth / 2 + 5 &&
+                carBody.position.z > freewayData.freewayStartZ;
+
+            if (laneLockOn && onFreewayForLaneLock) {
+                // Snap to nearest lane on first activation
+                if (laneLockTarget === null) {
+                    const relX = carBody.position.x - freewayData.rampX;
+                    let nearestLane = freewayLanes[0];
+                    let nearestDist = Math.abs(relX - nearestLane);
+                    freewayLanes.forEach(lane => {
+                        const d = Math.abs(relX - lane);
+                        if (d < nearestDist) { nearestDist = d; nearestLane = lane; }
+                    });
+                    laneLockTarget = freewayData.rampX + nearestLane;
+                }
+
+                // Left/right to change lanes
+                if (keys.left && !keys._laneSwitchL) {
+                    const relX = laneLockTarget - freewayData.rampX;
+                    const idx = freewayLanes.indexOf(relX);
+                    if (idx > 0) laneLockTarget = freewayData.rampX + freewayLanes[idx - 1];
+                    keys._laneSwitchL = true;
+                }
+                if (!keys.left) keys._laneSwitchL = false;
+                if (keys.right && !keys._laneSwitchR) {
+                    const relX = laneLockTarget - freewayData.rampX;
+                    const idx = freewayLanes.indexOf(relX);
+                    if (idx < freewayLanes.length - 1) laneLockTarget = freewayData.rampX + freewayLanes[idx + 1];
+                    keys._laneSwitchR = true;
+                }
+                if (!keys.right) keys._laneSwitchR = false;
+
+                // Auto-steer toward target lane
+                const diff = laneLockTarget - carBody.position.x;
+                steerValue = Math.max(-maxSteer, Math.min(maxSteer, -diff * 0.5));
+
+                // Show lane highlight
+                if (laneLockHighlight) {
+                    laneLockHighlight.visible = true;
+                    laneLockHighlight.position.set(laneLockTarget, 0.35, carBody.position.z + 20);
+                }
+            } else {
+                if (keys.left) steerValue = maxSteer;
+                if (keys.right) steerValue = -maxSteer;
+                if (!onFreewayForLaneLock) laneLockTarget = null;
+                if (laneLockHighlight) laneLockHighlight.visible = false;
+            }
 
             // Apply steering to front wheels
             vehicle.setSteeringValue(steerValue, 0); // Front left
@@ -4012,29 +4224,26 @@
             // Boundary check
             const cityBound = CITY_EXTENT / 2 + 50;
 
-            // Check if player is on the freeway (allows travel to San Francisco)
-            // Only trigger once past the city edge and actually within the freeway lanes
-            const onFreeway = freewayData &&
-                Math.abs(carBody.position.x - freewayData.rampX) < freewayData.freewayWidth / 2 + 5 &&
-                carBody.position.z > freewayData.freewayStartZ;
+            // Check if player is past the city (on freeway, SF, Sacramento, bridge, etc.)
+            const pastCity = freewayData && carBody.position.z > freewayData.freewayStartZ;
 
-            if (onFreeway) {
-                // On freeway: only bound X to stay on freeway, allow full travel to Sacramento
-                const freewayXMin = freewayData.rampX - freewayData.freewayWidth / 2 - 10;
-                const freewayXMax = freewayData.rampX + freewayData.freewayWidth / 2 + 10;
-                if (carBody.position.x < freewayXMin) {
-                    carBody.position.x = freewayXMin;
-                    carBody.velocity.x = 0;
-                }
-                if (carBody.position.x > freewayXMax) {
-                    carBody.position.x = freewayXMax;
-                    carBody.velocity.x = 0;
-                }
-                // Allow travel all the way to Sacramento (uses totalEndZ set by createSacramento)
+            if (pastCity) {
+                // Past city: allow full travel along freeway corridor and all side areas
                 const maxZ = freewayData.totalEndZ || freewayData.sfStartZ + 10000;
                 if (carBody.position.z > maxZ) {
                     carBody.position.z = maxZ;
                     carBody.velocity.z = 0;
+                }
+                // Generous X bounds for freeway + exit ramps + bridge
+                const xMin = freewayData.rampX - 200;
+                const xMax = freewayData.rampX + 250;
+                if (carBody.position.x < xMin) {
+                    carBody.position.x = xMin;
+                    carBody.velocity.x = 0;
+                }
+                if (carBody.position.x > xMax) {
+                    carBody.position.x = xMax;
+                    carBody.velocity.x = 0;
                 }
             } else {
                 // In city: original boundaries
@@ -4068,6 +4277,7 @@
             const velocity = carBody.velocity;
             const speedMph = Math.sqrt(velocity.x ** 2 + velocity.z ** 2) * 2.237;
             document.querySelector('#speed-display span').textContent = Math.round(speedMph);
+            document.getElementById('lanelock-display').style.display = laneLockOn ? 'block' : 'none';
         }
 
         function checkCoinCollection() {
@@ -4128,6 +4338,21 @@
                     coin.position.y = 1.2 + Math.sin(time * 0.003 + i) * 0.3;
                     coin.rotation.y = time * 0.002;
                 }
+            });
+        }
+
+        function updateHazardLights(time) {
+            if (!hazardLights.length) return;
+            const blinkOn = Math.floor(time / 400) % 2 === 0;
+            hazardLights.forEach(light => {
+                const active = blinkerState === light.userData.side && blinkOn;
+                light.material.opacity = active ? 1 : 0;
+            });
+
+            // Brake lights
+            const braking = keys.backward;
+            brakeLights.forEach(light => {
+                light.material.opacity = braking ? 1 : 0.3;
             });
         }
 
@@ -4263,11 +4488,10 @@
                 updateSpeedLimit();
                 checkCollisions();
                 checkCoinCollection();
-                checkPortalCollision();
                 updateInfiniteFreeway();
-                updatePortal(time);
                 updateTokyoTower(time);
                 animateCoins(time);
+                updateHazardLights(time);
                 updateMiniMap();
             }
 
