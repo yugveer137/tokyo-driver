@@ -541,6 +541,97 @@
             box-shadow: 0 5px 20px rgba(255, 68, 102, 0.5);
         }
 
+        /* Fast Travel button */
+        #fast-travel-btn {
+            position: absolute;
+            top: 520px;
+            right: 20px;
+            padding: 15px 30px;
+            font-size: 18px;
+            background: linear-gradient(135deg, #00c6ff, #0072ff);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            cursor: pointer;
+            z-index: 100;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        #fast-travel-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(0, 114, 255, 0.5);
+        }
+
+        /* Fast Travel Modal */
+        #fast-travel-modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        #fast-travel-modal.active { display: flex; }
+        #fast-travel-content {
+            background: linear-gradient(135deg, #0a0a1e, #0d1b2a);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            width: 90%;
+            border: 2px solid #0072ff;
+            text-align: center;
+        }
+        #fast-travel-content h2 {
+            color: #00c6ff;
+            font-size: 28px;
+            margin-bottom: 8px;
+            letter-spacing: 3px;
+        }
+        #fast-travel-content p {
+            color: #888;
+            font-size: 13px;
+            margin-bottom: 24px;
+        }
+        .ft-city-btn {
+            display: block;
+            width: 100%;
+            margin: 8px 0;
+            padding: 14px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            letter-spacing: 2px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.05);
+            color: white;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+            text-align: left;
+        }
+        .ft-city-btn:hover {
+            background: rgba(0, 198, 255, 0.15);
+            border-color: #00c6ff;
+        }
+        .ft-city-btn .ft-dot {
+            display: inline-block;
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            margin-right: 12px;
+            vertical-align: middle;
+        }
+        #close-fast-travel {
+            margin-top: 20px;
+            padding: 10px 30px;
+            background: #333;
+            border: none;
+            border-radius: 8px;
+            color: #aaa;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        #close-fast-travel:hover { background: #555; color: white; }
+
         /* Honk button */
         #honk-btn {
             position: absolute;
@@ -760,6 +851,19 @@
 
         <!-- Delivery Button -->
         <button id="delivery-btn">DELIVERIES</button>
+
+        <!-- Fast Travel Button -->
+        <button id="fast-travel-btn">FAST TRAVEL</button>
+
+        <!-- Fast Travel Modal -->
+        <div id="fast-travel-modal">
+            <div id="fast-travel-content">
+                <h2>FAST TRAVEL</h2>
+                <p>Teleport instantly to any city</p>
+                <div id="ft-cities-list"></div>
+                <button id="close-fast-travel">CANCEL</button>
+            </div>
+        </div>
 
         <!-- Honk Button -->
         <button id="honk-btn">HONK</button>
@@ -3964,6 +4068,259 @@
             // Traffic
             createFreewayTraffic(freewayX, 0.5, startZ, indiaLength, freewayWidth, 'northbound');
             createFreewayTraffic(freewayX, 0.5, startZ, indiaLength, freewayWidth, 'southbound');
+
+            // Connect to Dubai
+            createFreewayToDubai(freewayX, startZ + indiaLength);
+        }
+
+        function createFreewayToDubai(freewayX, startZ) {
+            const freewayWidth = 40;
+            const segmentLength = 500;
+            const numSegments = 4; // 2000 units of desert highway
+            const totalLength = numSegments * segmentLength;
+
+            const freewayMat = new THREE.MeshLambertMaterial({ color: 0x222211 });
+            const barrierMat = new THREE.MeshLambertMaterial({ color: 0x888866 });
+
+            for (let i = 0; i < numSegments; i++) {
+                const segZ = startZ + i * segmentLength + segmentLength / 2;
+                createFreewaySegment(freewayX, 0, segZ, freewayWidth, segmentLength, freewayMat, barrierMat, false);
+            }
+
+            const fullShape = new CANNON.Box(new CANNON.Vec3(freewayWidth / 2, 0.25, totalLength / 2));
+            const fullBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            fullBody.addShape(fullShape);
+            fullBody.position.set(freewayX, 0.25, startZ + totalLength / 2);
+            world.addBody(fullBody);
+
+            // Desert sand alongside the highway
+            const sandMat = new THREE.MeshLambertMaterial({ color: 0xc8a840 });
+            [-1, 1].forEach(side => {
+                const sand = new THREE.Mesh(new THREE.BoxGeometry(400, 0.15, totalLength), sandMat);
+                sand.position.set(freewayX + side * 220, 0.0, startZ + totalLength / 2);
+                scene.add(sand);
+            });
+
+            // Scattered dunes along highway
+            for (let d = 0; d < 30; d++) {
+                const side = Math.random() > 0.5 ? 1 : -1;
+                const dx = freewayX + side * (freewayWidth / 2 + 50 + Math.random() * 150);
+                const dz = startZ + Math.random() * totalLength;
+                const dw = 15 + Math.random() * 35;
+                const dh = 2 + Math.random() * 6;
+                const dune = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 4), sandMat);
+                dune.scale.set(dw / 2, dh / 2, dw / 3);
+                dune.position.set(dx, dh / 4, dz);
+                scene.add(dune);
+            }
+
+            createFreewayTraffic(freewayX, 0.5, startZ, totalLength, freewayWidth, 'northbound');
+            createFreewayTraffic(freewayX, 0.5, startZ, totalLength, freewayWidth, 'southbound');
+
+            createDubai(freewayX, startZ + totalLength);
+        }
+
+        function createDubai(freewayX, startZ) {
+            freewayData.dubaiStartZ = startZ;
+            const freewayWidth = 40;
+            const dubaiLength = 1500;
+
+            const freewayMat = new THREE.MeshLambertMaterial({ color: 0x222211 });
+            const barrierMat = new THREE.MeshLambertMaterial({ color: 0x888866 });
+
+            // Freeway through Dubai with exit on right
+            createFreewayWithExit(freewayX, startZ, dubaiLength, 600, 1, freewayMat, barrierMat);
+
+            // Update total end
+            freewayData.totalEndZ = startZ + dubaiLength;
+
+            // Welcome sign
+            createHighwaySign(freewayX, 12, startZ + 50, 'DUBAI', 'CITY OF GOLD');
+
+            // Exit ramp
+            createExitRamp(freewayX, startZ + 600, 'DUBAI', 1);
+
+            // === CONNECTING ROAD + PLAZA ===
+            const dubaiPlazaX = freewayX + 75;
+            const dubaiPlazaZ = startZ + 730;
+            const dubaiConnStartX = freewayX + 55;
+            const dubaiConnStartZ = startZ + 640;
+            const dubaiConnDx = dubaiPlazaX - dubaiConnStartX;
+            const dubaiConnDz = dubaiPlazaZ - dubaiConnStartZ;
+            const dubaiConnLen = Math.sqrt(dubaiConnDx * dubaiConnDx + dubaiConnDz * dubaiConnDz);
+            const dubaiConnAngle = Math.atan2(dubaiConnDx, dubaiConnDz);
+            const dubaiConnMat = new THREE.MeshLambertMaterial({ color: 0x3a3a28 });
+
+            const dubaiConnRoad = new THREE.Mesh(new THREE.BoxGeometry(20, 0.5, dubaiConnLen), dubaiConnMat);
+            dubaiConnRoad.position.set((dubaiConnStartX + dubaiPlazaX) / 2, 0.25, (dubaiConnStartZ + dubaiPlazaZ) / 2);
+            dubaiConnRoad.rotation.y = -dubaiConnAngle;
+            scene.add(dubaiConnRoad);
+            const dubaiConnShape = new CANNON.Box(new CANNON.Vec3(10, 0.25, dubaiConnLen / 2));
+            const dubaiConnBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            dubaiConnBody.addShape(dubaiConnShape);
+            dubaiConnBody.position.set((dubaiConnStartX + dubaiPlazaX) / 2, 0.25, (dubaiConnStartZ + dubaiPlazaZ) / 2);
+            dubaiConnBody.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), -dubaiConnAngle);
+            world.addBody(dubaiConnBody);
+
+            const plazaMat = new THREE.MeshLambertMaterial({ color: 0xddb860 });
+            const dubaiPlaza = new THREE.Mesh(new THREE.BoxGeometry(60, 0.3, 60), plazaMat);
+            dubaiPlaza.position.set(dubaiPlazaX, 0.15, dubaiPlazaZ);
+            scene.add(dubaiPlaza);
+            const dubaiPlazaShape = new CANNON.Box(new CANNON.Vec3(30, 0.15, 30));
+            const dubaiPlazaBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            dubaiPlazaBody.addShape(dubaiPlazaShape);
+            dubaiPlazaBody.position.set(dubaiPlazaX, 0.15, dubaiPlazaZ);
+            world.addBody(dubaiPlazaBody);
+
+            // === DESERT SAND GROUND ===
+            const sandMat = new THREE.MeshLambertMaterial({ color: 0xc8a840 });
+            [-1, 1].forEach(side => {
+                const sand = new THREE.Mesh(new THREE.BoxGeometry(500, 0.18, dubaiLength + 200), sandMat);
+                sand.position.set(freewayX + side * 260, 0.0, startZ + dubaiLength / 2);
+                scene.add(sand);
+            });
+
+            // === BURJ KHALIFA ===
+            const burjX = freewayX + 115;
+            const burjZ = startZ + 350;
+            const burjGlassMat = new THREE.MeshLambertMaterial({ color: 0x99bbdd, transparent: true, opacity: 0.92 });
+            const burjMat = new THREE.MeshLambertMaterial({ color: 0xaabbcc });
+
+            // Base podium
+            const burjBase = new THREE.Mesh(new THREE.BoxGeometry(22, 5, 22), burjMat);
+            burjBase.position.set(burjX, 2.5, burjZ);
+            scene.add(burjBase);
+
+            // Stepped tower sections
+            [
+                { w: 16, h: 20, y: 15 },
+                { w: 12, h: 18, y: 34 },
+                { w: 8,  h: 16, y: 51 },
+                { w: 5,  h: 14, y: 66 },
+                { w: 3,  h: 12, y: 79 },
+            ].forEach(s => {
+                const sec = new THREE.Mesh(new THREE.BoxGeometry(s.w, s.h, s.w), burjGlassMat);
+                sec.position.set(burjX, s.y, burjZ);
+                scene.add(sec);
+                // Window lines
+                for (let f = 0; f < s.h; f += 4) {
+                    const win = new THREE.Mesh(
+                        new THREE.BoxGeometry(s.w + 0.1, 0.2, 0.1),
+                        new THREE.MeshBasicMaterial({ color: 0x88ccff })
+                    );
+                    win.position.set(burjX, s.y - s.h / 2 + f, burjZ - s.w / 2);
+                    scene.add(win);
+                }
+            });
+
+            // Spire
+            const burjSpire = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 1.2, 35, 8), burjMat);
+            burjSpire.position.set(burjX, 102, burjZ);
+            scene.add(burjSpire);
+
+            // === MODERN SKYSCRAPERS ===
+            const scraperDefs = [
+                { x: freewayX + 88,  z: startZ + 200,  h: 45, c: 0x4488bb },
+                { x: freewayX + 130, z: startZ + 520,  h: 58, c: 0x2255aa },
+                { x: freewayX + 95,  z: startZ + 750,  h: 38, c: 0x88aacc },
+                { x: freewayX + 125, z: startZ + 950,  h: 62, c: 0xddcc66 },
+                { x: freewayX + 90,  z: startZ + 1150, h: 44, c: 0x4499cc },
+                { x: freewayX - 80,  z: startZ + 300,  h: 52, c: 0x5577bb },
+                { x: freewayX - 105, z: startZ + 580,  h: 36, c: 0x88bbdd },
+                { x: freewayX - 88,  z: startZ + 820,  h: 48, c: 0x3366aa },
+                { x: freewayX - 115, z: startZ + 1100, h: 40, c: 0xccaa44 },
+            ];
+            const goldMat = new THREE.MeshLambertMaterial({ color: 0xffd700 });
+            scraperDefs.forEach(def => {
+                const w = 10 + Math.random() * 6;
+                const scraper = new THREE.Mesh(
+                    new THREE.BoxGeometry(w, def.h, w),
+                    new THREE.MeshLambertMaterial({ color: def.c, transparent: true, opacity: 0.9 })
+                );
+                scraper.position.set(def.x, def.h / 2, def.z);
+                scene.add(scraper);
+                // Gold crown
+                const crown = new THREE.Mesh(new THREE.ConeGeometry(w * 0.45, 5, 4), goldMat);
+                crown.position.set(def.x, def.h + 2.5, def.z);
+                scene.add(crown);
+            });
+
+            // === PALM TREE BOULEVARD ===
+            const palmTrunkMat = new THREE.MeshLambertMaterial({ color: 0x8b6040 });
+            const palmLeafMat = new THREE.MeshLambertMaterial({ color: 0x228b22 });
+            for (let i = 0; i < 16; i++) {
+                const pz = startZ + 80 + i * 90;
+                [-32, 32].forEach(pxOff => {
+                    const px = freewayX + pxOff;
+                    // Trunk
+                    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.6, 9, 6), palmTrunkMat);
+                    trunk.position.set(px, 4.5, pz);
+                    scene.add(trunk);
+                    // Fronds
+                    for (let f = 0; f < 7; f++) {
+                        const angle = (f / 7) * Math.PI * 2;
+                        const frond = new THREE.Mesh(new THREE.ConeGeometry(0.15, 5, 4), palmLeafMat);
+                        frond.position.set(px + Math.cos(angle) * 2.5, 10.5, pz + Math.sin(angle) * 2.5);
+                        frond.rotation.z = Math.PI * 0.35 * Math.cos(angle);
+                        frond.rotation.x = Math.PI * 0.35 * Math.sin(angle);
+                        scene.add(frond);
+                    }
+                });
+            }
+
+            // === SAND DUNES ===
+            for (let d = 0; d < 25; d++) {
+                const side = Math.random() > 0.5 ? 1 : -1;
+                const dx = freewayX + side * (freewayWidth / 2 + 70 + Math.random() * 160);
+                const dz = startZ + Math.random() * dubaiLength;
+                const dw = 18 + Math.random() * 40;
+                const dh = 3 + Math.random() * 7;
+                const dune = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 4), sandMat);
+                dune.scale.set(dw / 2, dh / 2, dw / 3);
+                dune.position.set(dx, dh / 4, dz);
+                scene.add(dune);
+            }
+
+            // === GOLD FOUNTAIN ===
+            const fountainX = freewayX - 58;
+            const fountainZ = startZ + 430;
+            const fountainBase = new THREE.Mesh(new THREE.CylinderGeometry(5.5, 6.5, 1, 12), goldMat);
+            fountainBase.position.set(fountainX, 0.5, fountainZ);
+            scene.add(fountainBase);
+            const fountainPillar = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.9, 9, 8), goldMat);
+            fountainPillar.position.set(fountainX, 5.5, fountainZ);
+            scene.add(fountainPillar);
+            const fountainOrb = new THREE.Mesh(new THREE.SphereGeometry(3, 10, 8), goldMat);
+            fountainOrb.position.set(fountainX, 12, fountainZ);
+            scene.add(fountainOrb);
+            // Water basin
+            const waterMat = new THREE.MeshLambertMaterial({ color: 0x44aaff, transparent: true, opacity: 0.7 });
+            const basin = new THREE.Mesh(new THREE.CylinderGeometry(5, 5.5, 0.5, 12), waterMat);
+            basin.position.set(fountainX, 1.2, fountainZ);
+            scene.add(basin);
+
+            // === LUXURY HOTEL (wide building with arches) ===
+            const hotelX = freewayX - 90;
+            const hotelZ = startZ + 900;
+            const hotelMat = new THREE.MeshLambertMaterial({ color: 0xf5e8c0 });
+            const hotel = new THREE.Mesh(new THREE.BoxGeometry(30, 25, 15), hotelMat);
+            hotel.position.set(hotelX, 12.5, hotelZ);
+            scene.add(hotel);
+            // Hotel roof dome
+            const hotelDome = new THREE.Mesh(new THREE.SphereGeometry(8, 12, 8), goldMat);
+            hotelDome.position.set(hotelX, 27, hotelZ);
+            hotelDome.scale.set(1, 0.5, 1);
+            scene.add(hotelDome);
+            // Hotel columns
+            for (let c = 0; c < 5; c++) {
+                const col = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.7, 8, 6), hotelMat);
+                col.position.set(hotelX - 12 + c * 6, 4, hotelZ - 7.5);
+                scene.add(col);
+            }
+
+            // Traffic
+            createFreewayTraffic(freewayX, 0.5, startZ, dubaiLength, freewayWidth, 'northbound');
+            createFreewayTraffic(freewayX, 0.5, startZ, dubaiLength, freewayWidth, 'southbound');
         }
 
         function createWorldFreeway(x, startZ, destination, signColor, onComplete) {
@@ -7056,7 +7413,8 @@
             const vegasZ = freewayData.vegasStartZ || (totalLength - 2000);
             const nevadaZ = freewayData.nevadaStartZ || (totalLength - 1000);
             const texasZ = freewayData.texasStartZ || (totalLength - 1500);
-            const indiaZ = freewayData.indiaStartZ || (totalLength - 1500);
+            const indiaZ = freewayData.indiaStartZ || (totalLength - 3500);
+            const dubaiZ = freewayData.dubaiStartZ || (totalLength - 1500);
 
             // Scrolling window: 6000 units visible, player at 70% from top
             const viewRange = 6000;
@@ -7127,7 +7485,8 @@
                 { name: 'LAS VEGAS', z: vegasZ, len: 2000, color: '#ffcc00' },
                 { name: 'NEVADA', z: nevadaZ, len: 1000, color: '#cc8844' },
                 { name: 'TEXAS', z: texasZ, len: 1500, color: '#cc4444' },
-                { name: 'INDIA', z: indiaZ, len: 1500, color: '#ff6b35' }
+                { name: 'INDIA', z: indiaZ, len: 1500, color: '#ff6b35' },
+                { name: 'DUBAI', z: dubaiZ, len: 1500, color: '#ffd700' }
             ];
 
             cities.forEach(city => {
@@ -7229,6 +7588,8 @@
             if (carZ > texasZ) locationName = 'Texas';
             if (carZ > texasZ + 1500) locationName = 'Highway to India';
             if (carZ > indiaZ) locationName = 'India';
+            if (carZ > indiaZ + 1500) locationName = 'Desert Highway to Dubai';
+            if (carZ > dubaiZ) locationName = 'Dubai';
 
             ctx.fillStyle = '#fff';
             ctx.font = 'bold 10px Arial';
@@ -7450,6 +7811,48 @@
 
         document.getElementById('close-shop').addEventListener('click', () => {
             document.getElementById('shop-modal').classList.remove('active');
+        });
+
+        // === FAST TRAVEL SYSTEM ===
+        const ftCities = [
+            { name: 'TOKYO',         color: '#ff6600', getPos: () => ({ x: 37.5,                  y: 2, z: 37.5 }) },
+            { name: 'SAN FRANCISCO', color: '#ff4488', getPos: () => ({ x: freewayData.rampX,     y: 2, z: freewayData.sfStartZ + 100 }) },
+            { name: 'SACRAMENTO',    color: '#44ff88', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.sacStartZ || 0) + 100 }) },
+            { name: 'TRUCKEE',       color: '#4488ff', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.truckeeStartZ || 0) + 100 }) },
+            { name: 'LAS VEGAS',     color: '#ffcc00', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.vegasStartZ || 0) + 100 }) },
+            { name: 'NEVADA',        color: '#cc8844', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.nevadaStartZ || 0) + 100 }) },
+            { name: 'TEXAS',         color: '#cc4444', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.texasStartZ || 0) + 100 }) },
+            { name: 'INDIA',         color: '#ff6b35', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.indiaStartZ || 0) + 100 }) },
+            { name: 'DUBAI',         color: '#ffd700', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.dubaiStartZ || 0) + 100 }) },
+        ];
+
+        function renderFastTravelList() {
+            const list = document.getElementById('ft-cities-list');
+            list.innerHTML = '';
+            ftCities.forEach(city => {
+                const btn = document.createElement('button');
+                btn.className = 'ft-city-btn';
+                btn.innerHTML = `<span class="ft-dot" style="background:${city.color}"></span>${city.name}`;
+                btn.addEventListener('click', () => {
+                    const pos = city.getPos();
+                    // Teleport physics body
+                    carBody.position.set(pos.x, pos.y, pos.z);
+                    carBody.velocity.set(0, 0, 0);
+                    carBody.angularVelocity.set(0, 0, 0);
+                    carBody.quaternion.set(0, 0, 0, 1);
+                    document.getElementById('fast-travel-modal').classList.remove('active');
+                });
+                list.appendChild(btn);
+            });
+        }
+
+        document.getElementById('fast-travel-btn').addEventListener('click', () => {
+            renderFastTravelList();
+            document.getElementById('fast-travel-modal').classList.add('active');
+        });
+
+        document.getElementById('close-fast-travel').addEventListener('click', () => {
+            document.getElementById('fast-travel-modal').classList.remove('active');
         });
 
         // === DELIVERY SYSTEM ===
