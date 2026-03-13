@@ -2141,12 +2141,12 @@
             // === HIGHWAY OVERHEAD SIGN: SAN FRANCISCO ===
             createHighwaySign(freewayX, 12, startZ + 50, 'SAN FRANCISCO', 'CITY LIMITS');
 
-            // === HIGHWAY OVERHEAD SIGN: SACRAMENTO NEXT ===
-            createHighwaySign(freewayX, 12, startZ + sfFreewayLength - 100, 'SACRAMENTO', '85 MILES');
+            // === HIGHWAY OVERHEAD SIGN: VALLEJO NEXT ===
+            createHighwaySign(freewayX, 12, startZ + sfFreewayLength - 100, 'VALLEJO', '20 MILES');
 
-            // === CONTINUE TO SACRAMENTO ===
+            // === CONTINUE TO VALLEJO ===
             const sfEndZ = startZ + sfFreewayLength;
-            createSacramentoFreeway(freewayX, sfEndZ);
+            createVallejoFreeway(freewayX, sfEndZ);
         }
 
         function createHighwaySign(x, y, z, city, subtitle) {
@@ -2200,6 +2200,119 @@
             const bar = new THREE.Mesh(barGeom, poleMat);
             bar.position.set(x, y + 6, z);
             scene.add(bar);
+        }
+
+        function createVallejoFreeway(freewayX, startZ) {
+            const freewayWidth = 40;
+            const segmentLength = 500;
+            const numSegments = 6;
+            const totalLength = numSegments * segmentLength;
+
+            const freewayMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            const barrierMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+
+            for (let i = 0; i < numSegments; i++) {
+                const segZ = startZ + i * segmentLength + segmentLength / 2;
+                createFreewaySegment(freewayX, 0, segZ, freewayWidth, segmentLength, freewayMat, barrierMat, false);
+            }
+
+            const fullShape = new CANNON.Box(new CANNON.Vec3(freewayWidth / 2, 0.25, totalLength / 2));
+            const fullBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            fullBody.addShape(fullShape);
+            fullBody.position.set(freewayX, 0.25, startZ + totalLength / 2);
+            world.addBody(fullBody);
+
+            createFreewayTraffic(freewayX, 0.5, startZ, totalLength, freewayWidth, 'northbound');
+            createFreewayTraffic(freewayX, 0.5, startZ, totalLength, freewayWidth, 'southbound');
+
+            createVallejo(freewayX, startZ + totalLength);
+        }
+
+        function createVallejo(freewayX, startZ) {
+            freewayData.vallejoStartZ = startZ;
+            const freewayWidth = 40;
+            const vallejoLength = 1200;
+
+            const freewayMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            const barrierMat = new THREE.MeshLambertMaterial({ color: 0x555555 });
+
+            // Main road through Vallejo
+            for (let i = 0; i < 3; i++) {
+                const segZ = startZ + i * 400 + 200;
+                createFreewaySegment(freewayX, 0, segZ, freewayWidth, 400, freewayMat, barrierMat, false);
+            }
+
+            const roadBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            roadBody.addShape(new CANNON.Box(new CANNON.Vec3(freewayWidth / 2, 0.25, vallejoLength / 2)));
+            roadBody.position.set(freewayX, 0.25, startZ + vallejoLength / 2);
+            world.addBody(roadBody);
+
+            // Ground
+            const groundGeom = new THREE.PlaneGeometry(800, vallejoLength);
+            const groundMat = new THREE.MeshLambertMaterial({ color: 0x3a4a3a });
+            const ground = new THREE.Mesh(groundGeom, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.set(freewayX, 0, startZ + vallejoLength / 2);
+            scene.add(ground);
+
+            const gBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            gBody.addShape(new CANNON.Box(new CANNON.Vec3(400, 0.1, vallejoLength / 2)));
+            gBody.position.set(freewayX, 0, startZ + vallejoLength / 2);
+            world.addBody(gBody);
+
+            // Buildings - bay area industrial/residential mix
+            const vallejoColors = [0x7a6a5a, 0x8a7a6a, 0x6a7a6a, 0x9a8a7a, 0x5a6a7a];
+            for (let i = 0; i < 60; i++) {
+                const bx = freewayX + (Math.random() - 0.5) * 700;
+                const bz = startZ + 80 + Math.random() * (vallejoLength - 160);
+                if (Math.abs(bx - freewayX) < 25) continue;
+
+                const height = 8 + Math.random() * 25;
+                const width = 12 + Math.random() * 20;
+                const depth = 12 + Math.random() * 20;
+
+                const building = new THREE.Mesh(
+                    new THREE.BoxGeometry(width, height, depth),
+                    new THREE.MeshLambertMaterial({ color: vallejoColors[Math.floor(Math.random() * vallejoColors.length)] })
+                );
+                building.position.set(bx, height / 2, bz);
+                scene.add(building);
+                addBuildingWindows(bx, bz, width, height, depth, 0xffffcc);
+            }
+
+            // Six Flags waterpark (Vallejo landmark) - big colorful structure
+            const parkX = freewayX + 150;
+            const parkZ = startZ + 400;
+            const parkMat = new THREE.MeshLambertMaterial({ color: 0xff4400 });
+            // Roller coaster tower
+            const tower = new THREE.Mesh(new THREE.BoxGeometry(5, 40, 5), parkMat);
+            tower.position.set(parkX, 20, parkZ);
+            scene.add(tower);
+            const coasterLoop = new THREE.Mesh(new THREE.TorusGeometry(18, 1.5, 8, 16), parkMat);
+            coasterLoop.position.set(parkX + 20, 20, parkZ);
+            coasterLoop.rotation.y = Math.PI / 2;
+            scene.add(coasterLoop);
+            // Park entrance arch
+            const archMat = new THREE.MeshLambertMaterial({ color: 0xffcc00 });
+            const arch = new THREE.Mesh(new THREE.TorusGeometry(10, 1, 8, 12, Math.PI), archMat);
+            arch.position.set(parkX, 10, parkZ - 30);
+            scene.add(arch);
+
+            // Bay water (Vallejo sits on San Pablo Bay)
+            const bayMat = new THREE.MeshLambertMaterial({ color: 0x1a4a6a });
+            const bay = new THREE.Mesh(new THREE.PlaneGeometry(200, vallejoLength), bayMat);
+            bay.rotation.x = -Math.PI / 2;
+            bay.position.set(freewayX - 280, 0.05, startZ + vallejoLength / 2);
+            scene.add(bay);
+
+            createHighwaySign(freewayX, 12, startZ + 30, 'VALLEJO', 'SAN PABLO BAY');
+
+            createFreewayTraffic(freewayX, 0.5, startZ, vallejoLength, freewayWidth, 'northbound');
+            createFreewayTraffic(freewayX, 0.5, startZ, vallejoLength, freewayWidth, 'southbound');
+
+            // Continue to Sacramento
+            createHighwaySign(freewayX, 12, startZ + vallejoLength - 100, 'SACRAMENTO', '60 MILES');
+            createSacramentoFreeway(freewayX, startZ + vallejoLength);
         }
 
         function createSacramentoFreeway(freewayX, startZ) {
@@ -4321,6 +4434,11 @@
             // Traffic
             createFreewayTraffic(freewayX, 0.5, startZ, dubaiLength, freewayWidth, 'northbound');
             createFreewayTraffic(freewayX, 0.5, startZ, dubaiLength, freewayWidth, 'southbound');
+
+            // Continue to New York
+            createWorldFreeway(freewayX, startZ + dubaiLength, 'NEW YORK', 0x00e5ff, function(endZ) {
+                createNewYork(freewayX, 8, endZ);
+            });
         }
 
         function createWorldFreeway(x, startZ, destination, signColor, onComplete) {
@@ -4395,6 +4513,7 @@
         }
 
         function createNewYork(freewayX, freewayY, startZ) {
+            freewayData.newYorkStartZ = startZ;
             // Ground
             const groundSize = 800;
             const groundGeom = new THREE.PlaneGeometry(groundSize, groundSize);
@@ -4528,6 +4647,7 @@
         }
 
         function createLondon(freewayX, freewayY, startZ) {
+            freewayData.londonStartZ = startZ;
             // Ground
             const groundSize = 800;
             const groundGeom = new THREE.PlaneGeometry(groundSize, groundSize);
@@ -4646,6 +4766,7 @@
         }
 
         function createParis(freewayX, freewayY, startZ) {
+            freewayData.parisStartZ = startZ;
             // Ground
             const groundSize = 800;
             const ground = new THREE.Mesh(
@@ -4704,8 +4825,242 @@
             mainRoad.position.set(freewayX, 0.1, startZ + groundSize / 2);
             scene.add(mainRoad);
 
-            // Final sign - World Tour Complete or loop back
+            // Continue to Washington DC
+            createWorldFreeway(freewayX, startZ + groundSize, 'WASHINGTON DC', 0x3c3cc8, function(endZ) {
+                createWashingtonDC(freewayX, 8, endZ);
+            });
+        }
+
+        function createWashingtonDC(freewayX, freewayY, startZ) {
+            freewayData.washingtonDCStartZ = startZ;
+            freewayData.totalEndZ = startZ + 800;
+
+            // Ground - marble white / stone grey
+            const groundSize = 800;
+            const groundGeom = new THREE.PlaneGeometry(groundSize, groundSize);
+            const groundMat = new THREE.MeshLambertMaterial({ color: 0x4a5568 });
+            const ground = new THREE.Mesh(groundGeom, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.set(freewayX, 0, startZ + groundSize / 2);
+            scene.add(ground);
+
+            const groundBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            groundBody.addShape(new CANNON.Box(new CANNON.Vec3(groundSize / 2, 0.1, groundSize / 2)));
+            groundBody.position.set(freewayX, 0, startZ + groundSize / 2);
+            world.addBody(groundBody);
+
+            // DC buildings - low rise, marble/limestone palette
+            const dcColors = [0xc8c8b4, 0xb0b8c0, 0xa8a090, 0xd0ccc0, 0x8898a8];
+            const cityStartZ = startZ + 100;
+
+            for (let i = 0; i < 70; i++) {
+                const bx = freewayX + (Math.random() - 0.5) * 700;
+                const bz = cityStartZ + Math.random() * 600;
+                if (Math.abs(bx - freewayX) < 35) continue;
+
+                const height = 15 + Math.random() * 45; // DC height limit ~45m
+                const width = 18 + Math.random() * 22;
+                const depth = 18 + Math.random() * 22;
+
+                const building = new THREE.Mesh(
+                    new THREE.BoxGeometry(width, height, depth),
+                    new THREE.MeshLambertMaterial({ color: dcColors[Math.floor(Math.random() * dcColors.length)] })
+                );
+                building.position.set(bx, height / 2, bz);
+                scene.add(building);
+
+                addBuildingWindows(bx, bz, width, height, depth, 0xffffee);
+            }
+
+            // Landmarks
+            createWashingtonMonument(freewayX + 130, cityStartZ + 280);
+            createCapitolBuilding(freewayX - 150, cityStartZ + 350);
+            createLincolnMemorial(freewayX + 60, cityStartZ + 150);
+
+            createCitySign(freewayX + 30, startZ + 30, 'WASHINGTON DC', 'Capital of the USA');
+
+            // === PENNSYLVANIA AVENUE (40 wide, matches world freeway) ===
+            const roadMat = new THREE.MeshLambertMaterial({ color: 0x2a2a2a });
+            const mainRoad = new THREE.Mesh(new THREE.BoxGeometry(40, 0.3, groundSize), roadMat);
+            mainRoad.position.set(freewayX, 0.15, startZ + groundSize / 2);
+            scene.add(mainRoad);
+
+            // Road physics
+            const roadBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            roadBody.addShape(new CANNON.Box(new CANNON.Vec3(20, 0.15, groundSize / 2)));
+            roadBody.position.set(freewayX, 0.15, startZ + groundSize / 2);
+            world.addBody(roadBody);
+
+            // Lane markings (dashed white lines)
+            const dashMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+            const laneOffsets = [-10, 0, 10];
+            laneOffsets.forEach(lx => {
+                for (let d = 0; d < 20; d++) {
+                    const dash = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, 6), dashMat);
+                    dash.position.set(freewayX + lx, 0.32, startZ + 20 + d * 40);
+                    scene.add(dash);
+                }
+            });
+
+            // Center yellow line
+            const yellowMat = new THREE.MeshLambertMaterial({ color: 0xffcc00 });
+            const centerLine = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, groundSize), yellowMat);
+            centerLine.position.set(freewayX, 0.32, startZ + groundSize / 2);
+            scene.add(centerLine);
+
+            // Sidewalks
+            const sidewalkMat = new THREE.MeshLambertMaterial({ color: 0xb0a898 });
+            [-22, 22].forEach(sx => {
+                const sidewalk = new THREE.Mesh(new THREE.BoxGeometry(6, 0.4, groundSize), sidewalkMat);
+                sidewalk.position.set(freewayX + sx, 0.2, startZ + groundSize / 2);
+                scene.add(sidewalk);
+            });
+
+            // Tree-lined boulevard (cherry blossoms - DC signature)
+            const trunkMat = new THREE.MeshLambertMaterial({ color: 0x5c3a1e });
+            const blossomMat = new THREE.MeshLambertMaterial({ color: 0xffb7c5 });
+            for (let t = 0; t < 20; t++) {
+                const tz = startZ + 30 + t * 38;
+                [-27, 27].forEach(tx => {
+                    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 4, 6), trunkMat);
+                    trunk.position.set(freewayX + tx, 2, tz);
+                    scene.add(trunk);
+                    const blossom = new THREE.Mesh(new THREE.SphereGeometry(2.5, 7, 6), blossomMat);
+                    blossom.position.set(freewayX + tx, 6, tz);
+                    scene.add(blossom);
+                });
+            }
+
+            // Concrete barriers along road edges
+            const barrierMat = new THREE.MeshLambertMaterial({ color: 0xd0ccc8 });
+            [-20, 20].forEach(bx => {
+                const barrier = new THREE.Mesh(new THREE.BoxGeometry(1, 1.2, groundSize), barrierMat);
+                barrier.position.set(freewayX + bx, 0.6, startZ + groundSize / 2);
+                scene.add(barrier);
+            });
+
+            // National Mall grass strip (to the side)
+            const mallMat = new THREE.MeshLambertMaterial({ color: 0x2d5a1b });
+            const mall = new THREE.Mesh(new THREE.BoxGeometry(80, 0.15, 500), mallMat);
+            mall.position.set(freewayX + 180, 0.08, cityStartZ + 250);
+            scene.add(mall);
+
+            // Mall reflecting pool
+            const poolMat = new THREE.MeshLambertMaterial({ color: 0x1a3a5c });
+            const pool = new THREE.Mesh(new THREE.BoxGeometry(12, 0.1, 120), poolMat);
+            pool.position.set(freewayX + 180, 0.1, cityStartZ + 260);
+            scene.add(pool);
+
+            // Traffic
+            createFreewayTraffic(freewayX, 0.5, startZ, groundSize, 40, 'northbound');
+            createFreewayTraffic(freewayX, 0.5, startZ, groundSize, 40, 'southbound');
+
+            // Final sign - World Tour Complete
             createCitySign(freewayX, startZ + groundSize - 50, 'WORLD TOUR', 'Complete! Keep Driving!');
+        }
+
+        function createWashingtonMonument(x, z) {
+            const stoneMat = new THREE.MeshLambertMaterial({ color: 0xe8e0d0 });
+
+            // Obelisk shaft
+            const shaft = new THREE.Mesh(new THREE.BoxGeometry(8, 120, 8), stoneMat);
+            shaft.position.set(x, 60, z);
+            scene.add(shaft);
+
+            // Pyramidal capstone
+            const cap = new THREE.Mesh(new THREE.ConeGeometry(5.5, 18, 4), stoneMat);
+            cap.position.set(x, 129, z);
+            cap.rotation.y = Math.PI / 4;
+            scene.add(cap);
+
+            // Observation ring
+            const ring = new THREE.Mesh(new THREE.BoxGeometry(11, 4, 11), new THREE.MeshLambertMaterial({ color: 0xd0c8b8 }));
+            ring.position.set(x, 88, z);
+            scene.add(ring);
+
+            // Light at top
+            const light = new THREE.PointLight(0xffffff, 2, 300);
+            light.position.set(x, 148, z);
+            scene.add(light);
+        }
+
+        function createCapitolBuilding(x, z) {
+            const marbleMat = new THREE.MeshLambertMaterial({ color: 0xf0ede8 });
+            const domeMat = new THREE.MeshLambertMaterial({ color: 0xe8e4de });
+
+            // Main building body
+            const body = new THREE.Mesh(new THREE.BoxGeometry(80, 30, 50), marbleMat);
+            body.position.set(x, 15, z);
+            scene.add(body);
+
+            // Wings
+            const wingL = new THREE.Mesh(new THREE.BoxGeometry(30, 25, 40), marbleMat);
+            wingL.position.set(x - 55, 12.5, z);
+            scene.add(wingL);
+
+            const wingR = new THREE.Mesh(new THREE.BoxGeometry(30, 25, 40), marbleMat);
+            wingR.position.set(x + 55, 12.5, z);
+            scene.add(wingR);
+
+            // Drum base for dome
+            const drum = new THREE.Mesh(new THREE.CylinderGeometry(14, 14, 12, 16), marbleMat);
+            drum.position.set(x, 36, z);
+            scene.add(drum);
+
+            // Dome
+            const dome = new THREE.Mesh(new THREE.SphereGeometry(14, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), domeMat);
+            dome.position.set(x, 42, z);
+            scene.add(dome);
+
+            // Lantern on top
+            const lantern = new THREE.Mesh(new THREE.CylinderGeometry(2, 3, 10, 8), marbleMat);
+            lantern.position.set(x, 58, z);
+            scene.add(lantern);
+
+            // Statue of Freedom (simplified spike)
+            const statue = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.5, 12, 6), new THREE.MeshLambertMaterial({ color: 0x8aab8a }));
+            statue.position.set(x, 69, z);
+            scene.add(statue);
+
+            // Steps
+            const steps = new THREE.Mesh(new THREE.BoxGeometry(50, 3, 15), marbleMat);
+            steps.position.set(x, 1.5, z + 32);
+            scene.add(steps);
+
+            const light = new THREE.PointLight(0xfff8e8, 2, 250);
+            light.position.set(x, 75, z);
+            scene.add(light);
+        }
+
+        function createLincolnMemorial(x, z) {
+            const marbleMat = new THREE.MeshLambertMaterial({ color: 0xdcd8d0 });
+
+            // Main building
+            const main = new THREE.Mesh(new THREE.BoxGeometry(55, 22, 40), marbleMat);
+            main.position.set(x, 11, z);
+            scene.add(main);
+
+            // Columns (front row)
+            for (let i = -3; i <= 3; i++) {
+                const col = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 22, 8), marbleMat);
+                col.position.set(x + i * 7, 11, z + 21);
+                scene.add(col);
+            }
+
+            // Roof / entablature
+            const roof = new THREE.Mesh(new THREE.BoxGeometry(60, 4, 45), marbleMat);
+            roof.position.set(x, 24, z);
+            scene.add(roof);
+
+            // Steps
+            const steps = new THREE.Mesh(new THREE.BoxGeometry(60, 2, 10), marbleMat);
+            steps.position.set(x, 1, z + 25);
+            scene.add(steps);
+
+            // Glow
+            const light = new THREE.PointLight(0xfff8e0, 1.5, 150);
+            light.position.set(x, 30, z);
+            scene.add(light);
         }
 
         function createEiffelTower(x, z) {
@@ -7480,13 +7835,18 @@
             const cities = [
                 { name: 'TOKYO', z: 0, len: freewayData.sfStartZ, color: '#ff6600' },
                 { name: 'SAN FRANCISCO', z: freewayData.sfStartZ, len: 2500, color: '#ff4488' },
+                { name: 'VALLEJO', z: freewayData.vallejoStartZ || 0, len: 1200, color: '#ff9900' },
                 { name: 'SACRAMENTO', z: sacZ, len: 1000, color: '#44ff88' },
                 { name: 'TRUCKEE', z: truckeeZ, len: 1500, color: '#4488ff' },
                 { name: 'LAS VEGAS', z: vegasZ, len: 2000, color: '#ffcc00' },
                 { name: 'NEVADA', z: nevadaZ, len: 1000, color: '#cc8844' },
                 { name: 'TEXAS', z: texasZ, len: 1500, color: '#cc4444' },
                 { name: 'INDIA', z: indiaZ, len: 1500, color: '#ff6b35' },
-                { name: 'DUBAI', z: dubaiZ, len: 1500, color: '#ffd700' }
+                { name: 'DUBAI', z: dubaiZ, len: 1500, color: '#ffd700' },
+                { name: 'NEW YORK', z: freewayData.newYorkStartZ || 0, len: 800, color: '#00e5ff' },
+                { name: 'LONDON', z: freewayData.londonStartZ || 0, len: 800, color: '#ff0044' },
+                { name: 'PARIS', z: freewayData.parisStartZ || 0, len: 800, color: '#0055ff' },
+                { name: 'WASHINGTON DC', z: freewayData.washingtonDCStartZ || 0, len: 800, color: '#3c3cc8' }
             ];
 
             cities.forEach(city => {
@@ -7817,6 +8177,7 @@
         const ftCities = [
             { name: 'TOKYO',         color: '#ff6600', getPos: () => ({ x: 37.5,                  y: 2, z: 37.5 }) },
             { name: 'SAN FRANCISCO', color: '#ff4488', getPos: () => ({ x: freewayData.rampX,     y: 2, z: freewayData.sfStartZ + 100 }) },
+            { name: 'VALLEJO',       color: '#ff9900', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.vallejoStartZ || 0) + 100 }) },
             { name: 'SACRAMENTO',    color: '#44ff88', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.sacStartZ || 0) + 100 }) },
             { name: 'TRUCKEE',       color: '#4488ff', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.truckeeStartZ || 0) + 100 }) },
             { name: 'LAS VEGAS',     color: '#ffcc00', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.vegasStartZ || 0) + 100 }) },
@@ -7824,6 +8185,10 @@
             { name: 'TEXAS',         color: '#cc4444', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.texasStartZ || 0) + 100 }) },
             { name: 'INDIA',         color: '#ff6b35', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.indiaStartZ || 0) + 100 }) },
             { name: 'DUBAI',         color: '#ffd700', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.dubaiStartZ || 0) + 100 }) },
+            { name: 'NEW YORK',      color: '#00e5ff', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.newYorkStartZ || 0) + 100 }) },
+            { name: 'LONDON',        color: '#ff0044', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.londonStartZ || 0) + 100 }) },
+            { name: 'PARIS',         color: '#0055ff', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.parisStartZ || 0) + 100 }) },
+            { name: 'WASHINGTON DC', color: '#3c3cc8', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.washingtonDCStartZ || 0) + 100 }) },
         ];
 
         function renderFastTravelList() {
