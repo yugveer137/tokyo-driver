@@ -835,14 +835,24 @@
     </div>
 
     <!-- Multiplayer Join Prompt (shown to Veer when he opens invite link) -->
-    <div id="mp-join-screen" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;display:none;align-items:center;justify-content:center;flex-direction:column;gap:20px;">
+    <div id="mp-join-screen" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:20px;">
         <h2 style="color:#00e5ff;font-size:2rem;letter-spacing:3px;font-family:monospace;">TOKYO DRIVER</h2>
         <p style="color:#fff;font-size:1.1rem;font-family:monospace;">Would you like to join the multiplayer Tokyo Driver?</p>
-        <p style="color:#888;font-size:0.85rem;font-family:monospace;" id="mp-host-label"></p>
+        <p style="color:#aaa;font-size:0.85rem;font-family:monospace;" id="mp-host-label"></p>
         <div style="display:flex;gap:16px;">
             <button id="mp-join-yes" style="padding:12px 36px;background:#00c853;color:#fff;border:none;font-size:1rem;font-family:monospace;cursor:pointer;letter-spacing:2px;">YES</button>
             <button id="mp-join-no"  style="padding:12px 36px;background:#555;color:#fff;border:none;font-size:1rem;font-family:monospace;cursor:pointer;letter-spacing:2px;">NO</button>
         </div>
+    </div>
+
+    <!-- Multiplayer Host Waiting Screen -->
+    <div id="mp-waiting-screen" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9998;align-items:center;justify-content:center;flex-direction:column;gap:16px;">
+        <h2 style="color:#0072ff;font-size:1.8rem;letter-spacing:3px;font-family:monospace;">WAITING FOR VEER...</h2>
+        <p style="color:#aaa;font-family:monospace;font-size:0.9rem;">Invite sent to veerbhan@gmail.com</p>
+        <p style="color:#fff;font-family:monospace;font-size:0.85rem;">Or share this link manually:</p>
+        <input id="mp-link-box" readonly style="width:420px;padding:8px;background:#111;color:#0f0;border:1px solid #333;font-family:monospace;font-size:0.75rem;" />
+        <button id="mp-copy-btn" style="padding:8px 24px;background:#333;color:#fff;border:none;font-family:monospace;cursor:pointer;">COPY LINK</button>
+        <button id="mp-skip-wait" style="padding:8px 24px;background:#0072ff;color:#fff;border:none;font-family:monospace;cursor:pointer;margin-top:8px;">PLAY SOLO WHILE WAITING</button>
     </div>
 
     <!-- Multiplayer Status Banner -->
@@ -8789,56 +8799,72 @@
 
         let mpPeer = null;
         let mpConn = null;
-        let mpRole = null; // 'host' or 'guest'
+        let mpRole = null;
         let peerCarMesh = null;
-        let peerCarBody = null;
 
-        emailjs.init('YOUR_EMAILJS_PUBLIC_KEY'); // <-- replace with EmailJS public key
+        emailjs.init('YOUR_EMAILJS_PUBLIC_KEY');
 
-        function mpShowStatus(msg) {
+        function mpShowStatus(msg, color) {
             const el = document.getElementById('mp-status');
             el.textContent = msg;
+            el.style.background = color || 'rgba(0,114,255,0.85)';
             el.style.display = 'block';
         }
 
-        function createPeerCar(color) {
+        function mpHideWaiting() {
+            document.getElementById('mp-waiting-screen').style.display = 'none';
+        }
+
+        function createPeerCar(label) {
             const group = new THREE.Group();
-            const body = new THREE.Mesh(new THREE.BoxGeometry(2, 0.8, 4), new THREE.MeshLambertMaterial({ color }));
-            group.add(body);
-            const roof = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.6, 2.2), new THREE.MeshLambertMaterial({ color: 0x222222 }));
-            roof.position.set(0, 0.7, 0);
-            group.add(roof);
-            // Name tag
-            const canvas = document.createElement('canvas');
-            canvas.width = 256; canvas.height = 64;
-            const ctx2 = canvas.getContext('2d');
-            ctx2.fillStyle = 'rgba(0,0,0,0.7)';
-            ctx2.fillRect(0, 0, 256, 64);
-            ctx2.fillStyle = '#fff';
-            ctx2.font = 'bold 28px monospace';
-            ctx2.textAlign = 'center';
-            ctx2.fillText(mpRole === 'host' ? 'VEER' : 'VEER', 128, 42);
-            const tex = new THREE.CanvasTexture(canvas);
-            const tag = new THREE.Mesh(new THREE.PlaneGeometry(3, 0.75), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
-            tag.position.set(0, 1.8, 0);
-            group.add(tag);
+            const bodyMesh = new THREE.Mesh(
+                new THREE.BoxGeometry(2, 0.8, 4),
+                new THREE.MeshLambertMaterial({ color: 0x00e5ff })
+            );
+            group.add(bodyMesh);
+            const roofMesh = new THREE.Mesh(
+                new THREE.BoxGeometry(1.5, 0.6, 2.2),
+                new THREE.MeshLambertMaterial({ color: 0x222222 })
+            );
+            roofMesh.position.set(0, 0.7, 0);
+            group.add(roofMesh);
+
+            const tagCanvas = document.createElement('canvas');
+            tagCanvas.width = 256; tagCanvas.height = 64;
+            const tc = tagCanvas.getContext('2d');
+            tc.fillStyle = 'rgba(0,0,0,0.75)';
+            tc.roundRect(4, 4, 248, 56, 8);
+            tc.fill();
+            tc.fillStyle = '#00e5ff';
+            tc.font = 'bold 30px monospace';
+            tc.textAlign = 'center';
+            tc.fillText(label, 128, 42);
+            const tagTex = new THREE.CanvasTexture(tagCanvas);
+            const tagMesh = new THREE.Mesh(
+                new THREE.PlaneGeometry(3.5, 0.9),
+                new THREE.MeshBasicMaterial({ map: tagTex, transparent: true, depthTest: false })
+            );
+            tagMesh.position.set(0, 2.2, 0);
+            group.add(tagMesh);
+
             scene.add(group);
             return group;
         }
 
         function mpSyncLoop() {
             if (!mpConn || !mpConn.open || !carBody) return;
-            const pos = carBody.position;
-            const quat = carBody.quaternion;
-            mpConn.send({ type: 'pos', x: pos.x, y: pos.y, z: pos.z, qx: quat.x, qy: quat.y, qz: quat.z, qw: quat.w });
+            const p = carBody.position;
+            const q = carBody.quaternion;
+            try {
+                mpConn.send({ t: 'p', x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w });
+            } catch(e) {}
         }
 
         function mpHandleData(data) {
-            if (data.type === 'pos' && peerCarMesh) {
-                peerCarMesh.position.set(data.x, data.y + 0.4, data.z);
+            if (data.t === 'p' && peerCarMesh) {
+                peerCarMesh.position.set(data.x, data.y + 0.5, data.z);
                 peerCarMesh.quaternion.set(data.qx, data.qy, data.qz, data.qw);
-                // Keep nametag upright
-                if (peerCarMesh.children[2]) {
+                if (peerCarMesh.children[2] && camera) {
                     peerCarMesh.children[2].quaternion.copy(camera.quaternion);
                 }
             }
@@ -8847,75 +8873,102 @@
         function mpOnConnected(conn, role) {
             mpConn = conn;
             mpRole = role;
-            peerCarMesh = createPeerCar(role === 'host' ? 0x00e5ff : 0xff2d55);
-            mpShowStatus(role === 'host' ? 'Veer joined! Multiplayer active.' : 'Connected! Multiplayer active.');
+            mpHideWaiting();
+            document.getElementById('start-screen').style.display = 'none';
+            gameState.gameStarted = true;
+
+            const peerLabel = role === 'host' ? 'VEER' : 'YUGVEER';
+            peerCarMesh = createPeerCar(peerLabel);
+
+            const statusMsg = role === 'host' ? '🎮 Veer joined! Multiplayer active!' : '🎮 Connected to Yugveer! Multiplayer active!';
+            mpShowStatus(statusMsg, 'rgba(0,180,0,0.9)');
+
             conn.on('data', mpHandleData);
-            conn.on('close', () => { mpShowStatus('Veer disconnected.'); if (peerCarMesh) scene.remove(peerCarMesh); });
+            conn.on('close', () => {
+                mpShowStatus('⚠️ ' + peerLabel + ' disconnected.');
+                if (peerCarMesh) { scene.remove(peerCarMesh); peerCarMesh = null; }
+            });
+
             setInterval(mpSyncLoop, 50);
         }
 
-        // HOST flow — start multiplayer, send invite to Veer
+        // HOST flow
         document.getElementById('multiplayer-btn').addEventListener('click', () => {
             document.getElementById('multiplayer-btn').disabled = true;
             document.getElementById('multiplayer-btn').textContent = 'CONNECTING...';
+            document.getElementById('start-screen').style.display = 'none';
+            initEngineSound();
 
             mpPeer = new Peer();
+
             mpPeer.on('open', (id) => {
                 const joinURL = GAME_URL + '?room=' + id;
 
-                // Send email invite to Veer
+                // Show waiting screen with link
+                document.getElementById('mp-waiting-screen').style.display = 'flex';
+                document.getElementById('mp-link-box').value = joinURL;
+
+                document.getElementById('mp-copy-btn').onclick = () => {
+                    navigator.clipboard.writeText(joinURL).then(() => {
+                        document.getElementById('mp-copy-btn').textContent = 'COPIED!';
+                        setTimeout(() => document.getElementById('mp-copy-btn').textContent = 'COPY LINK', 2000);
+                    });
+                };
+
+                document.getElementById('mp-skip-wait').onclick = () => {
+                    mpHideWaiting();
+                    gameState.gameStarted = true;
+                    mpShowStatus('Waiting for Veer in background...');
+                };
+
+                // Try email invite
                 emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', {
                     to_email: VEER_EMAIL,
                     to_name: 'Veer',
                     from_name: 'Yugveer',
-                    join_url: joinURL,
-                    message: 'Would you like to join the multiplayer Tokyo Driver? Click the link to join!'
-                }).then(() => {
-                    mpShowStatus('Invite sent to Veer! Waiting for him to join...');
+                    join_url: joinURL
                 }).catch(() => {
-                    // Fallback: open mailto if EmailJS not configured
-                    const subject = encodeURIComponent('Join my Tokyo Driver game!');
-                    const body = encodeURIComponent('Would you like to join the multiplayer Tokyo Driver?\n\nClick here to join: ' + joinURL);
-                    window.open('mailto:' + VEER_EMAIL + '?subject=' + subject + '&body=' + body);
-                    mpShowStatus('Email opened! Waiting for Veer to join...');
+                    // Fallback mailto
+                    const sub = encodeURIComponent('Join my Tokyo Driver game!');
+                    const bod = encodeURIComponent('Hey Veer! Would you like to join the multiplayer Tokyo Driver?\n\nClick here to join:\n' + joinURL);
+                    window.open('mailto:' + VEER_EMAIL + '?subject=' + sub + '&body=' + bod);
                 });
 
-                document.getElementById('start-screen').style.display = 'none';
-                gameState.gameStarted = true;
-                initEngineSound();
-
-                mpPeer.on('connection', (conn) => mpOnConnected(conn, 'host'));
+                mpPeer.on('connection', (conn) => {
+                    conn.on('open', () => mpOnConnected(conn, 'host'));
+                });
             });
 
             mpPeer.on('error', (err) => {
-                mpShowStatus('Connection error: ' + err.type);
+                mpShowStatus('Connection error: ' + err.type, 'rgba(200,0,0,0.85)');
+                document.getElementById('start-screen').style.display = 'flex';
                 document.getElementById('multiplayer-btn').disabled = false;
                 document.getElementById('multiplayer-btn').textContent = 'MULTIPLAYER';
             });
         });
 
-        // GUEST flow — check if URL has ?room= param (Veer's side)
+        // GUEST flow — Veer's side when he opens the link
         const urlParams = new URLSearchParams(window.location.search);
         const roomId = urlParams.get('room');
         if (roomId) {
-            const joinScreen = document.getElementById('mp-join-screen');
-            document.getElementById('mp-host-label').textContent = 'Room: ' + roomId;
-            joinScreen.style.display = 'flex';
+            document.getElementById('mp-host-label').textContent = 'Invited by: Yugveer';
             document.getElementById('start-screen').style.display = 'none';
+            const joinScreen = document.getElementById('mp-join-screen');
+            joinScreen.style.display = 'flex';
 
             document.getElementById('mp-join-yes').addEventListener('click', () => {
                 joinScreen.style.display = 'none';
-                document.getElementById('start-screen').style.display = 'none';
-                gameState.gameStarted = true;
+                mpShowStatus('Connecting to Yugveer...');
                 initEngineSound();
-                mpShowStatus('Connecting to host...');
+                gameState.gameStarted = true;
 
                 mpPeer = new Peer();
                 mpPeer.on('open', () => {
-                    const conn = mpPeer.connect(roomId);
+                    const conn = mpPeer.connect(roomId, { reliable: true });
                     conn.on('open', () => mpOnConnected(conn, 'guest'));
-                    conn.on('error', () => mpShowStatus('Could not connect to host.'));
+                    conn.on('error', (e) => mpShowStatus('Could not connect: ' + e, 'rgba(200,0,0,0.85)'));
                 });
+                mpPeer.on('error', (err) => mpShowStatus('Peer error: ' + err.type, 'rgba(200,0,0,0.85)'));
             });
 
             document.getElementById('mp-join-no').addEventListener('click', () => {
