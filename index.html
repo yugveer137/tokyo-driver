@@ -1293,6 +1293,17 @@
                 bodyColor: 0xff4400,
                 isElectric: true,
                 heavyCar: true
+            },
+            genesisveet: {
+                name: 'Genesis Sedan Veet',
+                price: 100,
+                maxSpeed: 500,
+                acceleration: 65,
+                handling: 0.017,
+                color: 0x1a3a5c,
+                bodyColor: 0x1a3a5c,
+                isElectric: true,
+                heavyCar: true
             }
         };
 
@@ -4871,7 +4882,6 @@
 
         function createWashingtonDC(freewayX, freewayY, startZ) {
             freewayData.washingtonDCStartZ = startZ;
-            freewayData.totalEndZ = startZ + 800;
 
             // Ground - marble white / stone grey
             const groundSize = 800;
@@ -4993,7 +5003,120 @@
             createFreewayTraffic(freewayX, 0.5, startZ, groundSize, 40, 'northbound');
             createFreewayTraffic(freewayX, 0.5, startZ, groundSize, 40, 'southbound');
 
-            // Final sign - World Tour Complete
+            // Continue to Los Gatos
+            createWorldFreeway(freewayX, startZ + groundSize, 'LOS GATOS', 0x00cc99, function(endZ) {
+                createLosGatos(freewayX, 8, endZ);
+            });
+        }
+
+        function createLosGatos(freewayX, freewayY, startZ) {
+            freewayData.losGatosStartZ = startZ;
+            freewayData.totalEndZ = startZ + 800;
+
+            // Ground - modern grey concrete
+            const groundSize = 800;
+            const groundGeom = new THREE.PlaneGeometry(groundSize, groundSize);
+            const groundMat = new THREE.MeshLambertMaterial({ color: 0x3a3a3a });
+            const ground = new THREE.Mesh(groundGeom, groundMat);
+            ground.rotation.x = -Math.PI / 2;
+            ground.position.set(freewayX, 0, startZ + groundSize / 2);
+            scene.add(ground);
+
+            const groundBody = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            groundBody.addShape(new CANNON.Box(new CANNON.Vec3(groundSize / 2, 0.1, groundSize / 2)));
+            groundBody.position.set(freewayX, 0, startZ + groundSize / 2);
+            world.addBody(groundBody);
+
+            // Modern tech-city buildings (glass blue, white, silver)
+            const lgColors = [0x88bbdd, 0xaaccee, 0xc0d0e0, 0x6699bb, 0xe0e8f0, 0x334455];
+            const cityStartZ = startZ + 100;
+
+            for (let i = 0; i < 90; i++) {
+                const bx = freewayX + (Math.random() - 0.5) * 700;
+                const bz = cityStartZ + Math.random() * 600;
+                if (Math.abs(bx - freewayX) < 25) continue;
+
+                const height = 20 + Math.random() * 80;
+                const width = 12 + Math.random() * 25;
+                const depth = 12 + Math.random() * 25;
+
+                const building = new THREE.Mesh(
+                    new THREE.BoxGeometry(width, height, depth),
+                    new THREE.MeshLambertMaterial({ color: lgColors[Math.floor(Math.random() * lgColors.length)] })
+                );
+                building.position.set(bx, height / 2, bz);
+                building.castShadow = true;
+                scene.add(building);
+
+                addBuildingWindows(bx, bz, width, height, depth, 0xccffff);
+            }
+
+            // Modern tech campus (large glass building)
+            const campusMat = new THREE.MeshLambertMaterial({ color: 0x88ccee, transparent: true, opacity: 0.7 });
+            const campus = new THREE.Mesh(new THREE.BoxGeometry(60, 20, 80), campusMat);
+            campus.position.set(freewayX + 120, 10, cityStartZ + 300);
+            scene.add(campus);
+
+            // Campus roof garden
+            const roofGreen = new THREE.Mesh(
+                new THREE.BoxGeometry(55, 0.5, 75),
+                new THREE.MeshLambertMaterial({ color: 0x33aa44 })
+            );
+            roofGreen.position.set(freewayX + 120, 20.5, cityStartZ + 300);
+            scene.add(roofGreen);
+
+            // Modern tower with antenna
+            const towerMat = new THREE.MeshLambertMaterial({ color: 0xddddee });
+            const tower = new THREE.Mesh(new THREE.BoxGeometry(18, 100, 18), towerMat);
+            tower.position.set(freewayX - 100, 50, cityStartZ + 350);
+            scene.add(tower);
+            const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 30, 8), new THREE.MeshLambertMaterial({ color: 0xaaaaaa }));
+            antenna.position.set(freewayX - 100, 115, cityStartZ + 350);
+            scene.add(antenna);
+            const antennaLight = new THREE.PointLight(0x00ffcc, 2, 150);
+            antennaLight.position.set(freewayX - 100, 130, cityStartZ + 350);
+            scene.add(antennaLight);
+
+            // Palm trees along roads
+            const trunkMat = new THREE.MeshLambertMaterial({ color: 0x6b4226 });
+            const leafMat = new THREE.MeshLambertMaterial({ color: 0x228833 });
+            for (let t = 0; t < 18; t++) {
+                const tz = startZ + 30 + t * 42;
+                [-27, 27].forEach(tx => {
+                    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.5, 8, 6), trunkMat);
+                    trunk.position.set(freewayX + tx, 4, tz);
+                    scene.add(trunk);
+                    const leaves = new THREE.Mesh(new THREE.SphereGeometry(3, 6, 5), leafMat);
+                    leaves.position.set(freewayX + tx, 9, tz);
+                    scene.add(leaves);
+                });
+            }
+
+            // Fountain plaza
+            const plazaMat = new THREE.MeshLambertMaterial({ color: 0xcccccc });
+            const plaza = new THREE.Mesh(new THREE.CylinderGeometry(15, 15, 0.5, 32), plazaMat);
+            plaza.position.set(freewayX + 60, 0.25, cityStartZ + 150);
+            scene.add(plaza);
+            const fountain = new THREE.Mesh(new THREE.CylinderGeometry(3, 5, 6, 16), new THREE.MeshLambertMaterial({ color: 0x4488aa }));
+            fountain.position.set(freewayX + 60, 3, cityStartZ + 150);
+            scene.add(fountain);
+            const fountainLight = new THREE.PointLight(0x00ccff, 2, 50);
+            fountainLight.position.set(freewayX + 60, 8, cityStartZ + 150);
+            scene.add(fountainLight);
+
+            createCitySign(freewayX + 30, startZ + 30, 'LOS GATOS', 'Silicon Valley');
+
+            // Main road
+            const roadMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+            const mainRoad = new THREE.Mesh(new THREE.BoxGeometry(25, 0.2, groundSize), roadMat);
+            mainRoad.position.set(freewayX, 0.1, startZ + groundSize / 2);
+            scene.add(mainRoad);
+
+            // Traffic
+            createFreewayTraffic(freewayX, 0.5, startZ, groundSize, 25, 'northbound');
+            createFreewayTraffic(freewayX, 0.5, startZ, groundSize, 25, 'southbound');
+
+            // Final sign
             createCitySign(freewayX, startZ + groundSize - 50, 'WORLD TOUR', 'Complete! Keep Driving!');
         }
 
@@ -7884,7 +8007,8 @@
                 { name: 'NEW YORK', z: freewayData.newYorkStartZ || 0, len: 800, color: '#00e5ff' },
                 { name: 'LONDON', z: freewayData.londonStartZ || 0, len: 800, color: '#ff0044' },
                 { name: 'PARIS', z: freewayData.parisStartZ || 0, len: 800, color: '#0055ff' },
-                { name: 'WASHINGTON DC', z: freewayData.washingtonDCStartZ || 0, len: 800, color: '#3c3cc8' }
+                { name: 'WASHINGTON DC', z: freewayData.washingtonDCStartZ || 0, len: 800, color: '#3c3cc8' },
+                { name: 'LOS GATOS', z: freewayData.losGatosStartZ || 0, len: 800, color: '#00cc99' }
             ];
 
             cities.forEach(city => {
@@ -8227,6 +8351,7 @@
             { name: 'LONDON',        color: '#ff0044', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.londonStartZ || 0) + 100 }) },
             { name: 'PARIS',         color: '#0055ff', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.parisStartZ || 0) + 100 }) },
             { name: 'WASHINGTON DC', color: '#3c3cc8', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.washingtonDCStartZ || 0) + 100 }) },
+            { name: 'LOS GATOS',    color: '#00cc99', getPos: () => ({ x: freewayData.rampX,     y: 2, z: (freewayData.losGatosStartZ || 0) + 100 }) },
         ];
 
         function renderFastTravelList() {
@@ -8914,6 +9039,9 @@
 
             mpPeer.on('open', (id) => {
                 const joinURL = GAME_URL + '?room=' + id;
+
+                // Start game immediately so player can drive while waiting
+                gameState.gameStarted = true;
 
                 // Show waiting screen with link
                 document.getElementById('mp-waiting-screen').style.display = 'flex';
