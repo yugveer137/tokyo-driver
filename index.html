@@ -12359,7 +12359,7 @@
         function initMenuCar() {
             const canvas = document.getElementById('menu-car-canvas');
             if (!canvas || typeof THREE === 'undefined' || menuCar) return;
-            const w = canvas.clientWidth || window.innerWidth, h = canvas.clientHeight || window.innerHeight;
+            const w = canvas.clientWidth || window.innerWidth || 2, h = canvas.clientHeight || window.innerHeight || 2;
             const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderer.setSize(w, h, false);
@@ -12397,28 +12397,33 @@
             scene.add(carGroup);
 
             menuCar = { renderer, scene, camera, carGroup, running: true, raf: 0, t: 0 };
+            const PR = Math.min(window.devicePixelRatio, 2);
             (function loop() {
                 if (!menuCar || !menuCar.running) return;
+                menuCar.raf = requestAnimationFrame(loop);
+                const el = menuCar.renderer.domElement;
+                const cw = el.clientWidth, ch = el.clientHeight;
+                // Don't render to a zero-size canvas (hidden / not laid out yet) — that
+                // floods "framebuffer incomplete" WebGL warnings and can black out the menu.
+                if (cw === 0 || ch === 0) return;
+                // Keep the drawing buffer in sync with the displayed size (handles resize).
+                if (el.width !== Math.round(cw * PR) || el.height !== Math.round(ch * PR)) {
+                    menuCar.renderer.setSize(cw, ch, false);
+                    menuCar.camera.aspect = cw / ch;
+                    menuCar.camera.updateProjectionMatrix();
+                }
                 menuCar.t += 0.006;
                 menuCar.carGroup.rotation.y = menuCar.t;
                 menuCar.carGroup.position.y = Math.sin(menuCar.t * 2) * 0.03;
                 menuCar.renderer.render(menuCar.scene, menuCar.camera);
-                menuCar.raf = requestAnimationFrame(loop);
             })();
         }
         function stopMenuCar() {
             if (menuCar) { menuCar.running = false; if (menuCar.raf) cancelAnimationFrame(menuCar.raf); }
         }
-        // Resize the showroom canvas with the window
-        window.addEventListener('resize', () => {
-            if (!menuCar) return;
-            const c = document.getElementById('menu-car-canvas');
-            const w = c.clientWidth || 560, h = c.clientHeight || 240;
-            menuCar.renderer.setSize(w, h, false);
-            menuCar.camera.aspect = w / h;
-            menuCar.camera.updateProjectionMatrix();
-        });
-        // Kick off the showroom once everything is defined
+        // Kick off the showroom. The render loop syncs its own size each frame and skips
+        // rendering while the canvas is zero-size, so this is safe even before layout —
+        // no more "framebuffer incomplete" flood / black menu on slower machines.
         initMenuCar();
 
         // =============================================
