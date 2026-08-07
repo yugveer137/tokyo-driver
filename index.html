@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tokyo Night Driver Full Edition Drift Edition 6</title>
+    <title>Tokyo Night Driver</title>
     <style>
         * {
             margin: 0;
@@ -408,17 +408,11 @@
         /* Start screen */
         #start-screen {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            inset: 0;
+            background: #05060c;
             z-index: 2000;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
             color: white;
+            overflow: hidden;
         }
 
         #start-screen h1 {
@@ -430,8 +424,8 @@
         #start-screen p {
             font-size: 18px;
             color: #aaa;
-            margin-bottom: 40px;
-            text-align: center;
+            margin-bottom: 32px;
+            text-align: left;
             line-height: 1.6;
         }
 
@@ -452,6 +446,150 @@
             box-shadow: 0 10px 30px rgba(0, 255, 136, 0.4);
         }
 
+        /* Start menu: full-screen car backdrop, content column on the left */
+        #menu-car-canvas {
+            position: absolute; inset: 0; width: 100%; height: 100%;
+            display: block; z-index: 0;
+        }
+        #menu-scrim {
+            position: absolute; inset: 0; z-index: 1; pointer-events: none;
+            background:
+                linear-gradient(90deg, rgba(5,6,12,0.96) 0%, rgba(5,6,12,0.82) 26%, rgba(5,6,12,0.35) 48%, rgba(5,6,12,0) 66%),
+                linear-gradient(0deg, rgba(5,6,12,0.55) 0%, rgba(5,6,12,0) 30%);
+        }
+        #menu-content {
+            position: absolute; z-index: 2; left: 6vw; top: 0; bottom: 0;
+            display: flex; flex-direction: column; justify-content: center;
+            align-items: flex-start; gap: 8px; max-width: 460px;
+        }
+        #menu-main { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+        .menu-btn {
+            padding: 16px 50px; min-width: 300px; font-size: 20px; font-weight: bold;
+            letter-spacing: 2px; border: none; border-radius: 12px; cursor: pointer;
+            font-family: inherit; transition: transform 0.15s, box-shadow 0.15s;
+        }
+        .menu-btn:hover { transform: scale(1.05); }
+        #continue-btn { background: linear-gradient(135deg, #00ff88, #00cc66); color: #04120b; }
+        .menu-btn-alt { background: linear-gradient(135deg, #ffb347, #ff8c00); color: #201400; }
+        .menu-btn-ghost { background: rgba(255,255,255,0.10); color: #fff; border: 1px solid rgba(255,255,255,0.25); }
+        .menu-btn-mp { background: #0072ff; color: #fff; }
+        #settings-panel { display: none; flex-direction: column; align-items: flex-start; gap: 16px; color: #fff; }
+        #settings-panel h2 { font-size: 28px; margin: 0 0 6px; }
+        .setting-row {
+            display: flex; align-items: center; justify-content: space-between; gap: 24px;
+            min-width: 260px; padding: 14px 24px; font-size: 18px;
+            background: rgba(255,255,255,0.06); border-radius: 10px;
+        }
+        .toggle-btn {
+            padding: 8px 22px; min-width: 68px; border: none; border-radius: 20px;
+            font-weight: bold; font-family: inherit; cursor: pointer;
+            background: #00cc66; color: #04120b;
+        }
+        .toggle-btn.off { background: #555; color: #ccc; }
+
+        /* Drive button: shown over the world before you start driving */
+        #drive-btn {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 1500; display: none;
+            padding: 20px 60px; font-size: 26px; font-weight: bold; letter-spacing: 3px;
+            font-family: inherit; color: #04120b; border: none; border-radius: 50px; cursor: pointer;
+            background: linear-gradient(135deg, #00ff88, #00cc66);
+            box-shadow: 0 8px 30px rgba(0, 255, 136, 0.6);
+            animation: drivePulse 1.4s ease-in-out infinite;
+        }
+        #drive-btn:hover { filter: brightness(1.08); }
+        @keyframes drivePulse {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.05); }
+        }
+
+        /* Login Gate (first-visit email + code) */
+        #login-gate {
+            position: fixed;
+            inset: 0;
+            background: linear-gradient(135deg, #0d0d1a, #101a2e);
+            z-index: 3000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            font-family: monospace;
+        }
+        #login-gate .lg-card {
+            background: rgba(10, 14, 26, 0.9);
+            border: 1px solid rgba(0, 229, 255, 0.3);
+            border-radius: 16px;
+            padding: 40px 44px;
+            width: min(90vw, 420px);
+            box-shadow: 0 0 40px rgba(0, 229, 255, 0.15);
+            display: flex;
+            flex-direction: column;
+        }
+        #login-gate h2 {
+            font-size: 1.9rem;
+            letter-spacing: 3px;
+            text-align: center;
+            color: #00e5ff;
+            margin: 0 0 6px;
+            text-shadow: 0 0 18px rgba(0, 229, 255, 0.6);
+        }
+        #login-gate .lg-sub {
+            text-align: center;
+            color: #8aa;
+            font-size: 0.82rem;
+            margin: 0 0 26px;
+            line-height: 1.5;
+        }
+        #login-gate label {
+            font-size: 0.72rem;
+            letter-spacing: 1px;
+            color: #7fa;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+        #login-gate input {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 13px 14px;
+            margin-bottom: 18px;
+            background: #0a0f1c;
+            border: 1px solid #23324a;
+            border-radius: 9px;
+            color: #eaf6ff;
+            font-size: 1rem;
+            font-family: monospace;
+            outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        #login-gate input:focus {
+            border-color: #00e5ff;
+            box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.15);
+        }
+        #login-gate #lg-error {
+            color: #ff5d6c;
+            font-size: 0.78rem;
+            min-height: 1.1em;
+            text-align: center;
+            margin: -8px 0 12px;
+        }
+        #login-gate #lg-enter {
+            padding: 14px;
+            background: linear-gradient(135deg, #00ff88, #00cc66);
+            color: #04120b;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.05rem;
+            font-weight: bold;
+            letter-spacing: 2px;
+            font-family: monospace;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+        #login-gate #lg-enter:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(0, 255, 136, 0.3);
+        }
         /* Drift Stick */
         #drift-stick {
             position: fixed;
@@ -1171,13 +1309,92 @@
     </style>
 </head>
 <body>
+    <!-- Login Gate: first visit asks for email + a code you make up; creator can skip -->
+    <div id="login-gate">
+        <div class="lg-card">
+            <h2>TOKYO NIGHT DRIVER</h2>
+            <p class="lg-sub">Enter your email and create a code to play.<br>You'll only do this once.</p>
+            <label for="lg-email">Email</label>
+            <input id="lg-email" type="email" autocomplete="email" placeholder="you@example.com" />
+            <label for="lg-code">Create a code</label>
+            <input id="lg-code" type="password" autocomplete="new-password" placeholder="Make up a code (4+ characters)" />
+            <div id="lg-error"></div>
+            <button id="lg-enter">ENTER</button>
+        </div>
+    </div>
+    <script>
+    // Login gate: remembers you so you never re-enter. Creator skips entirely.
+    // Note: this is a local-only gate (localStorage) for a single-player game --
+    // it is not real authentication and the code is not sent anywhere.
+    (function () {
+        const LS_KEY = 'td_login';
+        const gate = document.getElementById('login-gate');
+        function unlock() { gate.style.display = 'none'; }
+
+        // Testing helper: add #reset to the URL to clear the saved login and see the gate again.
+        // Harmless: it only signs you out (forces a fresh login), it does not bypass anything.
+        if (/[#?&]reset\b/i.test(location.hash + location.search)) {
+            try { localStorage.removeItem(LS_KEY); } catch (e) {}
+            try { history.replaceState(null, '', location.pathname); } catch (e) {}
+        }
+
+        // Fast paths: already logged in, or creator via #creator / ?creator (bookmark it)
+        let saved = null;
+        try { saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch (e) {}
+        const wantsCreator = /[#?&]creator\b/i.test(location.hash + location.search);
+        if (saved || wantsCreator) {
+            if (wantsCreator && !saved) {
+                try { localStorage.setItem(LS_KEY, JSON.stringify({ type: 'creator', ts: Date.now() })); } catch (e) {}
+            }
+            unlock();
+            return;
+        }
+
+        // Interactive gate for new players
+        const emailEl = document.getElementById('lg-email');
+        const codeEl = document.getElementById('lg-code');
+        const errEl = document.getElementById('lg-error');
+        function submit() {
+            const email = emailEl.value.trim();
+            const code = codeEl.value;
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                errEl.textContent = 'Enter a valid email address.'; emailEl.focus(); return;
+            }
+            if (code.length < 4) {
+                errEl.textContent = 'Your code must be at least 4 characters.'; codeEl.focus(); return;
+            }
+            try { localStorage.setItem(LS_KEY, JSON.stringify({ type: 'player', email: email, code: code, ts: Date.now() })); } catch (e) {}
+            unlock();
+        }
+        document.getElementById('lg-enter').addEventListener('click', submit);
+        emailEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') codeEl.focus(); });
+        codeEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
+        setTimeout(function () { emailEl.focus(); }, 50);
+    })();
+    </script>
+
     <!-- Start Screen -->
     <div id="start-screen">
-        <h1>Tokyo Night Driver Full Edition Drift Edition 6</h1>
-        <p>Drive through neon-lit Tokyo streets, collect coins, buy cars!<br>Watch out for traffic and obey red lights...</p>
-        <button id="start-btn">START GAME</button>
-        <button id="multiplayer-btn" style="margin-top:12px;padding:14px 40px;font-size:18px;background:#0072ff;color:#fff;border:none;border-radius:8px;cursor:pointer;letter-spacing:2px;">MULTIPLAYER</button>
+        <canvas id="menu-car-canvas"></canvas>
+        <div id="menu-scrim"></div>
+        <div id="menu-content">
+            <h1>Tokyo Night Driver</h1>
+            <p>Drive through neon-lit Tokyo streets, collect coins, buy cars!<br>Watch out for traffic and obey red lights...</p>
+            <div id="menu-main">
+                <button id="continue-btn" class="menu-btn">CONTINUE GAME</button>
+                <button id="newgame-btn" class="menu-btn menu-btn-alt">NEW GAME</button>
+                <button id="settings-btn" class="menu-btn menu-btn-ghost">SETTINGS</button>
+                <button id="multiplayer-btn" class="menu-btn menu-btn-mp">MULTIPLAYER</button>
+            </div>
+            <div id="settings-panel">
+                <h2>Settings</h2>
+                <div class="setting-row"><span>Sound</span><button id="sound-toggle" class="toggle-btn">ON</button></div>
+                <button id="settings-back" class="menu-btn menu-btn-ghost">BACK</button>
+            </div>
+        </div>
     </div>
+    <!-- Drive button: appears over the world after choosing Continue / New Game; click to start driving -->
+    <button id="drive-btn">&#9654; DRIVE</button>
 
     <!-- Multiplayer Menu (shown when clicking MULTIPLAYER) -->
     <div id="mp-menu" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:20px;">
@@ -9283,6 +9500,11 @@
             const interiorGroup = new THREE.Group();
             (interiorVisuals[gameState.selectedCar] || interiorVisuals.starter)(interiorGroup, getDashTexture());
 
+            // Right-hand drive: mirror the whole interior across the car centerline so the
+            // steering wheel + driver's seat sit on the RIGHT (Tokyo/Japan style). The camera
+            // (below) is moved to match, so you sit behind the wheel with the console to your left.
+            interiorGroup.children.forEach(c => { c.position.x = -c.position.x; });
+
             interiorGroup.traverse(o => { if (o.isMesh) o.renderOrder = 999; });
             interiorGroup.visible = false;
             if (cockpitInterior) scene.remove(cockpitInterior);
@@ -10100,10 +10322,10 @@
                 const targetFov = 80 + speedFactor * 12;
                 camera.fov += (targetFov - camera.fov) * 0.08;
                 camera.updateProjectionMatrix();
-                const cockpitOffset = new THREE.Vector3(-0.4, 0.72, 0.05);
+                const cockpitOffset = new THREE.Vector3(0.4, 0.72, 0.05);
                 cockpitOffset.applyQuaternion(car.quaternion);
                 camera.position.copy(car.position).add(cockpitOffset);
-                const forward = new THREE.Vector3(-0.4, 0.55, 8);
+                const forward = new THREE.Vector3(0.4, 0.55, 8);
                 forward.applyQuaternion(car.quaternion);
                 camera.lookAt(car.position.clone().add(forward));
                 if (cockpitInterior) {
@@ -11835,6 +12057,7 @@
 
         // === ENGINE SOUND SYSTEM (Web Audio API) ===
         let audioCtx = null;
+        let soundEnabled = (localStorage.getItem('td_sound') !== 'off'); // Settings: sound on/off (default on)
         let engineOsc1 = null;  // Main engine tone
         let engineOsc2 = null;  // Lower rumble
         let engineOsc3 = null;  // Exhaust crackle
@@ -11876,6 +12099,7 @@
 
         function initEngineSound() {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (!soundEnabled) audioCtx.suspend(); // honor Settings sound toggle
 
             const profile = getEngineProfile();
 
@@ -12054,11 +12278,148 @@
             }
         }
 
-        document.getElementById('start-btn').addEventListener('click', () => {
+        // ---- Start menu: Continue / New Game / Settings, then a Drive button to begin ----
+        function positionCameraPreview() {
+            // Position the camera once for a static preview of the world (car idle) before driving.
+            if (!car) return;
+            const off = new THREE.Vector3(0, 7, -14);
+            off.applyQuaternion(car.quaternion);
+            camera.position.copy(car.position).add(off);
+            const look = car.position.clone(); look.y += 1;
+            camera.lookAt(look);
+        }
+        function enterDriveReady() {
+            // Leave the menu, show the world (still idle), and reveal the Drive button.
+            stopMenuCar();
             document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('settings-panel').style.display = 'none';
+            document.getElementById('menu-main').style.display = 'flex';
+            positionCameraPreview();
+            document.getElementById('drive-btn').style.display = 'block';
+        }
+        document.getElementById('continue-btn').addEventListener('click', enterDriveReady);
+        document.getElementById('newgame-btn').addEventListener('click', () => {
+            if (!confirm('Start a NEW game? This erases your coins and cars and puts you back in the Starter.')) return;
+            gameState.coins = 0;
+            gameState.ownedCars = ['starter'];
+            gameState.selectedCar = 'starter';
+            localStorage.setItem('coins', 0);
+            localStorage.setItem('ownedCars', JSON.stringify(['starter']));
+            localStorage.setItem('selectedCar', 'starter');
+            document.querySelector('#coins-display span').textContent = 0;
+            selectCar('starter');
+            enterDriveReady();
+        });
+        document.getElementById('settings-btn').addEventListener('click', () => {
+            document.getElementById('menu-main').style.display = 'none';
+            document.getElementById('settings-panel').style.display = 'flex';
+        });
+        document.getElementById('settings-back').addEventListener('click', () => {
+            document.getElementById('settings-panel').style.display = 'none';
+            document.getElementById('menu-main').style.display = 'flex';
+        });
+        function refreshSoundToggle() {
+            const b = document.getElementById('sound-toggle');
+            b.textContent = soundEnabled ? 'ON' : 'OFF';
+            b.classList.toggle('off', !soundEnabled);
+        }
+        document.getElementById('sound-toggle').addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            localStorage.setItem('td_sound', soundEnabled ? 'on' : 'off');
+            refreshSoundToggle();
+            if (audioCtx) { soundEnabled ? audioCtx.resume() : audioCtx.suspend(); }
+        });
+        refreshSoundToggle();
+        document.getElementById('drive-btn').addEventListener('click', () => {
+            document.getElementById('drive-btn').style.display = 'none';
+            stopMenuCar();
             gameState.gameStarted = true;
             initEngineSound();
         });
+
+        // ---- Menu showroom: a rotating 3D render of your current car in a dark studio ----
+        let menuCar = null;
+        function buildMenuCarModel(carId) {
+            const g = new THREE.Group();
+            const data = cars[carId] || cars.starter;
+            (carVisuals[carId] || carVisuals.starter)(g, data);
+            // carVisuals builds only the body; add simple wheels for the showroom.
+            const tyreMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.7, metalness: 0.2 });
+            const hubMat = new THREE.MeshStandardMaterial({ color: 0xb0b4bc, roughness: 0.3, metalness: 0.85 });
+            [[-0.95, 1.35], [0.95, 1.35], [-0.95, -1.35], [0.95, -1.35]].forEach(([x, z]) => {
+                const tyre = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.32, 22), tyreMat);
+                tyre.rotation.z = Math.PI / 2; tyre.position.set(x, 0.42, z); tyre.castShadow = true;
+                g.add(tyre);
+                const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.34, 14), hubMat);
+                hub.rotation.z = Math.PI / 2; hub.position.set(x, 0.42, z);
+                g.add(hub);
+            });
+            return g;
+        }
+        function initMenuCar() {
+            const canvas = document.getElementById('menu-car-canvas');
+            if (!canvas || typeof THREE === 'undefined' || menuCar) return;
+            const w = canvas.clientWidth || window.innerWidth, h = canvas.clientHeight || window.innerHeight;
+            const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setSize(w, h, false);
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.05;
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(40, w / h, 0.1, 100);
+            camera.position.set(6.4, 2.7, 7.0);
+            camera.lookAt(-3.0, 0.5, 0); // aim left of the car so it sits on the RIGHT half of the screen
+
+            scene.add(new THREE.AmbientLight(0x3a4a66, 0.55));
+            const key = new THREE.DirectionalLight(0xffffff, 1.15);
+            key.position.set(4, 9, 6); key.castShadow = true;
+            key.shadow.mapSize.set(1024, 1024);
+            key.shadow.camera.near = 1; key.shadow.camera.far = 30;
+            key.shadow.camera.left = -6; key.shadow.camera.right = 6;
+            key.shadow.camera.top = 6; key.shadow.camera.bottom = -6;
+            scene.add(key);
+            const rimCyan = new THREE.PointLight(0x00e5ff, 1.7, 30); rimCyan.position.set(-6, 2.5, -4); scene.add(rimCyan);
+            const rimMag = new THREE.PointLight(0xff2fb0, 1.5, 30); rimMag.position.set(6, 1.8, -5); scene.add(rimMag);
+
+            const floor = new THREE.Mesh(
+                new THREE.CircleGeometry(10, 48),
+                new THREE.MeshStandardMaterial({ color: 0x06070c, roughness: 0.4, metalness: 0.65 })
+            );
+            floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true;
+            scene.add(floor);
+
+            const carGroup = buildMenuCarModel(gameState.selectedCar);
+            carGroup.traverse(o => { if (o.isMesh) o.castShadow = true; });
+            scene.add(carGroup);
+
+            menuCar = { renderer, scene, camera, carGroup, running: true, raf: 0, t: 0 };
+            (function loop() {
+                if (!menuCar || !menuCar.running) return;
+                menuCar.t += 0.006;
+                menuCar.carGroup.rotation.y = menuCar.t;
+                menuCar.carGroup.position.y = Math.sin(menuCar.t * 2) * 0.03;
+                menuCar.renderer.render(menuCar.scene, menuCar.camera);
+                menuCar.raf = requestAnimationFrame(loop);
+            })();
+        }
+        function stopMenuCar() {
+            if (menuCar) { menuCar.running = false; if (menuCar.raf) cancelAnimationFrame(menuCar.raf); }
+        }
+        // Resize the showroom canvas with the window
+        window.addEventListener('resize', () => {
+            if (!menuCar) return;
+            const c = document.getElementById('menu-car-canvas');
+            const w = c.clientWidth || 560, h = c.clientHeight || 240;
+            menuCar.renderer.setSize(w, h, false);
+            menuCar.camera.aspect = w / h;
+            menuCar.camera.updateProjectionMatrix();
+        });
+        // Kick off the showroom once everything is defined
+        initMenuCar();
 
         // =============================================
         // MULTIPLAYER SYSTEM (PeerJS + EmailJS)
@@ -12885,10 +13246,10 @@
             const speedMph = selfDriveWorldSpeed * 2.237;
             const speedFactor = Math.min(speedMph / 200, 1);
             if (cameraMode === 'cockpit') {
-                const cockpitOffset = new THREE.Vector3(-0.4, 0.72, 0.05);
+                const cockpitOffset = new THREE.Vector3(0.4, 0.72, 0.05);
                 cockpitOffset.applyQuaternion(car.quaternion);
                 camera.position.copy(car.position).add(cockpitOffset);
-                const forward = new THREE.Vector3(-0.4, 0.55, 8);
+                const forward = new THREE.Vector3(0.4, 0.55, 8);
                 forward.applyQuaternion(car.quaternion);
                 camera.lookAt(car.position.clone().add(forward));
                 if (cockpitInterior) {
