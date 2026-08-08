@@ -9871,6 +9871,10 @@
         }
 
         function onKeyDown(e) {
+            // Don't hijack keys while the user is typing in a text field (login email/code,
+            // etc.) — otherwise control keys like V/W/A/S/D get swallowed and won't type.
+            const _t = e.target;
+            if (_t && (_t.tagName === 'INPUT' || _t.tagName === 'TEXTAREA' || _t.isContentEditable)) return;
             // Cancel self-drive on manual input
             if (selfDriveActive && ['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase())) {
                 selfDriveActive = false;
@@ -9947,6 +9951,8 @@
         }
 
         function onKeyUp(e) {
+            const _t = e.target;
+            if (_t && (_t.tagName === 'INPUT' || _t.tagName === 'TEXTAREA' || _t.isContentEditable)) return;
             switch(e.key.toLowerCase()) {
                 case 'w':
                 case 'arrowup':
