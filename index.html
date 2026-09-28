@@ -635,6 +635,26 @@
             box-shadow: 0 0 20px rgba(255, 51, 0, 0.7), 0 0 40px rgba(255, 0, 102, 0.3);
         }
 
+        /* Extra touch buttons: hidden on laptops (keyboard does these), shown on phones */
+        #touch-extras { display: none; }
+        .tx-btn {
+            min-width: 38px;
+            padding: 8px 6px;
+            background: rgba(0, 0, 0, 0.62);
+            border: 1px solid rgba(255, 255, 255, 0.28);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 11px;
+            font-weight: bold;
+            line-height: 1;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .tx-btn:active { background: rgba(0, 229, 255, 0.5); }
+        .tx-btn.on { background: rgba(255, 170, 0, 0.75); border-color: #ffcc55; }
+
+        /* ---- Phone layout: shrink the HUD and stack the buttons tightly down each side ---- */
         @media (max-width: 768px) {
             #controls-hint {
                 display: none;
@@ -645,6 +665,7 @@
             #shop-content {
                 padding: 20px;
             }
+
         }
 
         /* Mini-map */
@@ -859,6 +880,22 @@
             color: #fff;
             font-size: 10px;
         }
+        /* Gear up/down are real buttons so they can be tapped on a phone,
+           where there is no keyboard to press Z/X. */
+        .gear-btn {
+            background: none;
+            border: none;
+            color: inherit;
+            font: inherit;
+            font-size: 11px;
+            padding: 4px 6px;
+            border-radius: 6px;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .gear-btn:hover { background: rgba(255, 255, 255, 0.08); }
+        .gear-btn:active { background: rgba(255, 68, 102, 0.35); }
 
         /* Delivery Modal */
         #delivery-modal {
@@ -1306,6 +1343,211 @@
         #race-hud .race-pos { color: #ff4060; font-size: 28px; font-weight: bold; }
         #race-hud .race-lap { color: #aaa; font-size: 14px; }
 
+        /* Creator-only payment link row in Settings */
+        #paylink-row {
+            display: none;
+            min-width: 260px;
+            padding: 14px 18px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 10px;
+            text-align: left;
+        }
+        #paylink-row label {
+            display: block; font-size: 0.68rem; color: #7fa;
+            letter-spacing: 1px; text-transform: uppercase; margin-bottom: 7px;
+        }
+        #paylink-input {
+            width: 100%; box-sizing: border-box; padding: 9px;
+            background: #0a0f1c; border: 1px solid #23324a; border-radius: 7px;
+            color: #eaf6ff; font-family: monospace; font-size: 0.8rem; outline: none;
+        }
+        #paylink-input:focus { border-color: #00e5ff; }
+        #paylink-save { margin-top: 8px; }
+        #paylink-note { font-size: 0.7rem; min-height: 1em; margin-top: 7px; }
+
+        /* Pay gate ($1 to play) */
+        #pay-gate {
+            position: fixed;
+            inset: 0;
+            z-index: 2500;
+            background: linear-gradient(135deg, #0d0d1a, #101a2e);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-family: monospace;
+        }
+        #pay-gate .pay-card {
+            background: rgba(10, 14, 26, 0.92);
+            border: 1px solid rgba(0, 229, 255, 0.3);
+            border-radius: 16px;
+            padding: 38px 44px;
+            width: min(90vw, 400px);
+            text-align: center;
+            box-shadow: 0 0 40px rgba(0, 229, 255, 0.15);
+        }
+        #pay-gate h2 {
+            font-size: 1.5rem;
+            letter-spacing: 3px;
+            color: #00e5ff;
+            margin: 0 0 10px;
+            text-shadow: 0 0 18px rgba(0, 229, 255, 0.6);
+        }
+        #pay-gate .pay-price {
+            font-size: 3.6rem;
+            font-weight: bold;
+            color: #00ff88;
+            line-height: 1;
+            margin: 6px 0 10px;
+            text-shadow: 0 0 24px rgba(0, 255, 136, 0.5);
+        }
+        #pay-gate .pay-sub { color: #8aa; font-size: 0.82rem; line-height: 1.5; margin: 0 0 22px; }
+        #pay-btn, #paid-btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.05rem;
+            font-weight: bold;
+            letter-spacing: 2px;
+            font-family: monospace;
+            cursor: pointer;
+            background: linear-gradient(135deg, #00ff88, #00cc66);
+            color: #04120b;
+        }
+        #paid-btn { background: linear-gradient(135deg, #ffb347, #ff8c00); color: #201400; }
+        #pay-after { display: none; margin-top: 18px; }
+        #pay-after .pay-sub { margin: 0 0 10px; }
+        #pay-note { color: #ff5d6c; font-size: 0.76rem; min-height: 1em; margin-top: 12px; }
+        #contact-owner {
+            display: none;
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 10px;
+            background: #0072ff;
+            color: #fff;
+            font-family: monospace;
+            font-size: 0.95rem;
+            font-weight: bold;
+            letter-spacing: 2px;
+            text-decoration: none;
+            text-align: center;
+        }
+        #contact-owner:hover { background: #1a85ff; }
+
+        /* Creator sign on the side */
+        #creator-side { position: fixed; right: 22px; top: 50%; transform: translateY(-50%); text-align: right; }
+        #creator-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            border-radius: 10px;
+            color: #cfe;
+            padding: 12px 16px;
+            font-family: monospace;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            cursor: pointer;
+        }
+        #creator-btn:hover { border-color: #00e5ff; color: #00e5ff; }
+        #creator-box {
+            display: none;
+            margin-top: 10px;
+            background: rgba(10, 14, 26, 0.95);
+            border: 1px solid rgba(0, 229, 255, 0.3);
+            border-radius: 10px;
+            padding: 14px;
+            width: 210px;
+            text-align: left;
+        }
+        #creator-box label { display: block; font-size: 0.66rem; color: #7fa; letter-spacing: 1px; margin-bottom: 6px; text-transform: uppercase; }
+        #creator-input {
+            width: 100%; box-sizing: border-box; padding: 9px;
+            background: #0a0f1c; border: 1px solid #23324a; border-radius: 7px;
+            color: #eaf6ff; font-family: monospace; font-size: 0.85rem; outline: none;
+        }
+        #creator-input:focus { border-color: #00e5ff; }
+        #creator-go {
+            width: 100%; margin-top: 8px; padding: 9px;
+            background: #0072ff; color: #fff; border: none; border-radius: 7px;
+            font-family: monospace; font-size: 0.8rem; letter-spacing: 1px; cursor: pointer;
+        }
+        #creator-err { color: #ff5d6c; font-size: 0.7rem; min-height: 1em; margin-top: 6px; }
+
+        /* =========================================================
+           PHONE LAYOUT — must stay LAST so it overrides the
+           per-button rules above (same specificity, later wins).
+           Shrinks the HUD and stacks the buttons down each side.
+           ========================================================= */
+        @media (max-width: 768px) {
+            /* Smaller HUD text so it doesn't eat the screen */
+            #hud { top: 6px; left: 6px; font-size: 10px; }
+            #hud div { margin-bottom: 2px; padding: 3px 7px; border-radius: 5px; }
+            #speed-display { font-size: 15px; }
+            #limit-display { font-size: 11px; }
+
+            /* Smaller mini-map */
+            #mini-map { top: 6px; right: 6px; width: 84px; height: 116px; }
+
+            /* Compact side buttons */
+            #shop-btn, #delivery-btn, #honk-btn, #fast-travel-btn, #race-btn, #train-btn,
+            #fwy-race-btn, #lane-lock-btn, #speed-lock-btn, #front-lock-btn, #map-btn, #self-drive-btn {
+                padding: 5px 2px;
+                font-size: 8px;
+                border-radius: 6px;
+                width: 72px;
+                text-align: center;
+                letter-spacing: 0;
+                line-height: 1.15;
+            }
+
+            /* Left column (below the HUD) */
+            #fwy-race-btn    { left: 6px; top: 120px; }
+            #lane-lock-btn   { left: 6px; top: 150px; }
+            #speed-lock-btn  { left: 6px; top: 180px; }
+            #front-lock-btn  { left: 6px; top: 210px; }
+            #map-btn         { left: 6px; top: 240px; }
+            #self-drive-btn  { left: 6px; top: 270px; }
+
+            /* Right column (below the mini-map) */
+            #shop-btn        { right: 6px; left: auto; top: 130px; }
+            #delivery-btn    { right: 6px; left: auto; top: 160px; }
+            #honk-btn        { right: 6px; left: auto; top: 190px; }
+            #fast-travel-btn { right: 6px; left: auto; top: 220px; }
+            #race-btn        { right: 6px; left: auto; top: 250px; }
+            #train-btn       { right: 6px; left: auto; top: 280px; }
+
+            /* Smaller driving controls so they don't cover the road */
+            .control-btn { width: 58px; height: 58px; font-size: 20px; }
+            #left-controls { left: 6px; }
+            #right-controls { right: 6px; }
+            #drift-stick { width: 58px; height: 58px; bottom: 24px; }
+            #drift-knob { width: 38px; height: 38px; font-size: 9px; }
+
+            /* Compact gearbox, clear of the driving controls */
+            #gearbox { left: 6px; bottom: 96px; padding: 4px 7px; min-width: 54px; }
+            #gear-display { font-size: 20px; margin-bottom: 2px; }
+            #gear-label { font-size: 8px; margin-bottom: 1px; }
+            #gear-controls { font-size: 9px; gap: 3px; }
+            .gear-btn { padding: 7px 6px; font-size: 9px; }
+
+            /* Touch-only actions (cockpit / signals / hazard / rain), above the drift knob */
+            #touch-extras {
+                display: flex;
+                position: absolute;
+                right: 6px;
+                bottom: 100px;
+                gap: 4px;
+                z-index: 100;
+            }
+            .tx-btn { min-width: 34px; padding: 8px 4px; font-size: 10px; }
+
+            /* Pay gate on a phone: card sits higher, creator sign moves to the bottom */
+            #pay-gate { align-items: flex-start; padding-top: 12vh; }
+            #pay-gate .pay-card { padding: 26px 22px; }
+            #pay-gate .pay-price { font-size: 2.8rem; }
+            #creator-side { top: auto; bottom: 18px; right: 50%; transform: translateX(50%); text-align: center; }
+            #creator-box { width: 200px; margin-left: auto; margin-right: auto; }
+        }
     </style>
 </head>
 <body>
@@ -1326,36 +1568,100 @@
     // Login gate: remembers you so you never re-enter. Creator skips entirely.
     // Note: this is a local-only gate (localStorage) for a single-player game --
     // it is not real authentication and the code is not sent anywhere.
+    // Every account gets its OWN save. Progress is stored under keys namespaced by
+    // account ("td:<email>:coins"), so a different email = a different game.
+    window.tdKey = function (name) {
+        return 'td:' + (window.TD_ACCOUNT || 'guest') + ':' + name;
+    };
+    // Who's signed in lives in sessionStorage: it survives reloads in the same tab but is
+    // gone when the tab closes, so the next person to open the game gets the login screen
+    // instead of walking into the last player's account.
+    window.tdSession = {
+        get: function () { try { return JSON.parse(sessionStorage.getItem('td_login') || 'null'); } catch (e) { return null; } },
+        set: function (v) { try { sessionStorage.setItem('td_login', JSON.stringify(v)); } catch (e) {} },
+        clear: function () { try { sessionStorage.removeItem('td_login'); } catch (e) {} }
+    };
+    // One-time move from the old single-save version (live until this update): it kept one
+    // login {email, code} in localStorage 'td_login' and one shared save in 'coins' /
+    // 'ownedCars' / 'selectedCar'. Carry both into the per-account system so returning
+    // players keep their code and their progress.
+    try {
+        const old = JSON.parse(localStorage.getItem('td_login') || 'null');
+        let acct = null;
+        if (old && old.type === 'creator') acct = 'creator';
+        else if (old && old.email && old.code) {
+            acct = String(old.email).trim().toLowerCase();
+            const accts = JSON.parse(localStorage.getItem('td_accounts') || '{}') || {};
+            if (!Object.prototype.hasOwnProperty.call(accts, acct)) {
+                accts[acct] = old.code;
+                localStorage.setItem('td_accounts', JSON.stringify(accts));
+            }
+        }
+        if (acct) {
+            ['coins', 'ownedCars', 'selectedCar'].forEach(function (k) {
+                const v = localStorage.getItem(k);
+                if (v !== null && localStorage.getItem('td:' + acct + ':' + k) === null) {
+                    localStorage.setItem('td:' + acct + ':' + k, v);
+                }
+            });
+        }
+    } catch (e) {}
+    // Logins used to be remembered forever in localStorage; drop the old one now that it's moved.
+    try { localStorage.removeItem('td_login'); } catch (e) {}
     (function () {
-        const LS_KEY = 'td_login';
+        const ACCT_KEY = 'td_accounts';  // { email: code } for accounts made on this browser
         const gate = document.getElementById('login-gate');
         function unlock() { gate.style.display = 'none'; }
+        function readAccounts() {
+            try { return JSON.parse(localStorage.getItem(ACCT_KEY) || '{}') || {}; } catch (e) { return {}; }
+        }
 
-        // Testing helper: add #reset to the URL to clear the saved login and see the gate again.
-        // Harmless: it only signs you out (forces a fresh login), it does not bypass anything.
+        // #reset — just sign out. Accounts and saved games are kept.
         if (/[#?&]reset\b/i.test(location.hash + location.search)) {
-            try { localStorage.removeItem(LS_KEY); } catch (e) {}
+            tdSession.clear();
             try { history.replaceState(null, '', location.pathname); } catch (e) {}
         }
 
-        // Fast paths: already logged in, or creator via #creator / ?creator (bookmark it)
-        let saved = null;
-        try { saved = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch (e) {}
+        // #wipe — erase EVERYTHING for a totally fresh start: every account (emails +
+        // codes), every saved game, every paid flag, and the payment link.
+        if (/[#?&]wipe\b/i.test(location.hash + location.search)) {
+            try {
+                const doomed = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const k = localStorage.key(i);
+                    // Everything this game owns: namespaced saves plus its top-level keys.
+                    if (k && (k.indexOf('td:') === 0 || k.indexOf('td_') === 0 ||
+                              k === 'coins' || k === 'ownedCars' || k === 'selectedCar')) {
+                        doomed.push(k);
+                    }
+                }
+                doomed.forEach(function (k) { localStorage.removeItem(k); });
+                tdSession.clear();
+                window.TD_WIPED = doomed.length;
+            } catch (e) {}
+            try { history.replaceState(null, '', location.pathname); } catch (e) {}
+        }
+
+        // Fast paths: already signed in, or creator via #creator / ?creator (bookmark it)
+        let saved = tdSession.get();
         const wantsCreator = /[#?&]creator\b/i.test(location.hash + location.search);
         if (saved || wantsCreator) {
             if (wantsCreator && !saved) {
-                try { localStorage.setItem(LS_KEY, JSON.stringify({ type: 'creator', ts: Date.now() })); } catch (e) {}
+                saved = { type: 'creator', ts: Date.now() };
+                tdSession.set(saved);
             }
+            // Set the active account BEFORE the game script runs, so it loads the right save.
+            window.TD_ACCOUNT = (saved.type === 'creator') ? 'creator' : saved.email;
             unlock();
             return;
         }
 
-        // Interactive gate for new players
+        // Interactive gate: sign in to an existing account, or create a brand new game
         const emailEl = document.getElementById('lg-email');
         const codeEl = document.getElementById('lg-code');
         const errEl = document.getElementById('lg-error');
         function submit() {
-            const email = emailEl.value.trim();
+            const email = emailEl.value.trim().toLowerCase();
             const code = codeEl.value;
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
                 errEl.textContent = 'Enter a valid email address.'; emailEl.focus(); return;
@@ -1363,13 +1669,115 @@
             if (code.length < 4) {
                 errEl.textContent = 'Your code must be at least 4 characters.'; codeEl.focus(); return;
             }
-            try { localStorage.setItem(LS_KEY, JSON.stringify({ type: 'player', email: email, code: code, ts: Date.now() })); } catch (e) {}
-            unlock();
+            const accounts = readAccounts();
+            if (Object.prototype.hasOwnProperty.call(accounts, email)) {
+                // Returning player — the code must match, so nobody else can open your game.
+                if (accounts[email] !== code) {
+                    errEl.textContent = 'Wrong code for that email.'; codeEl.focus(); codeEl.select(); return;
+                }
+            } else {
+                // New email = brand new account with its own fresh game.
+                accounts[email] = code;
+                try { localStorage.setItem(ACCT_KEY, JSON.stringify(accounts)); } catch (e) {}
+            }
+            tdSession.set({ type: 'player', email: email, ts: Date.now() });
+            // Reload so the game loads THIS account's save (the game script already ran).
+            location.reload();
         }
         document.getElementById('lg-enter').addEventListener('click', submit);
         emailEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') codeEl.focus(); });
         codeEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') submit(); });
         setTimeout(function () { emailEl.focus(); }, 50);
+    })();
+    </script>
+
+    <!-- Pay gate: shown after login, before the menu. One-time $1 per account. -->
+    <div id="pay-gate">
+        <div class="pay-card">
+            <h2>TOKYO NIGHT DRIVER</h2>
+            <div class="pay-price">$1</div>
+            <p class="pay-sub">One-time payment to play.<br>You only pay once.</p>
+            <button id="pay-btn">PAY $1</button>
+            <div id="pay-after">
+                <p class="pay-sub">Done paying?</p>
+                <button id="paid-btn">I'VE PAID &mdash; PLAY</button>
+            </div>
+            <div id="pay-note"></div>
+            <!-- Shown when there's no payment link yet: emails the owner to sort out paying -->
+            <a id="contact-owner" href="#">CONTACT OWNER</a>
+        </div>
+        <!-- Creator sign on the side -->
+        <div id="creator-side">
+            <button id="creator-btn">I AM CREATOR</button>
+            <div id="creator-box">
+                <label for="creator-input">GitHub account</label>
+                <input id="creator-input" type="text" placeholder="your GitHub username" autocomplete="off" />
+                <button id="creator-go">ENTER</button>
+                <div id="creator-err"></div>
+            </div>
+        </div>
+    </div>
+    <script>
+    // $1 pay gate. Payment happens on the payment company's own secure site --
+    // this page never asks for card details. Paste your real link into PAYMENT_LINK.
+    (function () {
+        // Payment link: set it in-game (Settings, signed in as creator) — no code editing.
+        let PAYMENT_LINK = '';
+        try { PAYMENT_LINK = (localStorage.getItem('td_pay_link') || '').trim(); } catch (e) {}
+        const CREATOR_GITHUB = 'yugveer137';  // typing this in the creator box plays free
+        const OWNER_EMAIL = 'yugveer.18@gmail.com';  // "Contact Owner" emails this address
+        const payGate = document.getElementById('pay-gate');
+        const noteEl = document.getElementById('pay-note');
+        function paidKey() { return 'td:' + (window.TD_ACCOUNT || 'guest') + ':paid'; }
+        function isUnlocked() { try { return localStorage.getItem(paidKey()) === 'yes'; } catch (e) { return false; } }
+        function unlock() {
+            try { localStorage.setItem(paidKey(), 'yes'); } catch (e) {}
+            payGate.style.display = 'none';
+        }
+
+        // Creator and already-paid players skip straight through.
+        if (window.TD_ACCOUNT === 'creator' || isUnlocked()) { payGate.style.display = 'none'; return; }
+
+        document.getElementById('pay-btn').addEventListener('click', function () {
+            if (!PAYMENT_LINK) {
+                noteEl.textContent = 'Payment isn\'t set up yet. Email the owner to sort it out:';
+                // Pre-fill the email with the player's game login so the owner knows who it is
+                const subject = 'Tokyo Night Driver - paying $1';
+                const body = 'Hi! I want to pay $1 to play Tokyo Night Driver.\n\nMy game login: ' +
+                    (window.TD_ACCOUNT || '(not signed in)') + '\n';
+                const contact = document.getElementById('contact-owner');
+                contact.href = 'mailto:' + OWNER_EMAIL + '?subject=' + encodeURIComponent(subject) +
+                    '&body=' + encodeURIComponent(body);
+                contact.style.display = 'block';
+                return;
+            }
+            window.open(PAYMENT_LINK, '_blank', 'noopener');
+            document.getElementById('pay-after').style.display = 'block';
+        });
+        document.getElementById('paid-btn').addEventListener('click', unlock);
+
+        // Creator sign: type the GitHub account to play without paying.
+        const box = document.getElementById('creator-box');
+        const input = document.getElementById('creator-input');
+        const err = document.getElementById('creator-err');
+        document.getElementById('creator-btn').addEventListener('click', function () {
+            box.style.display = (box.style.display === 'block') ? 'none' : 'block';
+            if (box.style.display === 'block') input.focus();
+        });
+        // Be forgiving: ignore spaces, a leading @, and capitals. Phone keyboards and
+        // autocorrect love to slip a space into "yugveer 137".
+        function norm(s) { return String(s).replace(/\s+/g, '').replace(/^@+/, '').toLowerCase(); }
+        function tryCreator() {
+            if (norm(input.value) === norm(CREATOR_GITHUB)) {
+                tdSession.set({ type: 'creator', ts: Date.now() });
+                location.reload();
+            } else {
+                err.textContent = 'That is not the creator account.';
+                input.select();
+            }
+        }
+        document.getElementById('creator-go').addEventListener('click', tryCreator);
+        input.addEventListener('keydown', function (e) { if (e.key === 'Enter') tryCreator(); });
     })();
     </script>
 
@@ -1389,6 +1797,15 @@
             <div id="settings-panel">
                 <h2>Settings</h2>
                 <div class="setting-row"><span>Sound</span><button id="sound-toggle" class="toggle-btn">ON</button></div>
+                <div class="setting-row"><span>Player</span><span id="who-label">—</span></div>
+                <!-- Creator only: paste the payment link once, no code editing needed -->
+                <div id="paylink-row">
+                    <label for="paylink-input">Payment link (creator only)</label>
+                    <input id="paylink-input" type="text" placeholder="https://paypal.me/yourname/1" autocomplete="off" />
+                    <button id="paylink-save" class="toggle-btn">SAVE</button>
+                    <div id="paylink-note"></div>
+                </div>
+                <button id="switch-player-btn" class="menu-btn menu-btn-alt">SWITCH PLAYER</button>
                 <button id="settings-back" class="menu-btn menu-btn-ghost">BACK</button>
             </div>
         </div>
@@ -1542,14 +1959,23 @@
             <div id="gear-label">GEAR</div>
             <div id="gear-display">1</div>
             <div id="gear-controls">
-                <span><kbd>Z</kbd> Up</span>
-                <span><kbd>X</kbd> Down</span>
+                <button class="gear-btn" id="gear-up-btn" aria-label="Gear up"><kbd>Z</kbd> Up</button>
+                <button class="gear-btn" id="gear-down-btn" aria-label="Gear down"><kbd>X</kbd> Down</button>
             </div>
         </div>
 
         <!-- Drift Stick -->
         <div id="drift-stick">
             <div id="drift-knob">DRIFT</div>
+        </div>
+
+        <!-- Extra touch controls (phone only): actions that need a keyboard on a laptop -->
+        <div id="touch-extras">
+            <button class="tx-btn" id="tx-view" aria-label="Cockpit view">VIEW</button>
+            <button class="tx-btn" id="tx-left" aria-label="Left signal">&#9664;</button>
+            <button class="tx-btn" id="tx-right" aria-label="Right signal">&#9654;</button>
+            <button class="tx-btn" id="tx-hazard" aria-label="Hazard lights">&#9888;</button>
+            <button class="tx-btn" id="tx-rain" aria-label="Toggle rain">RAIN</button>
         </div>
 
         <!-- Mobile Controls -->
@@ -1596,9 +2022,9 @@
     <script>
         // Game State
         const gameState = {
-            coins: parseInt(localStorage.getItem('coins')) || 0,
-            ownedCars: JSON.parse(localStorage.getItem('ownedCars')) || ['starter'],
-            selectedCar: localStorage.getItem('selectedCar') || 'starter',
+            coins: parseInt(localStorage.getItem(tdKey('coins'))) || 0,
+            ownedCars: JSON.parse(localStorage.getItem(tdKey('ownedCars'))) || ['starter'],
+            selectedCar: localStorage.getItem(tdKey('selectedCar')) || 'starter',
             deliveryLevel: parseInt(localStorage.getItem('deliveryLevel')) || 0,
             gameStarted: false,
             wanted: false,
@@ -2073,9 +2499,21 @@
         // Each builder adds the body mesh hierarchy to the given carGroup.
         // Universal pieces (hazard/brake lights, interior, wheels, physics) stay in createCar().
         const _cv = {
-            phong: (c, sh = 80) => new THREE.MeshPhongMaterial({ color: c, specular: 0x444444, shininess: sh }),
+            // Glossy car paint. Standard material picks up the city's neon point lights and
+            // the bloom pass far better than the old flat Phong did.
+            phong: (c, sh = 80) => new THREE.MeshStandardMaterial({
+                color: c, metalness: 0.55, roughness: Math.max(0.12, 0.42 - sh / 600)
+            }),
             lambert: (c) => new THREE.MeshLambertMaterial({ color: c }),
-            glass: () => new THREE.MeshLambertMaterial({ color: 0x88ccff, transparent: true, opacity: 0.6 }),
+            // Matte black plastic: bumpers, skirts, arch liners
+            trim: (c = 0x15151c) => new THREE.MeshStandardMaterial({ color: c, metalness: 0.25, roughness: 0.85 }),
+            // Satin chrome. Fully metallic (1.0) renders near-black here because the scene has
+            // no reflection map, so keep enough diffuse for it to read bright under the lights.
+            chrome: () => new THREE.MeshStandardMaterial({ color: 0xdfe3ea, metalness: 0.55, roughness: 0.28 }),
+            // Dark tinted night glass — reflective rather than pale blue
+            glass: () => new THREE.MeshStandardMaterial({
+                color: 0x0e1a28, metalness: 0.9, roughness: 0.08, transparent: true, opacity: 0.75
+            }),
             emissive: (c) => new THREE.MeshBasicMaterial({ color: c, toneMapped: false }),
             box(g, w, h, d, mat, x, y, z, rx = 0, ry = 0, rz = 0, cast = true) {
                 const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -2103,17 +2541,106 @@
                 const mat = _cv.emissive(0xff1a1a);
                 [-hw, hw].forEach(x => _cv.box(g, 0.34, 0.16, 0.06, mat, x, y, z, 0, 0, 0, false));
             },
+
+            // ---- Shared detail helpers (used by every archetype) ----
+
+            // Chamfered body block. A plain box reads as a flat slab; shaving the top and
+            // bottom edges gives the car a rounded shoulder without extra geometry cost.
+            shell(g, w, h, d, mat, x, y, z, o = {}) {
+                const inset = o.inset !== undefined ? o.inset : 0.14;
+                const cap = o.cap !== undefined ? o.cap : 0.15;
+                _cv.box(g, w, h - cap * 2, d, mat, x, y, z);
+                _cv.box(g, w - inset * 2, cap, d - inset, mat, x, y + h / 2 - cap / 2, z);
+                _cv.box(g, w - inset * 2, cap, d - inset, mat, x, y - h / 2 + cap / 2, z);
+            },
+
+            // Wheel arches: a dark recess so the wheel looks set INTO the body, plus a
+            // body-coloured flare arcing over it. zs = wheel z positions.
+            // Defaults match where the physics puts the wheels in-game: z ±1.3, centre height
+            // 0.25 on normal cars and 0.15 on heavyCar ones, radius 0.4. y=0.2 splits the
+            // difference so the arch sits just over the tyre on both.
+            arches(g, wid, mat, o = {}) {
+                const zs = o.zs || [1.3, -1.3];
+                const y = o.y !== undefined ? o.y : 0.2;
+                const r = o.r !== undefined ? o.r : 0.52;
+                const liner = _cv.trim(0x05050a);
+                const n = 9;                                   // slats in the arc
+                const slat = r * Math.PI / (n - 1) * 1.15;     // overlap so the arc is continuous
+                zs.forEach(z => [-1, 1].forEach(s => {
+                    // Dark liner in the upper half of the arch, sized so its corners stay
+                    // inside the curve and nothing hangs below the body.
+                    _cv.box(g, 0.09, r * 0.75, r * 1.5, liner, s * (wid / 2 - 0.04), y + r * 0.25, z, 0, 0, 0, false);
+                    // Thin lip that follows the curve over the wheel. Each slat is rotated to
+                    // lie tangent to the circle, so together they read as one smooth arch.
+                    for (let i = 0; i < n; i++) {
+                        const a = Math.PI * (i / (n - 1));    // 0 = front, PI/2 = top, PI = back
+                        // skip slats that would hang below the body sill
+                        if (o.floor !== undefined && y + Math.sin(a) * r < o.floor) continue;
+                        _cv.box(g, 0.06, 0.07, slat, mat,
+                            s * (wid / 2 + 0.015),
+                            y + Math.sin(a) * r,
+                            z + Math.cos(a) * r,
+                            Math.PI / 2 - a, 0, 0, false);
+                    }
+                }));
+            },
+
+            // Front/rear bumper bar with a lower valance
+            bumper(g, wid, y, z, o = {}) {
+                const mat = _cv.trim(o.color || 0x14141a);
+                const face = z > 0 ? 1 : -1;
+                _cv.box(g, wid - 0.06, 0.26, 0.14, mat, 0, y, z + face * 0.04, 0, 0, 0, false);
+                _cv.box(g, wid - 0.5, 0.1, 0.16, mat, 0, y - 0.2, z + face * 0.04, 0, 0, 0, false);
+            },
+
+            // Mesh grille between the headlights
+            grille(g, w, y, z) {
+                _cv.box(g, w, 0.2, 0.08, _cv.trim(0x0a0a0e), 0, y, z, 0, 0, 0, false);
+                for (let i = -1; i <= 1; i++) {
+                    _cv.box(g, w - 0.12, 0.03, 0.1, _cv.chrome(), 0, y + i * 0.06, z + 0.01, 0, 0, 0, false);
+                }
+            },
+
+            // Wing mirrors on stalks
+            mirrors(g, wid, y, z, mat) {
+                [-1, 1].forEach(s => {
+                    // short stalk from the door, housing tucked in close
+                    _cv.box(g, 0.08, 0.035, 0.05, _cv.trim(), s * (wid / 2 - 0.12), y, z, 0, 0, 0, false);
+                    _cv.box(g, 0.08, 0.1, 0.14, mat, s * (wid / 2 - 0.05), y + 0.03, z, 0, 0, 0, false);
+                    _cv.box(g, 0.01, 0.07, 0.1, _cv.chrome(), s * (wid / 2 - 0.004), y + 0.03, z, 0, 0, 0, false);
+                });
+            },
+
+            // Crease running down the flank. Flush with the body so it reads as a panel
+            // line rather than something bolted on.
+            sideCrease(g, wid, y, z, len, mat) {
+                const line = _cv.trim(0x0b0b10);
+                [-1, 1].forEach(s => {
+                    _cv.box(g, 0.012, 0.025, len, line, s * (wid / 2 + 0.004), y, z, 0, 0, 0, false);
+                    // door shut-line, kept within the main body so it can't float
+                    _cv.box(g, 0.012, 0.22, 0.02, line, s * (wid / 2 + 0.004), y - 0.12, z + len * 0.1, 0, 0, 0, false);
+                });
+            },
             // ---- Archetype: classic sedan (4-door) ----
             sedan(g, color, o = {}) {
                 const len = o.len || 4, wid = o.wid || 2;
                 const bodyMat = _cv.phong(color);
-                _cv.box(g, wid, 0.8, len, bodyMat, 0, 0.6, 0);
+                _cv.shell(g, wid, 0.8, len, bodyMat, 0, 0.6, 0);
+                // Bonnet and boot sit slightly proud of the main body
+                _cv.box(g, wid - 0.3, 0.1, len * 0.3, bodyMat, 0, 1.0, len * 0.28);
+                _cv.box(g, wid - 0.3, 0.1, len * 0.22, bodyMat, 0, 1.0, -len * 0.36);
                 const roofLen = o.roofLen || len * 0.55;
                 const roofZ = o.roofZ || -0.3;
-                _cv.box(g, wid - 0.4, 0.6, roofLen, bodyMat, 0, 1.3, roofZ);
+                _cv.shell(g, wid - 0.4, 0.6, roofLen, bodyMat, 0, 1.3, roofZ, { cap: 0.1, inset: 0.1 });
                 _cv.box(g, wid - 0.6, 0.5, 0.1, _cv.glass(), 0, 1.2, roofZ + roofLen / 2 + 0.4, Math.PI / 6);
                 _cv.box(g, wid - 0.6, 0.4, 0.1, _cv.glass(), 0, 1.2, roofZ - roofLen / 2 - 0.3, -Math.PI / 5);
                 [-wid / 2 + 0.02, wid / 2 - 0.02].forEach(x => _cv.box(g, 0.05, 0.45, roofLen - 0.2, _cv.glass(), x, 1.25, roofZ));
+                _cv.arches(g, wid, bodyMat);
+                _cv.sideCrease(g, wid, 0.72, 0, len * 0.5, bodyMat);
+                _cv.mirrors(g, wid, 1.15, roofZ + roofLen / 2 + 0.25, bodyMat);
+                _cv.bumper(g, wid, 0.34, len / 2);
+                _cv.bumper(g, wid, 0.34, -len / 2);
+                _cv.grille(g, wid * 0.42, 0.62, len / 2 + 0.02);
                 _cv.headlights(g, 0.62, len / 2 + 0.01, wid / 3.3);
                 _cv.tailbar(g, 0.74, -len / 2 - 0.01, wid - 0.3);
                 _cv.taillights(g, 0.6, -len / 2 - 0.01, wid / 3.3);
@@ -2122,15 +2649,26 @@
             coupe(g, color, o = {}) {
                 const len = o.len || 4.2, wid = o.wid || 2;
                 const bodyMat = _cv.phong(color, 120);
-                _cv.box(g, wid, 0.7, len, bodyMat, 0, 0.55, 0);
-                // Sloped fastback roof
+                _cv.shell(g, wid, 0.7, len, bodyMat, 0, 0.55, 0);
+                // Long low bonnet
+                _cv.box(g, wid - 0.3, 0.09, len * 0.34, bodyMat, 0, 0.92, len * 0.26);
+                // Sloped fastback roof, tapering to the tail
                 const roofMat = bodyMat;
-                _cv.box(g, wid - 0.3, 0.5, len * 0.45, roofMat, 0, 1.15, -0.2);
+                _cv.shell(g, wid - 0.3, 0.5, len * 0.45, roofMat, 0, 1.15, -0.2, { cap: 0.09, inset: 0.09 });
+                _cv.box(g, wid - 0.5, 0.26, len * 0.3, roofMat, 0, 1.0, -len * 0.4, 0.22);
                 _cv.box(g, wid - 0.55, 0.45, 0.1, _cv.glass(), 0, 1.1, 0.7, Math.PI / 5);
                 _cv.box(g, wid - 0.55, 0.4, 0.1, _cv.glass(), 0, 1.05, -1.2, -Math.PI / 4.5);
+                [-wid / 2 + 0.02, wid / 2 - 0.02].forEach(x =>
+                    _cv.box(g, 0.05, 0.36, len * 0.34, _cv.glass(), x, 1.12, -0.2));
                 // Side air intakes
                 [-wid / 2 - 0.02, wid / 2 + 0.02].forEach(x =>
-                    _cv.box(g, 0.06, 0.2, 0.6, _cv.lambert(0x111111), x, 0.55, 0.5));
+                    _cv.box(g, 0.06, 0.2, 0.6, _cv.trim(0x0c0c11), x, 0.55, 0.5));
+                _cv.arches(g, wid, bodyMat);
+                _cv.sideCrease(g, wid, 0.66, 0, len * 0.46, bodyMat);
+                _cv.mirrors(g, wid, 1.02, 0.95, bodyMat);
+                _cv.bumper(g, wid, 0.3, len / 2);
+                _cv.bumper(g, wid, 0.3, -len / 2);
+                _cv.grille(g, wid * 0.45, 0.55, len / 2 + 0.02);
                 _cv.headlights(g, 0.55, len / 2 + 0.01, wid / 3.3);
                 _cv.tailbar(g, 0.65, -len / 2 - 0.01, wid - 0.3);
                 _cv.taillights(g, 0.55, -len / 2 - 0.01, wid / 3.3);
@@ -2140,16 +2678,31 @@
                 const len = o.len || 4.4, wid = o.wid || 2.05;
                 const bodyMat = _cv.phong(color, 140);
                 // Low wedge body
-                _cv.box(g, wid, 0.55, len, bodyMat, 0, 0.45, 0);
+                _cv.shell(g, wid, 0.55, len, bodyMat, 0, 0.45, 0, { cap: 0.12, inset: 0.12 });
+                // Wedge nose sloping down to the splitter
+                _cv.box(g, wid - 0.22, 0.16, len * 0.26, bodyMat, 0, 0.62, len * 0.32, -0.18);
                 // Cockpit bubble (mid-mounted, small)
-                _cv.box(g, wid - 0.45, 0.45, len * 0.35, bodyMat, 0, 0.95, -0.1);
+                _cv.shell(g, wid - 0.45, 0.45, len * 0.35, bodyMat, 0, 0.95, -0.1, { cap: 0.09, inset: 0.09 });
                 _cv.box(g, wid - 0.6, 0.4, 0.1, _cv.glass(), 0, 0.95, 0.5, Math.PI / 3.5);
                 _cv.box(g, wid - 0.6, 0.35, 0.1, _cv.glass(), 0, 0.95, -0.7, -Math.PI / 3.5);
+                // Roof scoop feeding the mid engine
+                _cv.box(g, 0.34, 0.12, 0.5, _cv.trim(0x0c0c11), 0, 1.2, -0.35, 0, 0, 0, false);
+                // Rear deck louvres over the engine bay
+                for (let i = 0; i < 3; i++) {
+                    _cv.box(g, wid - 0.6, 0.03, 0.12, _cv.trim(0x0a0a0e),
+                        0, 0.78 - i * 0.02, -len * 0.3 - i * 0.16, 0.25, 0, 0, false);
+                }
                 // Front splitter
-                _cv.box(g, wid - 0.05, 0.08, 0.45, _cv.lambert(0x111111), 0, 0.18, len / 2 - 0.2);
-                // Side skirts
+                _cv.box(g, wid - 0.05, 0.08, 0.45, _cv.trim(0x0c0c11), 0, 0.18, len / 2 - 0.2);
+                // Side skirts, BETWEEN the wheels (wheels at z ±1.3 — full-length skirts
+                // used to run straight through the tyres)
                 [-wid / 2 + 0.05, wid / 2 - 0.05].forEach(x =>
-                    _cv.box(g, 0.1, 0.18, len - 0.6, _cv.lambert(0x111111), x, 0.2, 0));
+                    _cv.box(g, 0.1, 0.18, 1.5, _cv.trim(0x0c0c11), x, 0.2, 0));
+                _cv.arches(g, wid, bodyMat);
+                _cv.mirrors(g, wid, 0.92, 0.75, bodyMat);
+                // Quad exhaust tips
+                [-0.45, -0.15, 0.15, 0.45].forEach(x =>
+                    _cv.cyl(g, 0.07, 0.07, 0.16, 10, _cv.chrome(), x, 0.3, -len / 2 - 0.06, Math.PI / 2));
                 // Rear wing
                 if (o.wing !== false) {
                     [-wid / 2 + 0.35, wid / 2 - 0.35].forEach(x =>
@@ -2164,12 +2717,23 @@
             suv(g, color, o = {}) {
                 const len = o.len || 4.2, wid = o.wid || 2.2, tall = o.tall || 1.2;
                 const bodyMat = _cv.phong(color);
-                _cv.box(g, wid, 1.0, len, bodyMat, 0, 0.7, 0);
-                _cv.box(g, wid - 0.2, tall, len * 0.65, bodyMat, 0, 1.2 + tall / 2 - 0.5, -0.1);
+                _cv.shell(g, wid, 1.0, len, bodyMat, 0, 0.7, 0);
+                _cv.shell(g, wid - 0.2, tall, len * 0.65, bodyMat, 0, 1.2 + tall / 2 - 0.5, -0.1, { cap: 0.1, inset: 0.1 });
                 _cv.box(g, wid - 0.45, 0.6, 0.1, _cv.glass(), 0, 1.4, len * 0.3, Math.PI / 9);
                 _cv.box(g, wid - 0.45, 0.6, 0.1, _cv.glass(), 0, 1.4, -len * 0.35);
                 [-wid / 2 + 0.02, wid / 2 - 0.02].forEach(x =>
                     _cv.box(g, 0.05, 0.55, len * 0.55, _cv.glass(), x, 1.4, -0.1));
+                // Roof rails
+                [-1, 1].forEach(s =>
+                    _cv.box(g, 0.07, 0.07, len * 0.55, _cv.trim(0x1a1a20),
+                        s * (wid / 2 - 0.22), 1.25 + tall / 2, -0.1, 0, 0, 0, false));
+                _cv.arches(g, wid, _cv.trim(0x101016), { r: 0.56 });
+                _cv.sideCrease(g, wid, 0.85, 0, len * 0.5, bodyMat);
+                _cv.mirrors(g, wid, 1.35, len * 0.22, bodyMat);
+                // Chunky bumpers front and rear
+                _cv.bumper(g, wid, 0.42, len / 2, { color: 0x1a1a20 });
+                _cv.bumper(g, wid, 0.42, -len / 2, { color: 0x1a1a20 });
+                _cv.grille(g, wid * 0.5, 0.86, len / 2 + 0.02);
                 _cv.headlights(g, 0.85, len / 2 + 0.01, wid / 3);
                 _cv.tailbar(g, 0.95, -len / 2 - 0.01, wid - 0.3);
                 _cv.taillights(g, 0.85, -len / 2 - 0.01, wid / 3);
@@ -2178,15 +2742,29 @@
             muscle(g, color, o = {}) {
                 const len = o.len || 4.5, wid = o.wid || 2.1;
                 const bodyMat = _cv.phong(color);
-                _cv.box(g, wid, 0.85, len, bodyMat, 0, 0.6, 0);
-                _cv.box(g, wid - 0.3, 0.55, len * 0.4, bodyMat, 0, 1.25, -0.5);
+                _cv.shell(g, wid, 0.85, len, bodyMat, 0, 0.6, 0);
+                // Long flat muscle-car bonnet
+                _cv.box(g, wid - 0.3, 0.1, len * 0.36, bodyMat, 0, 1.03, len * 0.26);
+                _cv.shell(g, wid - 0.3, 0.55, len * 0.4, bodyMat, 0, 1.25, -0.5, { cap: 0.1, inset: 0.1 });
                 _cv.box(g, wid - 0.55, 0.5, 0.1, _cv.glass(), 0, 1.2, 0.2, Math.PI / 5.5);
                 _cv.box(g, wid - 0.55, 0.4, 0.1, _cv.glass(), 0, 1.15, -1.3, -Math.PI / 4.5);
+                [-wid / 2 + 0.02, wid / 2 - 0.02].forEach(x =>
+                    _cv.box(g, 0.05, 0.4, len * 0.3, _cv.glass(), x, 1.22, -0.5));
                 // Hood scoop
-                _cv.box(g, 0.6, 0.18, 0.6, _cv.lambert(0x111111), 0, 1.07, 0.9);
+                _cv.box(g, 0.6, 0.18, 0.6, _cv.trim(0x0c0c11), 0, 1.07, 0.9);
+                _cv.box(g, 0.5, 0.07, 0.4, _cv.trim(0x050508), 0, 1.16, 1.0, 0, 0, 0, false);
+                // Twin racing stripes down the centre
+                [-0.17, 0.17].forEach(x =>
+                    _cv.box(g, 0.13, 0.03, len * 0.88, _cv.trim(0xf2f2f5), x, 1.09, 0, 0, 0, 0, false));
+                _cv.arches(g, wid, bodyMat, { r: 0.55 });
+                _cv.sideCrease(g, wid, 0.74, 0, len * 0.5, bodyMat);
+                _cv.mirrors(g, wid, 1.12, 0.45, bodyMat);
+                _cv.bumper(g, wid, 0.34, len / 2, { color: 0x2a2a30 });
+                _cv.bumper(g, wid, 0.34, -len / 2, { color: 0x2a2a30 });
+                _cv.grille(g, wid * 0.55, 0.66, len / 2 + 0.02);
                 // Twin exhaust
                 [-0.6, 0.6].forEach(x =>
-                    _cv.cyl(g, 0.08, 0.08, 0.3, 10, _cv.lambert(0x444444), x, 0.4, -len / 2 - 0.1, Math.PI / 2));
+                    _cv.cyl(g, 0.08, 0.08, 0.3, 10, _cv.chrome(), x, 0.4, -len / 2 - 0.1, Math.PI / 2));
                 _cv.headlights(g, 0.65, len / 2 + 0.01, wid / 3);
                 _cv.tailbar(g, 0.7, -len / 2 - 0.01, wid - 0.3);
                 _cv.taillights(g, 0.6, -len / 2 - 0.01, wid / 3);
@@ -2195,10 +2773,20 @@
             hatch(g, color, o = {}) {
                 const len = o.len || 3.6, wid = o.wid || 1.85;
                 const bodyMat = _cv.phong(color);
-                _cv.box(g, wid, 0.7, len, bodyMat, 0, 0.55, 0);
-                _cv.box(g, wid - 0.2, 0.65, len * 0.55, bodyMat, 0, 1.2, -0.4);
+                _cv.shell(g, wid, 0.7, len, bodyMat, 0, 0.55, 0);
+                _cv.shell(g, wid - 0.2, 0.65, len * 0.55, bodyMat, 0, 1.2, -0.4, { cap: 0.1, inset: 0.1 });
                 _cv.box(g, wid - 0.45, 0.45, 0.1, _cv.glass(), 0, 1.2, 0.4, Math.PI / 6);
                 _cv.box(g, wid - 0.45, 0.5, 0.1, _cv.glass(), 0, 1.2, -1.4, -Math.PI / 5);
+                [-wid / 2 + 0.02, wid / 2 - 0.02].forEach(x =>
+                    _cv.box(g, 0.05, 0.42, len * 0.4, _cv.glass(), x, 1.2, -0.4));
+                // Contrast roof — small-hatch styling cue
+                _cv.box(g, wid - 0.16, 0.06, len * 0.5, _cv.trim(0x15151c), 0, 1.53, -0.4, 0, 0, 0, false);
+                _cv.arches(g, wid, _cv.trim(0x101016));
+                _cv.sideCrease(g, wid, 0.64, 0, len * 0.44, bodyMat);
+                _cv.mirrors(g, wid, 1.1, 0.55, bodyMat);
+                _cv.bumper(g, wid, 0.3, len / 2);
+                _cv.bumper(g, wid, 0.3, -len / 2);
+                _cv.grille(g, wid * 0.4, 0.56, len / 2 + 0.02);
                 _cv.headlights(g, 0.55, len / 2 + 0.01, wid / 3);
                 _cv.tailbar(g, 0.7, -len / 2 - 0.01, wid - 0.3);
                 _cv.taillights(g, 0.6, -len / 2 - 0.01, wid / 3);
@@ -2341,79 +2929,115 @@
                 _cv.box(g, 0.04, 0.1, 1.2, _cv.lambert(0x111111), 0, 1.85, 0);
             },
             cybertruck: (g, d) => {
-                // Distinct triangular angular wedge — entirely custom
-                const stainless = _cv.lambert(0xc8ccd0);
-                const dark = _cv.lambert(0x1a1a1a);
-                // Lower hull (low wedge front)
-                const lower = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.55, 5.0), stainless);
-                lower.position.set(0, 0.4, 0);
-                lower.castShadow = true;
-                g.add(lower);
-                // Sharp triangular cabin shell (front-to-rear ridge)
-                // Built from two slanted slabs forming a triangle profile
-                const cabHeight = 1.0, cabLen = 3.2;
-                const cabFront = new THREE.Mesh(new THREE.BoxGeometry(2.25, 0.1, cabLen * 0.6), stainless);
-                cabFront.position.set(0, 0.85, 1.2);
-                cabFront.rotation.x = -0.35;
-                cabFront.castShadow = true;
-                g.add(cabFront);
-                const cabRear = new THREE.Mesh(new THREE.BoxGeometry(2.25, 0.1, cabLen * 0.55), stainless);
-                cabRear.position.set(0, 1.0, -0.5);
-                cabRear.rotation.x = 0.35;
-                cabRear.castShadow = true;
-                g.add(cabRear);
-                // Side panels for cabin (angular triangles)
-                [-1.12, 1.12].forEach(x => {
-                    const side = new THREE.Mesh(new THREE.BoxGeometry(0.06, cabHeight, cabLen), stainless);
-                    side.position.set(x, 1.0, 0.3);
-                    side.castShadow = true;
-                    g.add(side);
-                });
-                // Truck bed walls (low + angular)
-                [-1.12, 1.12].forEach(x =>
-                    _cv.box(g, 0.08, 0.4, 1.8, stainless, x, 0.85, -1.6));
-                _cv.box(g, 2.25, 0.4, 0.08, stainless, 0, 0.85, -2.5);
-                // Massive front light bar
-                _cv.box(g, 1.95, 0.06, 0.05, _cv.emissive(0xffffff), 0, 0.62, 2.51);
-                // Rear light bar
-                _cv.box(g, 1.95, 0.06, 0.05, _cv.emissive(0xff1a1a), 0, 0.62, -2.51);
-                // Wheel arch flares (sharp angular)
-                [[-1.16, 1.8], [1.16, 1.8], [-1.16, -1.8], [1.16, -1.8]].forEach(([x, z]) =>
-                    _cv.box(g, 0.18, 0.35, 0.9, dark, x, 0.45, z));
+                // Brushed stainless steel: high metalness catches the neon like the real truck.
+                const steel = new THREE.MeshStandardMaterial({ color: 0xc9cdd3, metalness: 0.7, roughness: 0.34 });
+                const dark = _cv.trim(0x141418);
+                const glass = _cv.glass();
+                // Extrude a side profile (drawn as car z/y) across the car's width.
+                function side(shape, depth, mat, xCenter, cast) {
+                    const geo = new THREE.ExtrudeGeometry(shape, { depth: depth, bevelEnabled: false, curveSegments: 14 });
+                    geo.translate(0, 0, -depth / 2);
+                    const m = new THREE.Mesh(geo, mat);
+                    m.rotation.y = -Math.PI / 2;   // shape x -> car z, extrusion -> car x
+                    m.position.x = xCenter;
+                    m.castShadow = cast !== false;
+                    g.add(m);
+                    return m;
+                }
+                // The signature triangle silhouette, with wheel wells cut at the real wheel
+                // positions (z ±2.0, centre 0.15). The old flares sat at ±1.8.
+                const s = 0.18;
+                const body = new THREE.Shape();
+                body.moveTo(2.65, 0.25);
+                body.lineTo(2.65, 0.66);                            // nose
+                body.lineTo(0.2, 1.64);                             // windscreen up to the peak
+                body.lineTo(-2.65, 1.04);                           // long tonneau down to the tail
+                body.lineTo(-2.65, 0.25);
+                body.lineTo(-2.0 - 0.56 * Math.cos(s), 0.25);
+                body.absarc(-2.0, 0.15, 0.56, Math.PI - s, s, true);  // rear wheel well
+                body.lineTo(2.0 - 0.56 * Math.cos(s), 0.25);
+                body.absarc(2.0, 0.15, 0.56, Math.PI - s, s, true);   // front wheel well
+                body.lineTo(2.65, 0.25);
+                side(body, 2.3, steel, 0);
+                // Tinted windscreen lying on the front slope
+                _cv.box(g, 2.0, 0.02, 1.4, glass, 0, 1.355, 0.956, 0.38, 0, 0, false);
+                // Side windows following the roofline
+                const win = new THREE.Shape();
+                win.moveTo(1.5, 0.98);
+                win.lineTo(1.25, 1.12);
+                win.lineTo(0.2, 1.54);
+                win.lineTo(-1.3, 1.22);
+                win.lineTo(-1.3, 0.98);
+                win.lineTo(1.5, 0.98);
+                [-1, 1].forEach(sd => side(win, 0.02, glass, sd * 1.16, false));
+                // Black arch cladding and a dark sill between the wheels
+                _cv.arches(g, 2.3, dark, { zs: [2.0, -2.0], y: 0.15, r: 0.6, floor: 0.24 });
+                [-1, 1].forEach(sd => _cv.box(g, 0.05, 0.14, 2.8, dark, sd * 1.165, 0.32, 0, 0, 0, 0, false));
+                _cv.mirrors(g, 2.6, 1.05, 1.55, steel);
+                // Full-width light bars front and rear
+                _cv.box(g, 2.1, 0.05, 0.04, _cv.emissive(0xffffff), 0, 0.61, 2.66, 0, 0, 0, false);
+                _cv.box(g, 2.1, 0.05, 0.04, _cv.emissive(0xff1a1a), 0, 0.98, -2.66, 0, 0, 0, false);
             },
             // -- Trucks / commercial --
             trailer: (g, d) => carVisuals._builtinTrailer(g, d),
             gtbh: (g, d) => {
-                // Box truck (smaller cab + box trailer, distinct from full trailer)
+                // Box truck. The cab now sits over the front wheels (z 2.8) and the cargo box
+                // reaches past the rear wheels (z -4.0) — they used to hang out the back.
                 const bodyMat = _cv.phong(d.bodyColor);
-                // Cab
-                _cv.box(g, 2.2, 1.4, 2.0, bodyMat, 0, 0.9, 1.8);
-                _cv.box(g, 2.1, 0.8, 1.8, _cv.glass(), 0, 1.8, 1.7);
-                // Box body (cargo)
-                _cv.box(g, 2.4, 2.4, 4.5, _cv.lambert(0xe0e0e0), 0, 1.5, -1.6);
-                // Cab roof + headlights
-                _cv.headlights(g, 0.7, 2.81, 0.85);
-                _cv.tailbar(g, 1.0, -3.86, 1.5);
-                _cv.taillights(g, 1.0, -3.86, 0.9);
+                const trim = _cv.trim();
+                const boxMat = new THREE.MeshStandardMaterial({ color: 0xe6e6ea, metalness: 0.15, roughness: 0.6 });
+                _cv.shell(g, 2.2, 1.4, 2.4, bodyMat, 0, 0.9, 2.3);
+                _cv.shell(g, 2.1, 0.8, 1.9, bodyMat, 0, 1.95, 2.15, { cap: 0.1, inset: 0.08 });
+                _cv.box(g, 1.9, 0.62, 0.08, _cv.glass(), 0, 1.95, 3.1, 0.12, 0, 0, false);
+                [-1, 1].forEach(sd => _cv.box(g, 0.05, 0.55, 1.2, _cv.glass(), sd * 1.06, 1.95, 2.35, 0, 0, 0, false));
+                // Cargo box with ribbed sides (ribs kept above the rear arch)
+                _cv.box(g, 2.4, 2.4, 5.4, boxMat, 0, 1.5, -1.95);
+                for (let i = 0; i < 6; i++) {
+                    [-1, 1].forEach(sd => _cv.box(g, 0.04, 1.85, 0.06, _cv.trim(0xb4b4ba),
+                        sd * 1.22, 1.72, 0.5 - i * 0.95, 0, 0, 0, false));
+                }
+                _cv.box(g, 2.3, 0.2, 5.3, trim, 0, 0.25, -1.95);   // chassis rail
+                _cv.arches(g, 2.2, trim, { zs: [2.8], y: 0.2, r: 0.6 });
+                _cv.arches(g, 2.4, trim, { zs: [-4.0], y: 0.15, r: 0.6 });
+                _cv.mirrors(g, 2.6, 1.7, 3.0, trim);
+                _cv.grille(g, 1.1, 0.75, 3.52);
+                _cv.bumper(g, 2.3, 0.3, 3.5, { color: 0x9a9ea6 });
+                _cv.headlights(g, 0.75, 3.51, 0.8);
+                _cv.tailbar(g, 0.55, -4.66, 1.8);
+                _cv.taillights(g, 0.55, -4.66, 0.95);
             },
             // -- Pickup / offroad --
             f550: (g, d) => carVisuals._builtinPickup(g, d),
             raptor: (g, d) => {
-                // Raptor: offroad pickup hybrid. Built as a beefier pickup with offroad fender flares.
+                // Off-road pickup. Fender flares are now centred on the real wheels (z ±1.6);
+                // they used to sit at 1.7 / -1.5.
                 const bodyMat = _cv.phong(d.bodyColor);
-                _cv.box(g, 2.4, 0.8, 5, bodyMat, 0, 0.6, 0);
-                _cv.box(g, 2.3, 1.05, 2.3, bodyMat, 0, 1.55, 0.9);
-                _cv.box(g, 2.0, 0.75, 0.1, _cv.glass(), 0, 1.6, 2.05, Math.PI / 8);
-                _cv.box(g, 1.8, 0.55, 0.1, _cv.glass(), 0, 1.5, -0.2);
+                const trim = _cv.trim(0x17171c);
+                _cv.shell(g, 2.4, 0.8, 5, bodyMat, 0, 0.6, 0);
+                _cv.shell(g, 2.3, 1.05, 2.3, bodyMat, 0, 1.55, 0.9, { cap: 0.12, inset: 0.1 });
+                _cv.box(g, 2.0, 0.75, 0.1, _cv.glass(), 0, 1.6, 2.05, Math.PI / 8, 0, 0, false);
+                _cv.box(g, 1.8, 0.55, 0.1, _cv.glass(), 0, 1.5, -0.24, 0, 0, 0, false);
+                [-1, 1].forEach(sd => _cv.box(g, 0.06, 0.5, 1.8, _cv.glass(), sd * 1.13, 1.62, 0.95, 0, 0, 0, false));
                 // Bed
-                [-1.15, 1.15].forEach(x => _cv.box(g, 0.1, 0.6, 2.5, _cv.lambert(0x333333), x, 1.3, -1.35));
-                _cv.box(g, 2.3, 0.6, 0.1, _cv.lambert(0x333333), 0, 1.3, -2.55);
-                // Fender flares (offroad signature)
-                [[-1.3, 1.7], [1.3, 1.7], [-1.3, -1.5], [1.3, -1.5]].forEach(([x, z]) =>
-                    _cv.box(g, 0.25, 0.45, 1.0, _cv.lambert(0x1a1a1a), x, 0.55, z));
-                // Roof LED light bar
-                _cv.box(g, 1.6, 0.1, 0.2, _cv.emissive(0xffffff), 0, 2.2, 1.5);
-                _cv.headlights(g, 0.75, 2.51, 0.9);
+                [-1.15, 1.15].forEach(x => _cv.box(g, 0.1, 0.6, 2.5, bodyMat, x, 1.3, -1.35));
+                _cv.box(g, 2.3, 0.6, 0.1, bodyMat, 0, 1.3, -2.55);
+                _cv.box(g, 2.2, 0.05, 2.4, trim, 0, 1.03, -1.35, 0, 0, 0, false);
+                // Off-road fender flares: flat top, raked front and back edges, dark liner
+                [[-1, 1.6], [1, 1.6], [-1, -1.6], [1, -1.6]].forEach(([sd, z]) => {
+                    _cv.box(g, 0.08, 0.5, 1.15, _cv.trim(0x05050a), sd * 1.18, 0.55, z, 0, 0, 0, false);
+                    _cv.box(g, 0.28, 0.12, 1.3, trim, sd * 1.32, 0.86, z);
+                    _cv.box(g, 0.26, 0.42, 0.12, trim, sd * 1.32, 0.62, z + 0.6, 0.35);
+                    _cv.box(g, 0.26, 0.42, 0.12, trim, sd * 1.32, 0.62, z - 0.6, -0.35);
+                });
+                // Big dark grille with a chrome bar
+                _cv.box(g, 2.0, 0.55, 0.1, trim, 0, 0.72, 2.52, 0, 0, 0, false);
+                _cv.box(g, 1.3, 0.14, 0.12, _cv.chrome(), 0, 0.74, 2.56, 0, 0, 0, false);
+                // Roof LED bar, now sitting on the roof instead of floating above it
+                _cv.box(g, 1.6, 0.1, 0.2, _cv.emissive(0xffffff), 0, 2.13, 1.5, 0, 0, 0, false);
+                _cv.box(g, 2.6, 0.32, 0.3, trim, 0, 0.3, 2.6);
+                _cv.box(g, 2.5, 0.3, 0.25, trim, 0, 0.3, -2.62);
+                _cv.mirrors(g, 2.7, 1.5, 1.85, bodyMat);
+                _cv.headlights(g, 0.8, 2.51, 1.0);
                 _cv.tailbar(g, 0.85, -2.51, 1.7);
                 _cv.taillights(g, 0.7, -2.51, 0.9);
             },
@@ -2422,176 +3046,124 @@
             gr4: (g, d) => carVisuals._builtinRaceCar(g, d),
 
             // === Built-in detailed builders (used by trailer/pickup/offroad/race archetypes) ===
-            _builtinTrailer(carGroup, carData) {
-                const bodyMat = new THREE.MeshPhongMaterial({ color: carData.bodyColor, specular: 0x444444, shininess: 80 });
-                const cab = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.4, 2.5), bodyMat);
-                cab.position.set(0, 0.9, 2.5); cab.castShadow = true; carGroup.add(cab);
-                const cabRoof = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.6, 2), bodyMat);
-                cabRoof.position.set(0, 1.9, 2.3); cabRoof.castShadow = true; carGroup.add(cabRoof);
-                const deflector = new THREE.Mesh(new THREE.BoxGeometry(2, 0.8, 0.2), bodyMat);
-                deflector.position.set(0, 2.4, 1.5); deflector.rotation.x = -0.3; carGroup.add(deflector);
-                const windshieldMat = new THREE.MeshLambertMaterial({ color: 0x88ccff, transparent: true, opacity: 0.6 });
-                const windshield = new THREE.Mesh(new THREE.BoxGeometry(2, 0.8, 0.1), windshieldMat);
-                windshield.position.set(0, 1.6, 3.7); windshield.rotation.x = Math.PI / 8; carGroup.add(windshield);
-                const hlMat = new THREE.MeshBasicMaterial({ color: 0xffffcc });
-                [-0.8, 0.8].forEach(x => {
-                    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.1), hlMat);
-                    hl.position.set(x, 0.6, 3.8); carGroup.add(hl);
-                });
-                const bumper = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.4, 0.3), new THREE.MeshLambertMaterial({ color: 0x888888 }));
-                bumper.position.set(0, 0.3, 3.9); carGroup.add(bumper);
+            _builtinTrailer(g, d) {
+                const bodyMat = _cv.phong(d.bodyColor);
+                const trim = _cv.trim();
+                const chrome = _cv.chrome();
+                const boxMat = new THREE.MeshStandardMaterial({ color: 0xdedee4, metalness: 0.15, roughness: 0.6 });
+                // Cab: front wheels (z 2.8) sit under it
+                _cv.shell(g, 2.4, 1.4, 2.5, bodyMat, 0, 0.9, 2.5);
+                _cv.shell(g, 2.2, 0.6, 2.0, bodyMat, 0, 1.9, 2.3, { cap: 0.1, inset: 0.08 });
+                _cv.box(g, 2.0, 0.8, 0.2, bodyMat, 0, 2.4, 1.5, -0.3);             // wind deflector
+                // Windscreen on the upper cab (it used to float in front of it)
+                _cv.box(g, 2.0, 0.5, 0.1, _cv.glass(), 0, 1.9, 3.3, Math.PI / 10, 0, 0, false);
+                [-1, 1].forEach(sd => _cv.box(g, 0.05, 0.4, 1.3, _cv.glass(), sd * 1.11, 1.9, 2.5, 0, 0, 0, false));
+                // Chrome grille, bumper and exhaust stacks
+                _cv.box(g, 1.3, 0.8, 0.08, trim, 0, 0.9, 3.77, 0, 0, 0, false);
+                for (let i = 0; i < 6; i++) _cv.box(g, 1.2, 0.04, 0.1, chrome, 0, 0.6 + i * 0.12, 3.81, 0, 0, 0, false);
+                _cv.headlights(g, 0.7, 3.76, 0.9);
+                _cv.box(g, 2.6, 0.4, 0.3, chrome, 0, 0.3, 3.9);
                 [-1.3, 1.3].forEach(x => {
-                    const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2, 8), new THREE.MeshLambertMaterial({ color: 0x666666 }));
-                    stack.position.set(x, 2.2, 1.8); carGroup.add(stack);
+                    _cv.cyl(g, 0.12, 0.12, 2, 10, chrome, x, 2.2, 1.8);
+                    _cv.cyl(g, 0.14, 0.11, 0.14, 10, trim, x, 3.25, 1.8);
                 });
-                const trailer = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.8, 7), new THREE.MeshLambertMaterial({ color: 0xdddddd }));
-                trailer.position.set(0, 1.6, -2.3); trailer.castShadow = true; carGroup.add(trailer);
-                const under = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.3, 7), new THREE.MeshLambertMaterial({ color: 0x333333 }));
-                under.position.set(0, 0.15, -2.3); carGroup.add(under);
-                const tlMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-                [-0.9, 0.9].forEach(x => {
-                    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.1), tlMat);
-                    tl.position.set(x, 1.0, -5.8); carGroup.add(tl);
-                });
-                const stripMat = new THREE.MeshBasicMaterial({ color: 0xff4400 });
-                [-1, 1].forEach(side => {
-                    for (let i = 0; i < 5; i++) {
-                        const strip = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.15, 0.8), stripMat);
-                        strip.position.set(side * 1.31, 0.5, -0.5 - i * 1.2); carGroup.add(strip);
-                    }
-                });
-            },
-            _builtinPickup(carGroup, carData) {
-                const bodyMat = new THREE.MeshPhongMaterial({ color: carData.bodyColor, specular: 0x444444, shininess: 80 });
-                const frame = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.8, 5), bodyMat);
-                frame.position.set(0, 0.6, 0); frame.castShadow = true; carGroup.add(frame);
-                const cab = new THREE.Mesh(new THREE.BoxGeometry(2.3, 1.0, 2.2), bodyMat);
-                cab.position.set(0, 1.5, 1.0); cab.castShadow = true; carGroup.add(cab);
-                const cabRoof = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.15, 2.1), bodyMat);
-                cabRoof.position.set(0, 2.05, 1.0); carGroup.add(cabRoof);
-                const windshieldMat = new THREE.MeshLambertMaterial({ color: 0x88ccff, transparent: true, opacity: 0.6 });
-                const windshield = new THREE.Mesh(new THREE.BoxGeometry(2, 0.7, 0.1), windshieldMat);
-                windshield.position.set(0, 1.6, 2.1); windshield.rotation.x = Math.PI / 8; carGroup.add(windshield);
-                const rearWin = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.5, 0.1), windshieldMat);
-                rearWin.position.set(0, 1.5, -0.1); carGroup.add(rearWin);
-                const bedMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
-                const bedWallL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.6, 2.4), bedMat);
-                bedWallL.position.set(-1.15, 1.3, -1.3); carGroup.add(bedWallL);
-                const bedWallR = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.6, 2.4), bedMat);
-                bedWallR.position.set(1.15, 1.3, -1.3); carGroup.add(bedWallR);
-                const tailgate = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.6, 0.1), bedMat);
-                tailgate.position.set(0, 1.3, -2.5); carGroup.add(tailgate);
-                const hlMat = new THREE.MeshBasicMaterial({ color: 0xffffcc });
-                [-0.9, 0.9].forEach(x => {
-                    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.1), hlMat);
-                    hl.position.set(x, 0.7, 2.5); carGroup.add(hl);
-                });
-                const bumper = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.35, 0.3), new THREE.MeshLambertMaterial({ color: 0x888888 }));
-                bumper.position.set(0, 0.3, 2.6); carGroup.add(bumper);
-                const grille = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.5, 0.1), new THREE.MeshLambertMaterial({ color: 0x555555 }));
-                grille.position.set(0, 0.8, 2.5); carGroup.add(grille);
-                const tlMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-                [-0.9, 0.9].forEach(x => {
-                    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.25, 0.1), tlMat);
-                    tl.position.set(x, 0.7, -2.5); carGroup.add(tl);
-                });
-                const rearBumper = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.3, 0.2), new THREE.MeshLambertMaterial({ color: 0x888888 }));
-                rearBumper.position.set(0, 0.25, -2.6); carGroup.add(rearBumper);
-            },
-            _builtinOffroad(carGroup, carData) {
-                const bodyMat = new THREE.MeshPhongMaterial({ color: carData.bodyColor, specular: 0x444444, shininess: 80 });
-                const blackMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
-                const chromeMat = new THREE.MeshLambertMaterial({ color: 0x888888 });
-                const body = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.0, 4.4), bodyMat);
-                body.position.set(0, 0.8, 0); body.castShadow = true; carGroup.add(body);
-                const cabin = new THREE.Mesh(new THREE.BoxGeometry(2.3, 1.0, 2.8), bodyMat);
-                cabin.position.set(0, 1.8, -0.2); cabin.castShadow = true; carGroup.add(cabin);
-                const roof = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.12, 2.7), blackMat);
-                roof.position.set(0, 2.36, -0.2); carGroup.add(roof);
-                [-0.8, 0, 0.8].forEach(zOff => {
-                    const bar = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.08, 0.08), chromeMat);
-                    bar.position.set(0, 2.46, -0.2 + zOff); carGroup.add(bar);
-                });
-                const windshieldMat = new THREE.MeshLambertMaterial({ color: 0x88ccff, transparent: true, opacity: 0.6 });
-                const windshield = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.8, 0.1), windshieldMat);
-                windshield.position.set(0, 1.8, 1.2); windshield.rotation.x = Math.PI / 12; carGroup.add(windshield);
-                const rearWin = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.6, 0.1), windshieldMat);
-                rearWin.position.set(0, 1.8, -1.6); carGroup.add(rearWin);
-                [-1.16, 1.16].forEach(x => {
-                    const sideWin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.6, 2.0), windshieldMat);
-                    sideWin.position.set(x, 1.8, -0.1); carGroup.add(sideWin);
-                });
-                const flareMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
-                [[-1.3, 1.6], [1.3, 1.6], [-1.3, -1.6], [1.3, -1.6]].forEach(([x, z]) => {
-                    const flare = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.5, 1.0), flareMat);
-                    flare.position.set(x, 0.6, z); carGroup.add(flare);
-                });
-                const grille = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.6, 0.15), blackMat);
-                grille.position.set(0, 0.9, 2.2); carGroup.add(grille);
+                _cv.mirrors(g, 2.9, 1.5, 3.2, trim);
+                // Trailer box: rear wheels (z -4.0) sit under it
+                _cv.box(g, 2.6, 2.8, 7, boxMat, 0, 1.6, -2.3);
                 for (let i = 0; i < 7; i++) {
-                    const slot = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.45, 0.05), chromeMat);
-                    slot.position.set(-0.72 + i * 0.24, 0.9, 2.28); carGroup.add(slot);
+                    [-1, 1].forEach(sd => _cv.box(g, 0.04, 1.8, 0.06, _cv.trim(0xb4b4ba),
+                        sd * 1.32, 2.05, 0.9 - i * 1.0, 0, 0, 0, false));
                 }
-                const hlMat = new THREE.MeshBasicMaterial({ color: 0xffffcc });
-                [-0.7, 0.7].forEach(x => {
-                    const hl = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.1, 12), hlMat);
-                    hl.position.set(x, 1.05, 2.22); hl.rotation.x = Math.PI / 2; carGroup.add(hl);
+                _cv.box(g, 2.4, 0.3, 7, trim, 0, 0.15, -2.3);
+                _cv.arches(g, 2.4, trim, { zs: [2.8], y: 0.2, r: 0.6 });
+                _cv.arches(g, 2.6, trim, { zs: [-4.0], y: 0.15, r: 0.6 });
+                // Amber side reflectors, above the rear arch
+                const amber = _cv.emissive(0xff5500);
+                [-1, 1].forEach(sd => {
+                    for (let i = 0; i < 5; i++) _cv.box(g, 0.04, 0.12, 0.6, amber, sd * 1.32, 0.95, -0.5 - i * 1.2, 0, 0, 0, false);
                 });
-                const bumper = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.35, 0.35), chromeMat);
-                bumper.position.set(0, 0.35, 2.35); carGroup.add(bumper);
-                const rearBumper = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.3, 0.25), chromeMat);
-                rearBumper.position.set(0, 0.35, -2.25); carGroup.add(rearBumper);
-                const tlMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-                [-0.8, 0.8].forEach(x => {
-                    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.1), tlMat);
-                    tl.position.set(x, 0.9, -2.21); carGroup.add(tl);
-                });
-                const tireMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
-                const spareTire = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.3, 16), tireMat);
-                spareTire.position.set(0, 1.2, -2.3); spareTire.rotation.x = Math.PI / 2; carGroup.add(spareTire);
-                const spareRim = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.32, 8), chromeMat);
-                spareRim.position.set(0, 1.2, -2.3); spareRim.rotation.x = Math.PI / 2; carGroup.add(spareRim);
+                _cv.taillights(g, 1.0, -5.81, 0.9);
+                _cv.tailbar(g, 0.4, -5.81, 2.2);
             },
-            _builtinRaceCar(carGroup, carData) {
-                const bodyMat = new THREE.MeshPhongMaterial({ color: carData.bodyColor, specular: 0x666666, shininess: 120 });
-                const carbonMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
-                const accentMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
-                const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.45, 4.6), bodyMat);
-                body.position.set(0, 0.35, 0); body.castShadow = true; carGroup.add(body);
-                const splitter = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.08, 0.6), carbonMat);
-                splitter.position.set(0, 0.12, 2.4); carGroup.add(splitter);
-                [-1.15, 1.15].forEach(x => {
-                    const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.2, 4.2), carbonMat);
-                    skirt.position.set(x, 0.2, 0); carGroup.add(skirt);
+            _builtinPickup(g, d) {
+                const bodyMat = _cv.phong(d.bodyColor);
+                const trim = _cv.trim();
+                _cv.shell(g, 2.4, 0.8, 5, bodyMat, 0, 0.6, 0);
+                _cv.shell(g, 2.3, 1.0, 2.2, bodyMat, 0, 1.5, 1.0, { cap: 0.12, inset: 0.1 });
+                _cv.box(g, 2.2, 0.12, 2.1, bodyMat, 0, 2.06, 1.0);
+                _cv.box(g, 2.0, 0.7, 0.1, _cv.glass(), 0, 1.6, 2.1, Math.PI / 8, 0, 0, false);
+                _cv.box(g, 1.8, 0.5, 0.1, _cv.glass(), 0, 1.55, -0.12, 0, 0, 0, false);
+                [-1, 1].forEach(sd => _cv.box(g, 0.06, 0.5, 1.7, _cv.glass(), sd * 1.13, 1.6, 1.05, 0, 0, 0, false));
+                // Bed with a dark liner
+                [-1.15, 1.15].forEach(x => _cv.box(g, 0.1, 0.6, 2.4, bodyMat, x, 1.3, -1.3));
+                _cv.box(g, 2.3, 0.6, 0.1, bodyMat, 0, 1.3, -2.5);
+                _cv.box(g, 2.2, 0.06, 2.3, trim, 0, 1.03, -1.3, 0, 0, 0, false);
+                // Arches on the real wheels (z ±2.0)
+                _cv.arches(g, 2.4, trim, { zs: [2.0, -2.0], y: 0.15, r: 0.58 });
+                _cv.mirrors(g, 2.7, 1.55, 1.85, bodyMat);
+                _cv.grille(g, 1.3, 0.8, 2.52);
+                _cv.bumper(g, 2.5, 0.32, 2.55, { color: 0x9a9ea6 });
+                _cv.bumper(g, 2.5, 0.3, -2.55, { color: 0x9a9ea6 });
+                _cv.headlights(g, 0.8, 2.51, 0.85);
+                _cv.taillights(g, 0.75, -2.52, 0.95);
+            },
+            _builtinOffroad(g, d) {
+                const bodyMat = _cv.phong(d.bodyColor);
+                const trim = _cv.trim(0x1a1a1f);
+                const chrome = _cv.chrome();
+                _cv.shell(g, 2.4, 1.0, 4.4, bodyMat, 0, 0.8, 0);
+                _cv.shell(g, 2.3, 1.0, 2.8, bodyMat, 0, 1.8, -0.2, { cap: 0.1, inset: 0.08 });
+                _cv.box(g, 2.2, 0.12, 2.7, trim, 0, 2.36, -0.2);                   // hard top
+                [-0.8, 0, 0.8].forEach(z => _cv.box(g, 2.3, 0.08, 0.08, chrome, 0, 2.46, -0.2 + z, 0, 0, 0, false));
+                _cv.box(g, 2.0, 0.8, 0.1, _cv.glass(), 0, 1.8, 1.2, Math.PI / 12, 0, 0, false);
+                _cv.box(g, 1.8, 0.6, 0.1, _cv.glass(), 0, 1.8, -1.62, 0, 0, 0, false);
+                [-1.16, 1.16].forEach(x => _cv.box(g, 0.08, 0.6, 2.0, _cv.glass(), x, 1.8, -0.1, 0, 0, 0, false));
+                // Square fender flares over the real wheels (z ±1.6)
+                [[-1, 1.6], [1, 1.6], [-1, -1.6], [1, -1.6]].forEach(([sd, z]) => {
+                    _cv.box(g, 0.08, 0.5, 1.1, _cv.trim(0x05050a), sd * 1.18, 0.6, z, 0, 0, 0, false);
+                    _cv.box(g, 0.3, 0.12, 1.25, trim, sd * 1.32, 0.86, z);
+                    _cv.box(g, 0.28, 0.42, 0.12, trim, sd * 1.32, 0.62, z + 0.6, 0.35);
+                    _cv.box(g, 0.28, 0.42, 0.12, trim, sd * 1.32, 0.62, z - 0.6, -0.35);
                 });
-                const cockpit = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.4, 1.6), bodyMat);
-                cockpit.position.set(0, 0.78, -0.2); cockpit.castShadow = true; carGroup.add(cockpit);
-                const windshieldMat = new THREE.MeshLambertMaterial({ color: 0x88ccff, transparent: true, opacity: 0.5 });
-                const windshield = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.35, 0.08), windshieldMat);
-                windshield.position.set(0, 0.8, 0.6); windshield.rotation.x = Math.PI / 4; carGroup.add(windshield);
-                const rearWin = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.25, 0.08), windshieldMat);
-                rearWin.position.set(0, 0.75, -1.0); rearWin.rotation.x = -Math.PI / 5; carGroup.add(rearWin);
-                const diffuser = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.3, 0.5), carbonMat);
-                diffuser.position.set(0, 0.18, -2.4); carGroup.add(diffuser);
-                const wingPillarMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
-                [-0.7, 0.7].forEach(x => {
-                    const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 0.08), wingPillarMat);
-                    pillar.position.set(x, 1.05, -2.0); carGroup.add(pillar);
+                // Seven-slot grille between round headlights
+                _cv.box(g, 1.8, 0.6, 0.15, trim, 0, 0.9, 2.2);
+                for (let i = 0; i < 7; i++) _cv.box(g, 0.09, 0.45, 0.05, chrome, -0.42 + i * 0.14, 0.9, 2.29, 0, 0, 0, false);
+                [-0.72, 0.72].forEach(x => {
+                    _cv.cyl(g, 0.23, 0.23, 0.08, 18, chrome, x, 1.0, 2.25, Math.PI / 2);
+                    _cv.cyl(g, 0.18, 0.18, 0.1, 18, _cv.emissive(0xffffcc), x, 1.0, 2.27, Math.PI / 2);
                 });
-                const wing = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.06, 0.5), carbonMat);
-                wing.position.set(0, 1.3, -2.0); carGroup.add(wing);
-                const hlMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-                [-0.7, 0.7].forEach(x => {
-                    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.06), hlMat);
-                    hl.position.set(x, 0.45, 2.3); carGroup.add(hl);
-                });
-                const tlMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-                const tailStrip = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.06, 0.06), tlMat);
-                tailStrip.position.set(0, 0.45, -2.3); carGroup.add(tailStrip);
-                [-0.6, 0.6].forEach(x => {
-                    const intake = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.15, 0.1), accentMat);
-                    intake.position.set(x, 0.3, 2.3); carGroup.add(intake);
-                });
+                _cv.box(g, 2.6, 0.35, 0.35, trim, 0, 0.35, 2.35);                  // steel bumpers
+                _cv.box(g, 2.5, 0.3, 0.25, trim, 0, 0.35, -2.25);
+                _cv.mirrors(g, 2.8, 1.5, 1.0, bodyMat);
+                _cv.taillights(g, 0.9, -2.21, 0.8);
+                // Spare tyre on the tailgate
+                _cv.cyl(g, 0.5, 0.5, 0.3, 18, _cv.trim(0x111114), 0, 1.25, -2.4, Math.PI / 2);
+                _cv.cyl(g, 0.2, 0.2, 0.32, 10, chrome, 0, 1.25, -2.4, Math.PI / 2);
+            },
+            _builtinRaceCar(g, d) {
+                const bodyMat = _cv.phong(d.bodyColor, 140);
+                const carbon = _cv.trim(0x111114);
+                _cv.shell(g, 2.2, 0.45, 4.6, bodyMat, 0, 0.35, 0, { cap: 0.1, inset: 0.1 });
+                _cv.box(g, 2.4, 0.08, 0.6, carbon, 0, 0.12, 2.4);                  // splitter
+                // Side skirts only BETWEEN the wheels (the old full-length ones ran through the tyres)
+                [-1.15, 1.15].forEach(x => _cv.box(g, 0.12, 0.2, 2.1, carbon, x, 0.2, 0));
+                _cv.shell(g, 1.6, 0.4, 1.6, bodyMat, 0, 0.78, -0.2, { cap: 0.08, inset: 0.08 });
+                _cv.box(g, 1.4, 0.35, 0.08, _cv.glass(), 0, 0.8, 0.6, Math.PI / 4, 0, 0, false);
+                _cv.box(g, 1.3, 0.25, 0.08, _cv.glass(), 0, 0.75, -1.0, -Math.PI / 5, 0, 0, false);
+                [-1, 1].forEach(sd => _cv.box(g, 0.05, 0.22, 1.1, _cv.glass(), sd * 0.79, 0.8, -0.2, 0, 0, 0, false));
+                _cv.box(g, 0.08, 0.14, 0.8, carbon, 0, 1.04, -0.6);                // roof fin
+                // Diffuser with fins
+                _cv.box(g, 2.0, 0.3, 0.5, carbon, 0, 0.18, -2.4);
+                for (let i = -2; i <= 2; i++) _cv.box(g, 0.04, 0.26, 0.52, carbon, i * 0.36, 0.2, -2.42, 0, 0, 0, false);
+                // Rear wing: stands now reach down to the deck (they used to float above it)
+                [-0.7, 0.7].forEach(x => _cv.box(g, 0.08, 0.72, 0.08, carbon, x, 0.94, -2.0));
+                _cv.box(g, 2.0, 0.06, 0.5, carbon, 0, 1.3, -2.0);
+                [-1, 1].forEach(sd => _cv.box(g, 0.04, 0.3, 0.6, carbon, sd * 1.0, 1.24, -2.0, 0, 0, 0, false));
+                _cv.arches(g, 2.2, bodyMat, { zs: [1.5, -1.5], y: 0.05, r: 0.44 });
+                _cv.mirrors(g, 2.0, 0.86, 0.35, bodyMat);
+                [-0.7, 0.7].forEach(x => _cv.box(g, 0.5, 0.06, 0.06, _cv.emissive(0xffffff), x, 0.45, 2.3, 0, 0, 0, false));
+                _cv.box(g, 1.8, 0.06, 0.06, _cv.emissive(0xff1a1a), 0, 0.45, -2.3, 0, 0, 0, false);
+                [-0.6, 0.6].forEach(x => _cv.box(g, 0.5, 0.15, 0.1, carbon, x, 0.3, 2.3));
             }
         };
 
@@ -8749,7 +9321,7 @@
                 if (dist < 4) {
                     // Caught! Penalty - only 10 coins
                     gameState.coins = Math.max(0, gameState.coins - 10);
-                    localStorage.setItem('coins', gameState.coins);
+                    localStorage.setItem(tdKey('coins'), gameState.coins);
                     updateUI();
                     endPoliceChase();
                     showCollisionFlash();
@@ -9950,6 +10522,45 @@
             el.className = gear.neutral ? 'neutral' : gear.reverse ? 'reverse' : '';
         }
 
+        // Tappable gear controls (phones have no Z/X keys)
+        document.getElementById('gear-up-btn').addEventListener('click', () => {
+            if (gearIndex < GEARS.length - 1) gearIndex++;
+            updateGearDisplay();
+        });
+        document.getElementById('gear-down-btn').addEventListener('click', () => {
+            if (gearIndex > 0) gearIndex--;
+            updateGearDisplay();
+        });
+
+        // Touch-only buttons for actions that are keyboard-only on a laptop (C/Q/E/H/V)
+        function refreshTouchExtras() {
+            document.getElementById('tx-left').classList.toggle('on', blinkerState === 'left');
+            document.getElementById('tx-right').classList.toggle('on', blinkerState === 'right');
+            document.getElementById('tx-hazard').classList.toggle('on', blinkerState === 'hazard');
+            document.getElementById('tx-rain').classList.toggle('on', !!rainOn);
+            document.getElementById('tx-view').classList.toggle('on', cameraMode === 'cockpit');
+        }
+        document.getElementById('tx-view').addEventListener('click', () => {
+            cameraMode = cameraMode === 'chase' ? 'cockpit' : 'chase';
+            refreshTouchExtras();
+        });
+        document.getElementById('tx-left').addEventListener('click', () => {
+            blinkerState = blinkerState === 'left' ? 'off' : 'left';
+            refreshTouchExtras();
+        });
+        document.getElementById('tx-right').addEventListener('click', () => {
+            blinkerState = blinkerState === 'right' ? 'off' : 'right';
+            refreshTouchExtras();
+        });
+        document.getElementById('tx-hazard').addEventListener('click', () => {
+            blinkerState = blinkerState === 'hazard' ? 'off' : 'hazard';
+            refreshTouchExtras();
+        });
+        document.getElementById('tx-rain').addEventListener('click', () => {
+            toggleRain();
+            refreshTouchExtras();
+        });
+
         function onKeyUp(e) {
             const _t = e.target;
             if (_t && (_t.tagName === 'INPUT' || _t.tagName === 'TEXTAREA' || _t.isContentEditable)) return;
@@ -10396,7 +11007,7 @@
                     scene.remove(coin);
 
                     gameState.coins += 10;
-                    localStorage.setItem('coins', gameState.coins);
+                    localStorage.setItem(tdKey('coins'), gameState.coins);
                     updateUI();
 
                     showCoinPopup();
@@ -11349,8 +11960,8 @@
                 gameState.coins -= carData.price;
                 gameState.ownedCars.push(carId);
 
-                localStorage.setItem('coins', gameState.coins);
-                localStorage.setItem('ownedCars', JSON.stringify(gameState.ownedCars));
+                localStorage.setItem(tdKey('coins'), gameState.coins);
+                localStorage.setItem(tdKey('ownedCars'), JSON.stringify(gameState.ownedCars));
 
                 updateUI();
                 renderShop();
@@ -11360,7 +11971,7 @@
         function selectCar(carId) {
             if (gameState.ownedCars.includes(carId)) {
                 gameState.selectedCar = carId;
-                localStorage.setItem('selectedCar', carId);
+                localStorage.setItem(tdKey('selectedCar'), carId);
 
                 // Remove old car visuals
                 scene.remove(car);
@@ -11969,7 +12580,7 @@
             // Award coins after short delay (NPC "takes" package)
             setTimeout(() => {
                 gameState.coins += d.reward;
-                localStorage.setItem('coins', gameState.coins);
+                localStorage.setItem(tdKey('coins'), gameState.coins);
                 updateUI();
 
                 // Show coin popup
@@ -12309,9 +12920,9 @@
             gameState.coins = 0;
             gameState.ownedCars = ['starter'];
             gameState.selectedCar = 'starter';
-            localStorage.setItem('coins', 0);
-            localStorage.setItem('ownedCars', JSON.stringify(['starter']));
-            localStorage.setItem('selectedCar', 'starter');
+            localStorage.setItem(tdKey('coins'), 0);
+            localStorage.setItem(tdKey('ownedCars'), JSON.stringify(['starter']));
+            localStorage.setItem(tdKey('selectedCar'), 'starter');
             document.querySelector('#coins-display span').textContent = 0;
             selectCar('starter');
             enterDriveReady();
@@ -12319,6 +12930,32 @@
         document.getElementById('settings-btn').addEventListener('click', () => {
             document.getElementById('menu-main').style.display = 'none';
             document.getElementById('settings-panel').style.display = 'flex';
+            const acct = window.TD_ACCOUNT || 'guest';
+            document.getElementById('who-label').textContent = (acct === 'creator') ? 'creator' : acct;
+            // Only the creator can set the payment link
+            const payRow = document.getElementById('paylink-row');
+            payRow.style.display = (acct === 'creator') ? 'block' : 'none';
+            if (acct === 'creator') {
+                document.getElementById('paylink-input').value = localStorage.getItem('td_pay_link') || '';
+                document.getElementById('paylink-note').textContent = '';
+            }
+        });
+        document.getElementById('paylink-save').addEventListener('click', () => {
+            const val = document.getElementById('paylink-input').value.trim();
+            const note = document.getElementById('paylink-note');
+            if (val && !/^https:\/\/\S+$/i.test(val)) {
+                note.style.color = '#ff5d6c';
+                note.textContent = 'Must start with https:// — copy the whole link.';
+                return;
+            }
+            localStorage.setItem('td_pay_link', val);
+            note.style.color = '#7fa';
+            note.textContent = val ? 'Saved. The PAY $1 button is live now.' : 'Cleared.';
+        });
+        // Sign out so someone else can play their own game on this device.
+        document.getElementById('switch-player-btn').addEventListener('click', () => {
+            tdSession.clear();
+            location.reload();
         });
         document.getElementById('settings-back').addEventListener('click', () => {
             document.getElementById('settings-panel').style.display = 'none';
@@ -12349,17 +12986,20 @@
             const g = new THREE.Group();
             const data = cars[carId] || cars.starter;
             (carVisuals[carId] || carVisuals.starter)(g, data);
-            // carVisuals builds only the body; add simple wheels for the showroom.
+            // carVisuals builds only the body; add wheels exactly where the physics puts them
+            // in-game (x ±0.9, z ±1.3, centre 0.25, radius 0.4) so the showroom matches.
             const tyreMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.7, metalness: 0.2 });
             const hubMat = new THREE.MeshStandardMaterial({ color: 0xb0b4bc, roughness: 0.3, metalness: 0.85 });
-            [[-0.95, 1.35], [0.95, 1.35], [-0.95, -1.35], [0.95, -1.35]].forEach(([x, z]) => {
-                const tyre = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.32, 22), tyreMat);
-                tyre.rotation.z = Math.PI / 2; tyre.position.set(x, 0.42, z); tyre.castShadow = true;
+            [[-0.9, 1.3], [0.9, 1.3], [-0.9, -1.3], [0.9, -1.3]].forEach(([x, z]) => {
+                const tyre = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.3, 22), tyreMat);
+                tyre.rotation.z = Math.PI / 2; tyre.position.set(x, 0.25, z); tyre.castShadow = true;
                 g.add(tyre);
-                const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.34, 14), hubMat);
-                hub.rotation.z = Math.PI / 2; hub.position.set(x, 0.42, z);
+                const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.32, 14), hubMat);
+                hub.rotation.z = Math.PI / 2; hub.position.set(x, 0.25, z);
                 g.add(hub);
             });
+            // Tyres reach 0.15 below the body origin; lift the car so they sit on the floor.
+            g.userData.baseY = 0.15;
             return g;
         }
         function initMenuCar() {
@@ -12420,7 +13060,7 @@
                 }
                 menuCar.t += 0.006;
                 menuCar.carGroup.rotation.y = menuCar.t;
-                menuCar.carGroup.position.y = Math.sin(menuCar.t * 2) * 0.03;
+                menuCar.carGroup.position.y = (menuCar.carGroup.userData.baseY || 0) + Math.sin(menuCar.t * 2) * 0.03;
                 menuCar.renderer.render(menuCar.scene, menuCar.camera);
             })();
         }
@@ -13794,7 +14434,7 @@
 
             const reward = playerWon ? 100 : 20;
             gameState.coins += reward;
-            localStorage.setItem('coins', gameState.coins);
+            localStorage.setItem(tdKey('coins'), gameState.coins);
             document.querySelector('#coins-display span').textContent = gameState.coins;
 
             alert(playerWon
@@ -13938,7 +14578,7 @@
                     const reward = Math.floor(points / 400);
                     if (reward > 0) {
                         gameState.coins += reward;
-                        localStorage.setItem('coins', gameState.coins);
+                        localStorage.setItem(tdKey('coins'), gameState.coins);
                         updateUI();
                         showDriftBank(points, reward);
                         addShake(0.18);
