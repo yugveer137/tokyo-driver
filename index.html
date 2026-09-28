@@ -1434,6 +1434,21 @@
             text-align: center;
         }
         #contact-owner:hover { background: #1a85ff; }
+        #unlock-row { margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.08); text-align: left; }
+        #unlock-row label { display: block; font-size: 0.7rem; color: #7fa; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 7px; }
+        #unlock-row .unlock-line { display: flex; gap: 8px; }
+        #unlock-input {
+            flex: 1; min-width: 0; padding: 10px;
+            background: #0a0f1c; border: 1px solid #23324a; border-radius: 8px;
+            color: #eaf6ff; font-family: monospace; font-size: 0.9rem; outline: none;
+        }
+        #unlock-input:focus { border-color: #00e5ff; }
+        #unlock-btn {
+            padding: 10px 14px; border: none; border-radius: 8px; cursor: pointer;
+            background: linear-gradient(135deg, #ffb347, #ff8c00); color: #201400;
+            font-family: monospace; font-weight: bold; letter-spacing: 1px;
+        }
+        #unlock-err { color: #ff5d6c; font-size: 0.72rem; min-height: 1em; margin-top: 6px; }
 
         /* Creator sign on the side */
         #creator-side { position: fixed; right: 22px; top: 50%; transform: translateY(-50%); text-align: right; }
@@ -1705,6 +1720,15 @@
             <div id="pay-note"></div>
             <!-- Shown when there's no payment link yet: emails the owner to sort out paying -->
             <a id="contact-owner" href="#">CONTACT OWNER</a>
+            <!-- Players who've paid the owner get emailed an unlock code -->
+            <div id="unlock-row">
+                <label for="unlock-input">Have an unlock code?</label>
+                <div class="unlock-line">
+                    <input id="unlock-input" type="text" placeholder="e.g. DRIFT-1234" autocomplete="off" />
+                    <button id="unlock-btn">UNLOCK</button>
+                </div>
+                <div id="unlock-err"></div>
+            </div>
         </div>
         <!-- Creator sign on the side -->
         <div id="creator-side">
@@ -1755,6 +1779,31 @@
             document.getElementById('pay-after').style.display = 'block';
         });
         document.getElementById('paid-btn').addEventListener('click', unlock);
+
+        // Unlock code the owner emails to people who've paid. Only its SHA-256 fingerprint
+        // is stored here, so reading the page source doesn't reveal it. Honor system:
+        // anyone given the code could pass it on.
+        const UNLOCK_HASH = '4f84719d0fa3c300fe55c8b1bc6a8b0732310093030ce0d90d370101464fdf56';
+        const unlockInput = document.getElementById('unlock-input');
+        const unlockErr = document.getElementById('unlock-err');
+        async function sha256Hex(text) {
+            const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+            return Array.from(new Uint8Array(buf)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+        }
+        async function tryUnlockCode() {
+            // Forgiving: ignore capitals, spaces and dashes ("drift 5744" works)
+            const code = unlockInput.value.toUpperCase().replace(/[\s-]+/g, '');
+            if (!code) { unlockErr.textContent = 'Type the code the owner emailed you.'; return; }
+            if (!window.crypto || !crypto.subtle) { unlockErr.textContent = 'This browser can\'t check codes.'; return; }
+            if (await sha256Hex(code) === UNLOCK_HASH) {
+                unlock();
+            } else {
+                unlockErr.textContent = 'That code isn\'t right.';
+                unlockInput.select();
+            }
+        }
+        document.getElementById('unlock-btn').addEventListener('click', tryUnlockCode);
+        unlockInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') tryUnlockCode(); });
 
         // Creator sign: type the GitHub account to play without paying.
         const box = document.getElementById('creator-box');
