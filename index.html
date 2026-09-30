@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tokyo Night Driver</title>
+    <title>tokyo-driver1</title>
     <style>
         * {
             margin: 0;
@@ -1569,7 +1569,7 @@
     <!-- Login Gate: first visit asks for email + a code you make up; creator can skip -->
     <div id="login-gate">
         <div class="lg-card">
-            <h2>TOKYO NIGHT DRIVER</h2>
+            <h2>tokyo-driver1</h2>
             <p class="lg-sub">Enter your email and create a code to play.<br>You'll only do this once.</p>
             <label for="lg-email">Email</label>
             <input id="lg-email" type="email" autocomplete="email" placeholder="you@example.com" />
@@ -1709,7 +1709,7 @@
     <!-- Pay gate: shown after login, before the menu. One-time $1 per account. -->
     <div id="pay-gate">
         <div class="pay-card">
-            <h2>TOKYO NIGHT DRIVER</h2>
+            <h2>tokyo-driver1</h2>
             <div class="pay-price">$1</div>
             <p class="pay-sub">One-time payment to play.<br>You only pay once.</p>
             <button id="pay-btn">PAY $1</button>
@@ -1766,8 +1766,8 @@
             if (!PAYMENT_LINK) {
                 noteEl.textContent = 'Payment isn\'t set up yet. Email the owner to sort it out:';
                 // Pre-fill the email with the player's game login so the owner knows who it is
-                const subject = 'Tokyo Night Driver - paying $1';
-                const body = 'Hi! I want to pay $1 to play Tokyo Night Driver.\n\nMy game login: ' +
+                const subject = 'tokyo-driver1 - paying $1';
+                const body = 'Hi! I want to pay $1 to play tokyo-driver1.\n\nMy game login: ' +
                     (window.TD_ACCOUNT || '(not signed in)') + '\n';
                 const contact = document.getElementById('contact-owner');
                 contact.href = 'mailto:' + OWNER_EMAIL + '?subject=' + encodeURIComponent(subject) +
@@ -1835,7 +1835,7 @@
         <canvas id="menu-car-canvas"></canvas>
         <div id="menu-scrim"></div>
         <div id="menu-content">
-            <h1>Tokyo Night Driver</h1>
+            <h1>tokyo-driver1</h1>
             <p>Drive through neon-lit Tokyo streets, collect coins, buy cars!<br>Watch out for traffic and obey red lights...</p>
             <div id="menu-main">
                 <button id="continue-btn" class="menu-btn">CONTINUE GAME</button>
@@ -1873,8 +1873,8 @@
 
     <!-- Multiplayer Join Prompt (shown to Veer when he opens invite link) -->
     <div id="mp-join-screen" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:20px;">
-        <h2 style="color:#00e5ff;font-size:2rem;letter-spacing:3px;font-family:monospace;">TOKYO NIGHT DRIVER</h2>
-        <p style="color:#fff;font-size:1.1rem;font-family:monospace;">Would you like to join the multiplayer Tokyo Night Driver?</p>
+        <h2 style="color:#00e5ff;font-size:2rem;letter-spacing:3px;font-family:monospace;">tokyo-driver1</h2>
+        <p style="color:#fff;font-size:1.1rem;font-family:monospace;">Would you like to join the multiplayer tokyo-driver1?</p>
         <p style="color:#aaa;font-size:0.85rem;font-family:monospace;" id="mp-host-label"></p>
         <div style="display:flex;gap:16px;">
             <button id="mp-join-yes" style="padding:12px 36px;background:#00c853;color:#fff;border:none;font-size:1rem;font-family:monospace;cursor:pointer;letter-spacing:2px;">YES</button>
@@ -13287,8 +13287,8 @@
                         from_name: 'Yugveer',
                         join_url: joinURL
                     }).catch(() => {
-                        const sub = encodeURIComponent('Join my Tokyo Night Driver game!');
-                        const bod = encodeURIComponent('Hey Veer! Join my Tokyo Night Driver game!\n\nClick here to join:\n' + joinURL);
+                        const sub = encodeURIComponent('Join my tokyo-driver1 game!');
+                        const bod = encodeURIComponent('Hey Veer! Join my tokyo-driver1 game!\n\nClick here to join:\n' + joinURL);
                         window.open('mailto:' + VEER_EMAIL + '?subject=' + sub + '&body=' + bod);
                     });
                 }
