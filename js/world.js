@@ -74,6 +74,7 @@ window.World = (function () {
         const ramp = Road.onramp(fw, sMerge, 1, leave.p, leave.tan, city.name + ' on-ramp');
         city.roads.push(ramp);
         Traffic.linkRamp(exit); Traffic.linkRamp(ramp);
+        if (window.Train && !city.station) { city.station = true; Train.station(city).forEach(m => city.meshes.push(m)); }
         // connect the collector to the grid: short EW stubs from the collector to street column 0
         for (let i = 0; i <= city.rows; i += 2) {
             const a = city.toWorld(-city.W / 2 - 34, city.streetZ(i)), b = city.toWorld(-city.W / 2 - city.street / 2, city.streetZ(i));
@@ -99,11 +100,11 @@ window.World = (function () {
         for (let c = Math.max(0, c0); c <= c1; c++) {
             const s0 = c * CHUNK, s1 = Math.min(fw.length, (c + 1) * CHUNK);
             if (s0 >= fw.length) break;
-            if (!W.freewayChunks[c]) W.freewayChunks[c] = Road.buildRange(fw, s0, s1, 'c' + c);
+            if (!W.freewayChunks[c]) { W.freewayChunks[c] = Road.buildRange(fw, s0, s1, 'c' + c); if (window.Train) Train.buildRange(fw, s0, s1, 'c' + c); }
         }
         Object.keys(W.freewayChunks).forEach(k => {
             const c = +k, mid = (c + 0.5) * CHUNK;
-            if (Math.abs(mid - lastS) > DROP_DIST) { Road.dropRange(fw, 'c' + c); delete W.freewayChunks[k]; }
+            if (Math.abs(mid - lastS) > DROP_DIST) { Road.dropRange(fw, 'c' + c); if (window.Train) Train.dropRange('c' + c); delete W.freewayChunks[k]; }
         });
         W.cities.forEach(city => {
             const d = Math.abs(city.s - lastS);

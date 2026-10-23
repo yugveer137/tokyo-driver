@@ -177,6 +177,13 @@ window.Car = (function () {
     C.update = function (dt) {
         const b = C.body, v = C.vehicle, d = C.data, t = C.tuning;
         if (!b) return;
+        if (C.frozen) {                              // riding the train: Train moves the body + camera
+            for (let i = 0; i < 4; i++) { v.applyEngineForce(0, i); v.setBrake(50, i); }
+            C.group.position.copy(b.position); C.group.quaternion.copy(b.quaternion);
+            for (let i = 0; i < 4; i++) { v.updateWheelTransform(i); const tr = v.wheelInfos[i].worldTransform; C.wheels[i].position.copy(tr.position); C.wheels[i].quaternion.copy(tr.quaternion); }
+            if (C.interior) C.interior.visible = false;
+            return;
+        }
 
         // Speed and gear cap. Automatic gearbox unless the driver shifted in the last 4 s.
         const vel = b.velocity;

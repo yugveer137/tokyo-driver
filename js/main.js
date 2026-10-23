@@ -48,6 +48,7 @@
         Terrain.init(scene, world);
         Road.init(scene, world);
         Signs.init(scene);
+        Train.init(scene);
         City.init(scene, world);
         Traffic.init(scene, world);
         Car.init(scene, world, camera);
@@ -83,6 +84,7 @@
     // One simulation step without rendering (also callable from the console for testing)
     function tick(dt) {
         if (dt > 0) world.step(1 / 60, dt, 3);
+        if (Car.body) Train.update(dt, Car.body.position);
         Car.update(dt);
         const focus = Car.body ? Car.body.position : { x: 0, y: 0, z: 0 };
         Sky.update(dt, focus);

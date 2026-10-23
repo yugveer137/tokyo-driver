@@ -41,6 +41,7 @@
         #hud-tires { position: fixed; left: 50%; top: 52px; transform: translateX(-50%); background: var(--hud); border-radius: 10px; padding: 6px 14px; font-size: 0.8rem; font-weight: 800; color: #ffb000; pointer-events: none; animation: blink 1s infinite; }
         #hud-tires:empty { display: none; }
         @keyframes blink { 50% { opacity: 0.4; } }
+        #train-btn { background: linear-gradient(135deg, #b5651d, #8a4a12); }
         #race-btn { background: linear-gradient(135deg, #e0202a, #a8121a); } #fwrace-btn { background: linear-gradient(135deg, #ff6a2f, #d6471c); }
         #race-hud { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--hud); border-radius: 10px; padding: 8px 16px; font-weight: 800; color: #ffd21e; pointer-events: none; }
         #race-hud:empty { display: none; }
@@ -121,6 +122,7 @@
         <button class="side-btn" id="delivery-btn">DELIVERIES</button>
         <button class="side-btn" id="race-btn">RACE</button>
         <button class="side-btn" id="fwrace-btn">FREEWAY RACE</button>
+        <button class="side-btn" id="train-btn">TRAIN</button>
         <button class="side-btn" id="cruise-btn">CRUISE</button>
         <button class="side-btn" id="lane-btn">LANE LOCK</button>
         <button class="side-btn" id="front-btn">FRONT LOCK</button>
@@ -184,6 +186,7 @@
     <script src="js/terrain.js"></script>
     <script src="js/road.js"></script>
     <script src="js/signs.js"></script>
+    <script src="js/train.js"></script>
     <script src="js/city.js"></script>
     <script src="js/cities.js"></script>
     <script src="js/traffic.js"></script>
