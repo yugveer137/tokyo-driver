@@ -17,7 +17,9 @@ window.UI = (function () {
             if (e.repeat) return;
             if (e.code === 'KeyZ') Car.gearUp();
             if (e.code === 'KeyX') Car.gearDown();
-            if (e.code === 'KeyC') Car.toggleView();
+            if (e.code === 'KeyC') { if (window.Train && Train.riding) Train.toggleView(); else Car.toggleView(); }
+            if (e.code === 'KeyB') Car.boostStart();
+            if (e.code === 'KeyG' && window.Walk) Walk.toggle();
             if (e.code === 'KeyF' && window.GameAudio) GameAudio.honk();
             if (e.code === 'KeyN') Sky.speed = Sky.speed === 1 ? 12 : 1;
             if (e.code === 'KeyV') Features.toggleRain();
@@ -63,7 +65,12 @@ window.UI = (function () {
         $('fwrace-btn').onclick = () => { if (Game.started) Races.startFreeway(); };
         $('lane-btn').onclick = () => { if (Game.started) Features.toggleLaneLock(); };
         $('front-btn').onclick = () => { if (Game.started) Features.toggleFrontLock(); };
-        $('view-btn').onclick = () => Car.toggleView();
+        $('view-btn').onclick = () => { if (window.Train && Train.riding) Train.toggleView(); else Car.toggleView(); };
+        $('music-btn').onclick = () => { U.renderMusic(); $('music-modal').classList.add('open'); };
+        $('music-stop').onclick = () => { Music.stop(); U.renderMusic(); };
+        $('walk-btn').onclick = () => { if (Game.started && window.Walk) Walk.toggle(); };
+        $('boost-btn').onclick = () => { if (Game.started) Car.boostStart(); };
+        $('fix-btn').onclick = () => { if (Game.started) Features.fixAtWorkshop(); };
         $('reset-btn').onclick = () => { if (Game.started) Car.reset(); };
         $('tow-btn').onclick = () => { if (Game.started) Features.callTow(); };
         document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => $(b.dataset.close).classList.remove('open'));
@@ -89,6 +96,21 @@ window.UI = (function () {
         $('paylink-input').value = Save.getGlobal('td_pay_link', '') || '';
     }
 
+    U.renderMusic = function () {
+        const list = $('music-list'); if (!list || !window.Music) return;
+        list.innerHTML = '';
+        Music.songs.forEach(sg => {
+            const b = document.createElement('button'); b.className = 'menu-btn'; b.style.margin = '6px 0';
+            const on = Music.current === sg && Music.playing;
+            b.textContent = (on ? '■  ' : '▶  ') + sg.title + '   —   ' + sg.bpm + ' bpm';
+            if (on) b.style.background = 'linear-gradient(135deg, #ffd21e, #ff9a00)';
+            b.onclick = () => { if (on) Music.stop(); else Music.play(sg.id); U.renderMusic(); };
+            list.appendChild(b);
+        });
+        const note = document.createElement('div'); note.style.cssText = 'opacity:0.7;font-size:0.8rem;margin-top:8px;line-height:1.4';
+        note.textContent = 'Four original rap tracks the game plays live (beat, 808s, synth). The rap voice is your browser\'s speech voice, so it sounds different on every device.';
+        list.appendChild(note);
+    };
     U.showMenu = function () { $('start-screen').style.display = 'flex'; };
     U.enterDriveReady = function () { $('start-screen').style.display = 'none'; $('drive-btn').style.display = 'block'; };
     U.closeModals = function () { document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open')); };

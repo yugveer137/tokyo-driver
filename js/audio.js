@@ -266,5 +266,16 @@
         lastHornTime = -Infinity;
     }
 
-    window.GameAudio = { init, setCar, update, honk, npcHorn, setEnabled, isEnabled, stop };
+    // Workshop clank: a short metallic hit (noise burst through a ringing bandpass)
+    function clank() {
+        if (!audioCtx) return;
+        const now = audioCtx.currentTime;
+        const src = audioCtx.createBufferSource(); src.buffer = makeNoiseBuffer();
+        const bp = audioCtx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1800 + Math.random() * 1200; bp.Q.value = 12;
+        const g = audioCtx.createGain(); g.gain.setValueAtTime(0.5, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        src.connect(bp); bp.connect(g); g.connect(audioCtx.destination);
+        src.start(now); src.stop(now + 0.3);
+    }
+
+    window.GameAudio = { init, setCar, update, honk, npcHorn, clank, setEnabled, isEnabled, stop };
 })();

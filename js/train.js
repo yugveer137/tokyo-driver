@@ -34,6 +34,26 @@ window.Train = (function () {
             const base = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.8, carLen - 1), dark); base.position.set(0, 0.6, z); g.add(base);
             if (k === 0) { const nose = new THREE.Mesh(new THREE.ConeGeometry(1.6, 3, 4), paint); nose.rotation.x = Math.PI / 2; nose.rotation.z = Math.PI / 4; nose.position.set(0, 2.2, carLen / 2 + 1.4); g.add(nose); }
         }
+        // inside the first car: floor, seats, poles, the window band is the gap between wall strips
+        const inside = new THREE.Group();
+        // unlit materials (the sun does not reach inside). Unlit colours display lighter than
+        // written in r128 (hex is taken as linear), so these are picked darker on purpose.
+        const floorMat = new THREE.MeshBasicMaterial({ color: 0x0b0d10 }), seatMat = new THREE.MeshBasicMaterial({ color: 0x06173c }), wallMat = new THREE.MeshBasicMaterial({ color: 0x24272c }), poleMat = new THREE.MeshBasicMaterial({ color: 0x4a4e55 });
+        const fl = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.06, carLen - 0.2), floorMat); fl.position.y = 1.0; inside.add(fl);
+        const ceil = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.06, carLen - 0.2), wallMat); ceil.position.y = 3.95; inside.add(ceil);
+        [-1, 1].forEach(sd => {
+            const low = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.0, carLen - 0.2), wallMat); low.position.set(sd * 1.46, 1.5, 0); inside.add(low);
+            const high = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.4, carLen - 0.2), wallMat); high.position.set(sd * 1.46, 3.75, 0); inside.add(high);
+            for (let z = -carLen / 2 + 2; z < carLen / 2 - 2; z += 1.7) {
+                const seat = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.12, 0.5), seatMat); seat.position.set(sd * 0.95, 1.5, z); inside.add(seat);
+                const back = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.6, 0.1), seatMat); back.position.set(sd * 0.95, 1.82, z - 0.25); inside.add(back);
+                const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.45, 0.1), poleMat); leg.position.set(sd * 0.95, 1.25, z); inside.add(leg);
+            }
+            for (let z = -carLen / 2 + 3; z < carLen / 2 - 3; z += 4) { const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.9, 8), poleMat); pole.position.set(sd * 0.45, 2.5, z); inside.add(pole); }
+        });
+        const front = new THREE.Mesh(new THREE.BoxGeometry(2.9, 3, 0.06), wallMat); front.position.set(0, 2.5, carLen / 2 - 0.3); inside.add(front);
+        const cabWin = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.9), new THREE.MeshBasicMaterial({ color: 0x9fc4ff, transparent: true, opacity: 0.25 })); cabWin.position.set(0, 2.9, carLen / 2 - 0.36); cabWin.rotation.y = Math.PI; inside.add(cabWin);
+        inside.visible = false; g.add(inside); g.userData.inside = inside;
         g.traverse(o => { if (o.isMesh) o.castShadow = true; });
         return g;
     }
@@ -57,6 +77,22 @@ window.Train = (function () {
         plat.scale.z = 6; group.push(plat);
         const sp = Road.at(fw, city.s + 20, T.LAT - 9); sp.p.y = Terrain.height(sp.p.x, sp.p.z) + 0.9;
         group.push(Signs.plain(sp.p, Signs.facingFrom(f.tan) + Math.PI / 2, 'STATION', city.name.toUpperCase(), 5, 2.2));
+        // stairs down from the freeway's left shoulder, then a footpath over to the platform
+        const hw = fw.width / 2;
+        const top = Road.at(fw, city.s - 30, -(hw + 1.0)).p.clone();
+        const bot = Road.at(fw, city.s - 30, -(hw + 24)).p.clone(); bot.y = Terrain.height(bot.x, bot.z) + 0.1;
+        const stairMat = new THREE.MeshStandardMaterial({ color: 0xa9adb3, map: Tex.concrete, roughness: 0.9 });
+        const len = top.distanceTo(bot);
+        const stair = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.3, len), stairMat);
+        stair.position.copy(top).add(bot).multiplyScalar(0.5); stair.position.y -= 0.12; stair.lookAt(bot.x, bot.y - 0.12, bot.z); stair.castShadow = stair.receiveShadow = true;
+        group.push(stair);
+        [-1.4, 1.4].forEach(x => { const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.0, len), new THREE.MeshStandardMaterial({ color: 0x6f7780, metalness: 0.6 })); rail.position.copy(stair.position); rail.position.y += 0.6; rail.lookAt(bot.x, bot.y + 0.6 - 0.12, bot.z); rail.translateX(x); group.push(rail); });
+        const mid = Road.at(fw, city.s - 30, -(hw + 24 + (T.LAT - 6 - (-(hw + 24))) / 2 * -1)).p;
+        const pathLen = Math.abs((T.LAT - 6) - (-(hw + 24))) ;
+        const pathMid = Road.at(fw, city.s - 30, (-(hw + 24) + (T.LAT - 6)) / 2);
+        const path = Road.drapedQuad(pathMid.p.x, pathMid.p.z, 2.4, Road.yawOf(pathMid.tan) + Math.PI / 2, stairMat, Road.DRAPE + 0.03, 2); path.scale.z = pathLen / 2.4; group.push(path);
+        if (window.Walk) { const sf = Walk.addSurface(top, bot, 1.5, city); const ps = Walk.addSurface(bot, Road.at(fw, city.s - 30, T.LAT - 6).p, 1.5, city); }
+        if (window.Peds) Peds.spawnPlatform(city, f.p, f.tan);
         T.stations.push({ city, s: city.s, meshes: group });
         return group;
     };
@@ -64,22 +100,28 @@ window.Train = (function () {
     T.pose = function (s) { return Road.at(World.freeway, s, T.LAT); };
     T.groundAt = function (s) { const f = T.pose(s); f.p.y = Terrain.height(f.p.x, f.p.z) + Road.DRAPE + 0.05; return f; };
 
+    T.near = function (pos) { return mesh && mesh.visible && mesh.position.distanceTo(pos) < 40; };
+    T.toggleView = function () { T.inside = !T.inside; UI.toast(T.inside ? 'Inside the train' : 'Outside view'); };
     T.toggle = function () {
         if (T.riding) {
             T.riding = false;
+            mesh.userData.inside.visible = false;
             const f = T.groundAt(T.s);
             const side = f.p.clone().addScaledVector(f.right, -8);
             Car.teleport(side.x, Terrain.height(side.x, side.z) + 1.2, side.z, Road.yawOf(f.tan));
             Car.group.visible = true; Car.wheels.forEach(w => w.visible = true);
             Car.frozen = false;
-            UI.toast('Off the train');
+            if (T.onFoot && window.Walk) { T.onFoot = false; Walk.getOut(); UI.toast('Off the train — your car is right here. G gets in.', 3000); }
+            else UI.toast('Off the train');
             return;
         }
-        const d = mesh.position.distanceTo(Car.body.position);
-        if (!mesh.visible || d > 40) { UI.toast('Walk up to the train first (it stops at every station)'); return; }
-        T.riding = true; Car.frozen = true;
+        const onFoot = window.Walk && Walk.active;
+        const who = onFoot ? Walk.pos : Car.body.position;
+        if (!T.near(who)) { UI.toast('Walk up to the train first (it waits at every station, down the stairs on the left of the freeway)', 3500); return; }
+        if (onFoot) { Walk.leaveForTrain(); T.onFoot = true; }
+        T.riding = true; T.inside = true; Car.frozen = true;
         Car.group.visible = false; Car.wheels.forEach(w => w.visible = false);
-        UI.toast('All aboard! W/S drive the train, T to get off', 2500);
+        UI.toast('All aboard! W/S drive the train, C inside/outside, T to get off', 3000);
     };
 
     T.update = function (dt, playerPos) {
@@ -111,9 +153,16 @@ window.Train = (function () {
             Car.body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Road.yawOf(f.tan));
             Car.mph = T.speed * CFG.MPH;
             const cam = game.camera;
-            const back = f.p.clone().addScaledVector(f.tan, -28).addScaledVector(f.right, 10); back.y = f.p.y + 12;
-            cam.position.lerp(back, 1 - Math.exp(-dt * 4));
-            cam.lookAt(f.p.x, f.p.y + 3, f.p.z);
+            mesh.userData.inside.visible = !!T.inside;
+            if (T.inside) {
+                mesh.updateMatrixWorld();
+                const eye = mesh.localToWorld(new THREE.Vector3(-0.9, 3.0, 2.0)), look = mesh.localToWorld(new THREE.Vector3(-0.9, 2.85, 40));
+                cam.position.copy(eye); cam.lookAt(look);
+            } else {
+                const back = f.p.clone().addScaledVector(f.tan, -28).addScaledVector(f.right, 10); back.y = f.p.y + 12;
+                cam.position.lerp(back, 1 - Math.exp(-dt * 4));
+                cam.lookAt(f.p.x, f.p.y + 3, f.p.z);
+            }
         }
     };
 

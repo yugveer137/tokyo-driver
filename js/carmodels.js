@@ -1587,16 +1587,79 @@
         return wheel;
     }
 
+    // ---- Genesis GV60-style cockpit, used for every car (accent = the car's colour) ----
+    // Floating dash with a wood lip, one panoramic twin-screen display (cluster + live map),
+    // a head-up display on the windscreen, a two-spoke wheel with the red BOOST button, the
+    // Crystal Sphere shifter on a floating console, digital side-mirror screens on the doors,
+    // and an ambient light line across the dash.
+    function gv60Interior(g, dashTex, accent, opts) {
+        const black = _iv.mat(0x15171c), dark = _iv.mat(0x23262c), leather = _iv.mat(0x3b2f2a), wood = _iv.mat(0x5a4030), silver = _iv.mat(0x9aa0a8), chrome = _iv.mat(0xd0d4d8);
+        const screenMat = (tex) => new THREE.MeshBasicMaterial({ map: tex, depthTest: false, side: THREE.DoubleSide, toneMapped: false });
+        _iv.box(g, 1.9, 0.12, 0.42, dark, 0, 0.40, 0.62);                 // floating dash slab
+        _iv.box(g, 1.9, 0.05, 0.32, leather, 0, 0.485, 0.66);             // leather pad
+        _iv.box(g, 1.9, 0.025, 0.08, wood, 0, 0.515, 0.5);                // wood lip
+        g.userData.ambient = _iv.box(g, 1.84, 0.012, 0.012, _iv.mat(accent), 0, 0.53, 0.46);
+        // panoramic display: a gently curved bezel; cluster on the driver's side, map in the centre
+        const bezel = new THREE.Group(); bezel.position.set(-0.26, 0.615, 0.56);
+        [[-0.46, 0.1, 0.12], [0, 0, 0], [0.46, 0.1, -0.12]].forEach(([x, dz, ry]) => { const b = _iv.box(bezel, 0.5, 0.2, 0.02, black, x, 0, dz); b.rotation.y = ry; });
+        g.add(bezel);
+        _iv.plane(g, 0.34, 0.14, screenMat(dashTex), -0.46, 0.615, 0.54).userData.tier = 1.5;
+        _iv.plane(g, 0.36, 0.16, opts.mapTexture ? screenMat(opts.mapTexture) : _iv.mat(0x0a1a2a), -0.06, 0.615, 0.54).userData.tier = 1.5;
+        if (opts.hudTexture) _iv.plane(g, 0.36, 0.12, new THREE.MeshBasicMaterial({ map: opts.hudTexture, depthTest: false, transparent: true, side: THREE.DoubleSide, toneMapped: false }), -0.42, 0.83, 0.98).userData.tier = 4;
+        // two-spoke steering wheel with the round horn pad and the red BOOST button
+        const wheelGroup = new THREE.Group(); wheelGroup.position.set(-0.42, 0.45, 0.36); wheelGroup.rotation.x = Math.PI / 4;
+        const spin = new THREE.Group(); wheelGroup.add(spin);
+        _iv.torus(spin, 0.17, 0.03, _iv.mat(0x55596a), 0, 0, 0);                     // rim (lighter than the dash so it reads)
+        _iv.box(spin, 0.3, 0.05, 0.03, _iv.mat(0x3a3d48), 0, -0.02, 0);                // the one wide spoke
+        _iv.box(spin, 0.04, 0.12, 0.03, _iv.mat(0x3a3d48), 0, -0.1, 0);                // lower stem
+        _iv.cyl(spin, 0.065, 0.065, 0.04, 20, _iv.mat(0x44475a), 0, 0, 0, Math.PI / 2); // round horn pad
+        _iv.torus(spin, 0.05, 0.006, chrome, 0, 0, 0.022);
+        g.userData.boostBtn = _iv.cyl(spin, 0.02, 0.02, 0.02, 12, _iv.mat(0xd11a2a), 0.11, -0.02, 0.02, Math.PI / 2);
+        _iv.cyl(spin, 0.02, 0.02, 0.02, 12, _iv.mat(0x3a3a44), -0.11, -0.02, 0.02, Math.PI / 2);
+        g.add(wheelGroup); steeringWheelSpin = spin;
+        // floating centre console with the Crystal Sphere shifter (dome up when parked, dial up when driving)
+        _iv.box(g, 0.3, 0.09, 0.62, dark, -0.1, 0.46, 0.32);
+        _iv.box(g, 0.3, 0.02, 0.62, wood, -0.1, 0.515, 0.32);
+        const crystal = new THREE.Group(); crystal.position.set(-0.1, 0.575, 0.3);
+        crystal.add(new THREE.Mesh(new THREE.SphereGeometry(0.052, 18, 12, 0, Math.PI * 2, 0, Math.PI / 2), _iv.tMat(0xd8ecff, 0.45)));
+        const core = new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 8), _iv.mat(accent)); core.position.y = 0.012; crystal.add(core);
+        const dial = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.035, 20), silver); dial.position.y = -0.014; crystal.add(dial);
+        [0, 1, 2, 3].forEach(i => { const a = i * Math.PI / 2; _iv.box(crystal, 0.012, 0.01, 0.012, _iv.mat(i === 3 ? accent : 0xffffff), Math.sin(a) * 0.04, -0.034, Math.cos(a) * 0.04); });
+        _iv.torus(crystal, 0.055, 0.005, chrome, 0, 0, 0, Math.PI / 2);
+        g.add(crystal); g.userData.crystal = crystal;
+        // draw order (no depth test in the cockpit): dash < screens < wheel < crystal < HUD
+        bezel.traverse(o => { if (o.isMesh) o.userData.tier = 1; });
+        wheelGroup.traverse(o => { if (o.isMesh) o.userData.tier = 2; });
+        crystal.traverse(o => { if (o.isMesh) o.userData.tier = 3; });
+        // digital side mirrors: camera screens at the top of each door
+        [-1, 1].forEach(sd => {
+            const b = _iv.box(g, 0.2, 0.12, 0.02, black, sd * 0.9, 0.6, 0.38); b.rotation.y = -sd * 0.6;
+            b.userData.tier = 1;
+            const p = _iv.plane(g, 0.18, 0.1, opts.mirrorTexture ? screenMat(opts.mirrorTexture) : _iv.mat(0x1a2430), sd * 0.9 - sd * 0.011, 0.6, 0.385); p.rotation.y = -sd * 0.6; p.userData.tier = 1.5;
+            _iv.box(g, 0.06, 0.5, 1.3, dark, sd * 0.98, 0.35, 0.05);           // door panel
+            _iv.box(g, 0.06, 0.12, 1.3, leather, sd * 0.98, 0.62, 0.05);       // door top
+            const pil = _iv.box(g, 0.07, 0.6, 0.07, dark, sd * 0.92, 0.9, 0.78); pil.rotation.x = -0.5; pil.rotation.z = sd * 0.25;   // A-pillar
+        });
+        _iv.box(g, 1.9, 0.04, 0.8, _iv.mat(0x1c1e22), 0, 1.12, 0.15);        // headliner
+        _iv.box(g, 1.9, 0.08, 0.1, _iv.mat(0x1c1e22), 0, 1.1, 0.5);          // windscreen header
+    }
+
     function buildInterior(id, dashTexture, opts) {
         const interiorGroup = new THREE.Group();
         steeringWheelSpin = null;
-        interiorVisuals[builderKey(id)](interiorGroup, dashTexture);
+        const data = cars[id] || cars.starter;
+        gv60Interior(interiorGroup, dashTexture, data.color || 0x00d9ff, opts || {});
         interiorGroup.userData.steeringWheelSpin = steeringWheelSpin;
         // Right-hand drive: mirror across the centreline (Tokyo style), as old createCar() did.
         if (!opts || opts.rhd !== false) {
             interiorGroup.children.forEach(c => { c.position.x = -c.position.x; });
         }
-        interiorGroup.traverse(o => { if (o.isMesh) o.renderOrder = 999; });
+        // three.js sorts by the nearest enclosing Group's renderOrder before the mesh's own, so
+        // every sub-group (wheel, crystal, bezel) must carry the same base order as the interior
+        interiorGroup.traverse(o => {
+            if (o.isGroup) o.renderOrder = 999;
+            else if (o.isMesh) o.renderOrder = 999 + (o.userData.tier || 0);
+        });
         return interiorGroup;
     }
 

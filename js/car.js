@@ -119,7 +119,7 @@ window.Car = (function () {
 
         let interior = null;
         if (window.CarModels && CarModels.buildInterior) {
-            try { interior = CarModels.buildInterior(data.id, dashTexture()); } catch (e) { console.warn('interior failed for ' + data.id, e); }
+            try { interior = CarModels.buildInterior(data.id, dashTexture(), { mapTexture: mapTexture(), hudTexture: hudTexture(), mirrorTexture: mirrorTexture() }); } catch (e) { console.warn('interior failed for ' + data.id, e); }
             if (interior) { interior.visible = false; interior.renderOrder = 999; scene.add(interior); }
         }
         C.body = body; C.vehicle = vehicle; C.group = group; C.wheels = wheels; C.headlights = lights; C.interior = interior;
@@ -148,8 +148,70 @@ window.Car = (function () {
         dashTex.center.set(0.5, 0.5); dashTex.repeat.x = -1;      // the screen plane faces backwards
         return dashTex;
     }
+    // GV60 extras: the centre screen shows the live minimap, a head-up display floats on the
+    // windscreen, and the door screens show a rear camera rendered into a small texture.
+    let hudCanvas, hudCtx, hudTex, mapTex, mirrorRT, mirrorCam, mirrorFrame = 0;
+    function hudTexture() {
+        if (hudTex) return hudTex;
+        hudCanvas = document.createElement('canvas'); hudCanvas.width = 384; hudCanvas.height = 128;
+        hudCtx = hudCanvas.getContext('2d');
+        hudTex = new THREE.CanvasTexture(hudCanvas); hudTex.center.set(0.5, 0.5); hudTex.repeat.x = -1;
+        return hudTex;
+    }
+    function mapTexture() {
+        if (mapTex) return mapTex;
+        const c = document.getElementById('minimap'); if (!c) return null;
+        mapTex = new THREE.CanvasTexture(c); mapTex.center.set(0.5, 0.5); mapTex.repeat.x = -1;
+        return mapTex;
+    }
+    function mirrorTexture() {
+        if (mirrorRT) return mirrorRT.texture;
+        mirrorRT = new THREE.WebGLRenderTarget(256, 128);
+        mirrorCam = new THREE.PerspectiveCamera(55, 2, 0.5, 400); mirrorCam.updateProjectionMatrix();
+        return mirrorRT.texture;
+    }
+    C.boost = { active: 0, cooldown: 0 };
+    C.boostStart = function () {
+        if (!C.body) return;
+        if (C.boost.active > 0) return;
+        if (C.boost.cooldown > 0) { UI.toast('Boost recharging — ' + Math.ceil(C.boost.cooldown) + ' s'); return; }
+        C.boost.active = 10; C.boost.cooldown = 40;
+        UI.toast('BOOST! Ten seconds of extra power', 2000);
+        if (window.GameAudio) GameAudio.honk();
+    };
+    function updateCockpitExtras(dt) {
+        if (C.boost.active > 0) C.boost.active = Math.max(0, C.boost.active - dt);
+        if (C.boost.cooldown > 0) C.boost.cooldown = Math.max(0, C.boost.cooldown - dt);
+        const I = C.interior; if (!I || !I.visible) return;
+        const u = I.userData, b = C.body;
+        if (u.crystal) { const want = (C.mph < 1 && !keys.fwd && !keys.back) ? 0 : Math.PI; u.crystal.rotation.x += (want - u.crystal.rotation.x) * Math.min(1, dt * 4); }
+        if (u.boostBtn) u.boostBtn.material.color.setHex(C.boost.active > 0 ? (Math.floor(performance.now() / 150) % 2 ? 0xff5566 : 0x7a0010) : C.boost.cooldown > 0 ? 0x5a1a20 : 0xd11a2a);
+        if (u.steeringWheelSpin) u.steeringWheelSpin.rotation.z = steer * 2.5;
+        if (u.ambient && window.Sky) u.ambient.material.color.setHex(Sky.night > 0.5 ? 0x9fd8ff : (C.data && C.data.color) || 0x00d9ff);
+        if (mirrorRT && window.game && mirrorFrame++ % 4 === 0) {
+            const r = game.renderer;
+            tmpQ.set(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w);
+            mirrorCam.position.set(0, 1.25, -0.6).applyQuaternion(tmpQ).add(b.position);
+            camLook.set(0, 0.9, -60).applyQuaternion(tmpQ).add(b.position); mirrorCam.lookAt(camLook);
+            I.visible = false;
+            const sm = r.shadowMap.autoUpdate; r.shadowMap.autoUpdate = false;
+            r.setRenderTarget(mirrorRT); r.render(scene, mirrorCam); r.setRenderTarget(null);
+            r.shadowMap.autoUpdate = sm; I.visible = true;
+        }
+    }
     function drawDash() {
         if (!dashCtx || C.view !== 'cockpit' || dashFrame++ % 6) return;
+        if (mapTex) mapTex.needsUpdate = true;
+        if (hudCtx) {
+            const hc = hudCtx, HW = hudCanvas.width, HH = hudCanvas.height;
+            hc.clearRect(0, 0, HW, HH); hc.textAlign = 'center'; hc.textBaseline = 'middle';
+            hc.fillStyle = 'rgba(120, 230, 255, 0.9)'; hc.font = 'bold 72px Helvetica, Arial, sans-serif'; hc.fillText(Math.round(C.mph), HW * 0.32, HH * 0.45);
+            hc.font = '600 20px Helvetica, Arial, sans-serif'; hc.fillText('MPH', HW * 0.32, HH * 0.85);
+            hc.fillStyle = 'rgba(255,255,255,0.85)'; hc.font = 'bold 26px Helvetica, Arial, sans-serif'; hc.fillText('LIMIT ' + (window.UI ? UI.limit : 65), HW * 0.72, HH * 0.35);
+            if (C.boost.active > 0) { hc.fillStyle = '#ff5566'; hc.fillText('BOOST ' + Math.ceil(C.boost.active) + 's', HW * 0.72, HH * 0.72); }
+            else { hc.fillStyle = 'rgba(120,230,255,0.7)'; hc.font = '600 18px Helvetica, Arial, sans-serif'; hc.fillText(CFG.GEARS[C.gear].name + '  ·  ' + (C.boost.cooldown > 0 ? 'boost ' + Math.ceil(C.boost.cooldown) + 's' : 'B = BOOST'), HW * 0.72, HH * 0.72); }
+            hudTex.needsUpdate = true;
+        }
         const ctx = dashCtx, W = dashCanvas.width, H = dashCanvas.height;
         const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#0c0e14'); g.addColorStop(1, '#040507');
         ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
@@ -216,6 +278,18 @@ window.Car = (function () {
             return;
         }
 
+        if (C.towed || C.parked) {                    // dragged by the tow truck / left parked while you walk
+            for (let i = 0; i < 4; i++) { v.applyEngineForce(0, i); v.setBrake(C.parked ? 50 : 0, i); }
+            const vel = b.velocity; C.mph = C.parked ? 0 : Math.hypot(vel.x, vel.z) * CFG.MPH;
+            C.group.position.copy(b.position); C.group.quaternion.copy(b.quaternion);
+            for (let i = 0; i < 4; i++) { v.updateWheelTransform(i); const tr = v.wheelInfos[i].worldTransform; C.wheels[i].position.copy(tr.position); C.wheels[i].quaternion.copy(tr.quaternion); }
+            if (C.interior) { C.interior.position.copy(b.position); C.interior.quaternion.copy(b.quaternion); C.interior.visible = !C.parked && C.view === 'cockpit'; }
+            if (C.parked) { if (!C.group.visible) { C.group.visible = true; C.wheels.forEach(w => w.visible = true); } return; }
+            drawDash();
+            updateCamera(dt);
+            return;
+        }
+
         // Speed and gear cap. Automatic gearbox unless the driver shifted in the last 4 s.
         const vel = b.velocity;
         C.mph = Math.hypot(vel.x, vel.z) * CFG.MPH;
@@ -226,8 +300,9 @@ window.Car = (function () {
             else if (C.gear > 1 && C.mph < d.maxSpeed * CFG.GEARS[C.gear - 1].speedFrac * 0.7) C.gear--;
         }
         const gear = CFG.GEARS[C.gear];
-        const cap = d.maxSpeed * gear.speedFrac;
-        const maxForce = d.acceleration * 100;
+        let cap = d.maxSpeed * gear.speedFrac;
+        let maxForce = d.acceleration * 100;
+        if (C.boost.active > 0) { cap *= 1.25; maxForce *= 1.7; }      // GV60 boost button: 10 s of extra power
 
         // Forward is the body's local +z
         tmpV.set(0, 0, 1).applyQuaternion(tmpQ.set(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w));
@@ -307,6 +382,7 @@ window.Car = (function () {
         C.group.quaternion.copy(b.quaternion);
         if (C.interior) { C.interior.position.copy(b.position); C.interior.quaternion.copy(b.quaternion); C.interior.visible = C.view === 'cockpit'; }
         drawDash();
+        updateCockpitExtras(dt);
         for (let i = 0; i < 4; i++) {
             v.updateWheelTransform(i);
             const tr = v.wheelInfos[i].worldTransform;
@@ -323,9 +399,9 @@ window.Car = (function () {
         const b = C.body;
         tmpQ.set(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w);
         if (C.view === 'cockpit') {
-            tmpV.set(0.4, 0.72, 0.05).applyQuaternion(tmpQ).add(b.position);
+            tmpV.set(0.3, 0.74, -0.08).applyQuaternion(tmpQ).add(b.position);
             camera.position.copy(tmpV);
-            camLook.set(0.4, 0.55, 8).applyQuaternion(tmpQ).add(b.position);
+            camLook.set(0.3, 0.52, 8).applyQuaternion(tmpQ).add(b.position);
             camera.lookAt(camLook);
             camera.fov += ((80 + 12 * Math.min(C.mph / 200, 1)) - camera.fov) * (1 - Math.exp(-dt * 5));
             camera.updateProjectionMatrix();

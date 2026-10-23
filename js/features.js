@@ -196,7 +196,7 @@ window.Features = (function () {
     function tireHud() {
         const el = document.getElementById('hud-tires'); if (!el) return;
         const min = Math.min(...Tires.psi);
-        el.textContent = Tires.stranded ? 'STRANDED — tow truck on its way' : min < 14 ? 'LOW TIRE PRESSURE (' + Math.round(min) + ' psi)' : '';
+        el.textContent = Tires.stranded ? (Tires.tow ? 'STRANDED — tow truck on its way' : 'STRANDED — limp to a WORKSHOP (any city) or press TOW TRUCK') : min < 14 ? 'LOW TIRE PRESSURE (' + Math.round(min) + ' psi) — any city WORKSHOP fixes it' : '';
         el.style.color = Tires.stranded ? '#ff5d6c' : '#ffb000';
     }
     F.onImpact = function (speedAlongNormal) {
@@ -224,16 +224,60 @@ window.Features = (function () {
             const min = Math.min(...Tires.psi);
             Car.tireGrip = min < 14 ? 0.55 + (min / 14) * 0.45 : 1;
             if (min <= 6) {
-                Tires.stranded = true; Car.tireGrip = 0.2;
-                UI.toast('Tire blown out. A tow truck is coming.', 3000);
-                if (!Tires.tow) spawnTow();
+                Tires.stranded = true; Car.tireGrip = 0.3;
+                UI.toast('Tire blown out! Limp to a city WORKSHOP, or press TOW TRUCK.', 4000);
             }
             if (Math.floor(performance.now() / 500) % 2 === 0) tireHud();
             return;
         }
-        // stranded: creep only, wait for the tow truck
+        // stranded: creep only (to a workshop), or wait for the tow truck
         Car.cruise = null;
         updateTow(dt);
+    }
+    // FIX CAR button: at a workshop (within 40 m of its bay) the car is pulled into the bay and
+    // the repair runs; anywhere else it tells you where to go.
+    F.fixAtWorkshop = function () {
+        if (!Car.body) return;
+        let best = null, bd = 40;
+        World.cities.forEach(c => { const w = c.workshop; if (!c.loaded || !w) return; const d = Math.hypot(Car.body.position.x - w.center.x, Car.body.position.z - w.center.z); if (d < bd) { bd = d; best = w; } });
+        if (!best) { UI.toast('Drive to a city WORKSHOP first — it is beside every city\'s frontage road, just after the exit', 4000); return; }
+        if (best.state !== 'open' && best.state !== 'done') return;
+        const yaw = Math.atan2(Math.sin(best.yaw || 0), Math.cos(best.yaw || 0));
+        Car.teleport(best.center.x, best.center.y + 1.0, best.center.z, Car.yaw());
+        Car.cruise = null;
+        best.state = 'closing'; best.t = 0; Car.autoBrake = true;
+        UI.toast(best.city.name + ' workshop: door closing…', 2500);
+    };
+    // ---------- workshop ----------
+    // Every city has a workshop beside its frontage road (World builds it). Pull into the bay
+    // and stop: the door comes down, sparks fly for a few seconds, your tires are new again.
+    function updateWorkshop(dt) {
+        const p = Car.body.position;
+        World.cities.forEach(c => {
+            const w = c.workshop; if (!c.loaded || !w) return;
+            const d = Math.hypot(p.x - w.center.x, p.z - w.center.z);
+            const wantClosed = w.state === 'closing' || w.state === 'working';
+            w.door.position.y += ((wantClosed ? w.closedY : w.openY) - w.door.position.y) * Math.min(1, dt * 2.5);
+            if (w.state === 'open') {
+                if (d < 3.2 && Car.mph < 2 && !Car.parked) { w.state = 'closing'; w.t = 0; Car.autoBrake = true; UI.toast(c.name + ' workshop: door closing…', 2500); }
+            } else if (w.state === 'closing') {
+                if (Math.abs(w.door.position.y - w.closedY) < 0.15) { w.state = 'working'; w.t = 0; UI.toast('Working on your car…', 3500); if (window.GameAudio && GameAudio.clank) GameAudio.clank(); }
+            } else if (w.state === 'working') {
+                w.t += dt;
+                w.sparks.visible = Math.random() < 0.5; w.sparks.position.x = -1.5 + Math.random() * 3; w.sparks.position.z = -1.5 + Math.random() * 3;
+                if (Math.floor(w.t * 4) !== Math.floor((w.t - dt) * 4) && window.GameAudio && GameAudio.clank) GameAudio.clank();
+                if (w.t > 5) {
+                    w.sparks.visible = false; w.state = 'opening'; Car.autoBrake = false;
+                    Tires.psi = [32, 32, 32, 32]; Tires.stranded = false; Car.tireGrip = 1; tireHud();
+                    if (Tires.tow) { scene.remove(Tires.tow.mesh); Tires.tow = null; }
+                    UI.toast('All fixed — four new tires. Door opening!', 3000);
+                }
+            } else if (w.state === 'opening') {
+                if (Math.abs(w.door.position.y - w.openY) < 0.2) w.state = 'done';
+            } else if (w.state === 'done') {
+                if (d > 9) w.state = 'open';
+            }
+        });
     }
     // the closest loaded city that has a service station on its collector road
     function nearestStation() {
@@ -286,7 +330,7 @@ window.Features = (function () {
                 T.phase = 'tow'; T.t = 0;
                 Tires.stranded = false; Car.tireGrip = 1; Car.cruise = null;
                 SelfDrive.goTo(T.station.point, { quiet: true, tow: true, onArrive: () => { T.phase = 'drop'; T.t = 0; } });
-                UI.toast('Towing you to the ' + T.station.city.name + ' service station', 3000);
+                UI.toast('Towing you to the ' + T.station.city.name + ' workshop — hold on, 200 mph!', 3000);
             }
         } else if (T.phase === 'tow') {
             // the truck rides just ahead of the car, pulling it along the autopilot's route
@@ -294,9 +338,10 @@ window.Features = (function () {
             m.position.set(p.x + Math.sin(yaw) * 7.5, p.y - 0.9, p.z + Math.cos(yaw) * 7.5);
             m.rotation.y = yaw;
             if (!SelfDrive.active && SelfDrive.lastTow !== 'arrived') {   // the player grabbed the wheel
-                T.phase = 'leave'; T.t = 0; UI.toast('Unhooked. The tow truck leaves.', 2500);
+                T.phase = 'leave'; T.t = 0; Car.towed = false; UI.toast('Unhooked. The tow truck leaves.', 2500);
             }
         } else if (T.phase === 'drop') {
+            Car.towed = false;
             T.t += dt;
             if (T.t > 3) {
                 Tires.psi = [32, 32, 32, 32]; Tires.stranded = false; Car.tireGrip = 1; T.phase = 'leave'; T.t = 0;
@@ -332,7 +377,7 @@ window.Features = (function () {
     };
     F.update = function (dt) {
         if (!Car.body || !Game.started) return;
-        updateDelivery(dt); updateRain(dt); updateDrift(dt); updateLights(); updateAids(dt); updateTires(dt); updateTada();
+        updateDelivery(dt); updateRain(dt); updateDrift(dt); updateLights(); updateAids(dt); updateTires(dt); updateWorkshop(dt); updateTada();
     };
     return F;
 })();

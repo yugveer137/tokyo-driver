@@ -42,11 +42,11 @@ window.World = (function () {
         });
         const gapsRight = (opts.gapsRight || []).slice(), gapsLeft = (opts.gapsLeft || []).slice();
         cities.forEach((c, k) => {
-            if (c.side === 1) { gapsRight.push([c.s - 1250, c.s - 1020]); gapsRight.push([c.s + 890, c.s + 1120]); }
-            else { gapsLeft.push([c.s + 1020, c.s + 1250]); gapsLeft.push([c.s - 1120, c.s - 890]); }
+            if (c.side === 1) { gapsRight.push([c.s - 1250, c.s - 1040]); gapsRight.push([c.s + 910, c.s + 1120]); }
+            else { gapsLeft.push([c.s + 1040, c.s + 1250]); gapsLeft.push([c.s - 1120, c.s - 910]); }
             if (k < cities.length - 1) {
-                gapsRight.push([c.s + 1450, c.s + 1680]); gapsLeft.push([c.s + 1450, c.s + 1680]);   // northbound U-turn (s+1500)
-                gapsLeft.push([c.s + 2220, c.s + 2450]); gapsRight.push([c.s + 2220, c.s + 2450]);   // southbound U-turn (s+2400)
+                gapsRight.push([c.s + 1450, c.s + 1660]); gapsLeft.push([c.s + 1450, c.s + 1660]);   // northbound U-turn (s+1500)
+                gapsLeft.push([c.s + 2240, c.s + 2450]); gapsRight.push([c.s + 2240, c.s + 2450]);   // southbound U-turn (s+2400)
             }
         });
         const fw = Road.define({ type: 'freeway', name, points: lifted, gapsRight, gapsLeft, segLen: 8 });
@@ -70,7 +70,7 @@ window.World = (function () {
         pts.unshift([0, 0, -400]);
         // the I-15 loop leaves I-80 just before Reno (city 4) and rejoins before Las Vegas (city 5)
         const sLeave = cityS[4] - 1500, sJoin = cityS[5] - 2000;
-        const fw0 = defineFreeway('I-80', pts, i80specs, k => cityS[k], { gapsRight: [[sLeave - 50, sLeave + 180], [sJoin - 180, sJoin + 50]] });
+        const fw0 = defineFreeway('I-80', pts, i80specs, k => cityS[k], { gapsRight: [[sLeave - 50, sLeave + 160], [sJoin - 160, sJoin + 50]] });
         W.freeway = fw0;
 
         // ---- I-15 loop: leaves eastward, runs through three cities, comes back ----
@@ -153,17 +153,34 @@ window.World = (function () {
         if (limS > 60 && limS < fw.length - 60) { const a = at(limS, hw + 2.6); city.signs.push(Signs.plain(a.p, a.facing, 'ENTERING', name, 5, 2.4)); }
         const wel = Road.at(exit, 300, Road.types.ramp.laneW / 2 + Road.types.ramp.shoulder + 1.5); city.signs.push(Signs.plain(wel.p, Signs.facingFrom(wel.tan), 'WELCOME TO', name, 5, 2.4));
 
-        // service station beside the collector, just past the exit: where the tow truck takes you
-        const sv = Road.at(collector, 140, 0), svOff = Road.at(collector, 140, collector.halfW + 9);
+        // workshop beside the collector, just past the exit: pull in, the door comes down and
+        // your car gets fixed (Features.updateWorkshop). Also where the tow truck drops you.
+        const sv = Road.at(collector, 140, 0), svOff = Road.at(collector, 140, collector.halfW + 14);
         const svY = Terrain.height(svOff.p.x, svOff.p.z);
-        const garage = new THREE.Mesh(new THREE.BoxGeometry(14, 5, 9), new THREE.MeshStandardMaterial({ color: 0xe8e2d6, map: Tex.facade, roughness: 0.8 }));
-        garage.position.set(svOff.p.x, svY + 2.5, svOff.p.z); garage.rotation.y = Road.yawOf(sv.tan); garage.castShadow = true; garage.receiveShadow = true;
-        game.scene.add(garage); city.meshes.push(garage);
-        const door = new THREE.Mesh(new THREE.PlaneGeometry(6, 3.6), new THREE.MeshStandardMaterial({ color: 0x3a4650, roughness: 0.6 }));
-        door.position.copy(garage.position).addScaledVector(sv.right, -4.6); door.position.y = svY + 1.8; door.rotation.y = Road.yawOf(sv.tan) + Math.PI / 2;
-        game.scene.add(door); city.meshes.push(door);
-        const sp = Road.at(collector, 128, collector.halfW + 2.5); sp.p.y = Terrain.height(sp.p.x, sp.p.z) + 0.3;
-        city.signs.push(Signs.plain(sp.p, Signs.facingFrom(sv.tan) + Math.PI / 2, 'SERVICE', 'STATION', 4, 2.2));
+        const shop = new THREE.Group(); shop.position.set(svOff.p.x, svY, svOff.p.z); shop.rotation.y = Road.yawOf(sv.tan);
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0xe8e2d6, map: Tex.facade, roughness: 0.8 });
+        const darkMat = new THREE.MeshStandardMaterial({ color: 0x2a3038, roughness: 0.7 });
+        const add = (w, h, d, x, y, z, mat) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat || wallMat); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; shop.add(m); return m; };
+        // local +x faces the road (the door side); z runs along the road
+        add(11, 0.2, 16, 0, 0.1, 0, darkMat);                       // floor slab
+        add(0.3, 6, 16, -5.5, 3, 0);                                // back wall
+        add(11, 6, 0.3, 0, 3, 8); add(11, 6, 0.3, 0, 3, -8);        // side walls
+        add(11.6, 0.3, 16.6, 0, 6.1, 0, darkMat);                   // roof
+        add(0.3, 2.2, 16, 5.5, 7.1, 0);                             // parapet (hides the raised door)
+        add(0.3, 6, 5, 5.5, 3, 5.5); add(0.3, 6, 5, 5.5, 3, -5.5);  // front wall beside the 6-wide door
+        add(0.3, 1.2, 6, 5.5, 5.4, 0);                              // header over the door
+        const door = add(0.2, 4.8, 5.8, 5.45, 7.3, 0, new THREE.MeshStandardMaterial({ color: 0x8e98a4, roughness: 0.5, metalness: 0.4 }));
+        for (let k = 0; k < 4; k++) { const groove = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.06, 5.8), darkMat); groove.position.set(0, -1.8 + k * 1.2, 0); door.add(groove); }
+        const lift = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.3, 4.4), darkMat); lift.position.set(-0.5, 0.35, 0); shop.add(lift);   // car lift
+        const sparks = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffe08a })); sparks.position.set(-1.5, 1.2, 1.2); sparks.visible = false; shop.add(sparks);
+        game.scene.add(shop); city.meshes.push(shop);
+        // apron from the road edge to the door
+        const ap = Road.at(collector, 140, collector.halfW + 4.2);
+        city.meshes.push(Road.drapedQuad(ap.p.x, ap.p.z, 8, Road.yawOf(sv.tan) + Math.PI / 2, new THREE.MeshStandardMaterial({ color: 0x6f6f6c, map: Tex.concrete, roughness: 0.95 }), Road.DRAPE + 0.02, 2));
+        const sp = Road.at(collector, 150, collector.halfW + 7.5); sp.p.y = svY + 0.3;
+        city.signs.push(Signs.plain(sp.p, Signs.facingFrom(sv.tan) + Math.PI / 2, city.name.toUpperCase(), 'WORKSHOP', 4.5, 2.2));
+        const bay = svOff.p.clone(); bay.y = svY;
+        city.workshop = { city, center: bay, door, openY: 7.3, closedY: 2.5, sparks, state: 'open', t: 0 };
         city.servicePoint = Road.at(collector, 140, collector.lanes.find(l => l.dir === 1).offset).p.clone();
 
         // U-turns toward the next city on this freeway: forward one at +1500, the other at +2400
@@ -180,6 +197,7 @@ window.World = (function () {
                 const gg = atU(sU + dir * 210, hw + 1.5); city.signs.push(Signs.goreSign(gg.p, gg.facing, 'U-TURN'));
             });
         }
+        if (window.Peds) Peds.spawnCity(city);
         loadJunctions(city);
     }
 
@@ -230,6 +248,9 @@ window.World = (function () {
     W.speedLimitAt = function (pos) {
         const city = City.at(pos);
         if (city) return 30;
+        // on the freeway deck the limit is 65 even where an exit peels off beside you
+        const near = W.freewayAt(pos);
+        if (near.fw && near.n.dist < near.fw.width / 2 + 1.5 && Math.abs(pos.y - near.n.frame.p.y) < 4) return 65;
         let best = null, bd = Infinity;
         Road.all.forEach(r => { const n = Road.nearest(r, pos); if (n.dist < bd) { bd = n.dist; best = r; } });
         if (best && bd < best.width) return best.type === 'freeway' ? 65 : best.type === 'ramp' ? 35 : 45;

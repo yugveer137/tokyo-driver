@@ -186,14 +186,29 @@ window.SelfDrive = (function () {
         // how much the road bends in the next 40 units -> slow down for curves
         const t1 = Road.at(S.road, ahead1, 0).tan, t2 = Road.at(S.road, Math.max(0, Math.min(S.road.length, n.s + S.dir * 40)), 0).tan;
         const bend = Math.acos(Math.max(-1, Math.min(1, t1.dot(t2))));
-        // the tow truck is in a hurry: 100 on the freeway, 60 on ramps and streets, 35 in bends
+        // the tow truck is in a hurry: 200 mph on the freeway, 90 on ramps and streets, 60 in bends
         const tow = !!(S.opts && S.opts.tow);
-        const limit = S.road.type === 'freeway' ? (tow ? 100 : 62) : (tow ? 60 : 26);
+        const limit = S.road.type === 'freeway' ? (tow ? 200 : 62) : (tow ? 90 : 26);
         let target = limit;
-        if (bend > 0.12) target = Math.min(target, tow ? 35 : 16);
-        if (Math.abs(e) > 0.25) target = Math.min(target, tow ? 24 : 12);
-        if (toEnd < 30 && !onFreeway) target = Math.min(target, tow ? 28 : 14);
-        if (pos.distanceTo(S.dest) < 60) target = Math.min(target, 12);
+        if (bend > 0.12) target = Math.min(target, tow ? 60 : 16);
+        if (Math.abs(e) > 0.25) target = Math.min(target, tow ? 45 : 12);
+        if (toEnd < 30 && !onFreeway) target = Math.min(target, tow ? 40 : 14);
+        if (pos.distanceTo(S.dest) < 60) target = Math.min(target, tow ? 25 : 12);
+        if (tow) {
+            // towed: the truck drags the car along the lane kinematically (no engine, no cap), so
+            // 400 mph is fine and nothing can fling the car off the road
+            const want = target / CFG.MPH;
+            S.kin = Math.min(want, (S.kin || 0) + 70 * dt);
+            const s2 = Math.max(0, Math.min(S.road.length, n.s + S.dir * S.kin * dt));
+            const f = Road.at(S.road, s2, lane.offset);
+            const tan = f.tan.clone().multiplyScalar(S.dir);
+            const b = Car.body;
+            b.position.set(f.p.x, f.p.y + 0.95, f.p.z);
+            b.velocity.set(tan.x * S.kin, 0, tan.z * S.kin); b.angularVelocity.set(0, 0, 0);
+            b.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Road.yawOf(tan));
+            Car.towed = true; Car.cruise = null; Car.autoBrake = false;
+            return;
+        }
         Car.cruise = target;
         // stuck watchdog: 4 s without moving -> give up rather than sit there
         S.stuck = Car.mph < 1 ? (S.stuck || 0) + dt : 0;

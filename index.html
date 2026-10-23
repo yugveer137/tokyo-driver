@@ -123,7 +123,7 @@
         <div class="box row"><span>Coins: <b id="hud-coins">0</b></span><span>Car: <b id="hud-car">—</b></span><span>Area: <b id="hud-area">—</b></span><span>Time: <b id="hud-clock">—</b></span></div>
     </div>
     <div id="gear"><small>GEAR</small><div id="hud-gear">1</div></div>
-    <div id="hint"><kbd>W</kbd>/<kbd>S</kbd> drive &nbsp; <kbd>A</kbd>/<kbd>D</kbd> steer &nbsp; <kbd>Space</kbd> drift &nbsp; <kbd>F</kbd> horn<br><kbd>Z</kbd>/<kbd>X</kbd> gears &nbsp; <kbd>C</kbd> view &nbsp; <kbd>Q</kbd>/<kbd>E</kbd>/<kbd>H</kbd> signals &nbsp; <kbd>K</kbd> cruise &nbsp; <kbd>V</kbd> rain &nbsp; <kbd>R</kbd> reset</div>
+    <div id="hint"><kbd>W</kbd>/<kbd>S</kbd> drive &nbsp; <kbd>A</kbd>/<kbd>D</kbd> steer &nbsp; <kbd>Space</kbd> drift &nbsp; <kbd>F</kbd> horn<br><kbd>Z</kbd>/<kbd>X</kbd> gears &nbsp; <kbd>C</kbd> view &nbsp; <kbd>Q</kbd>/<kbd>E</kbd>/<kbd>H</kbd> signals &nbsp; <kbd>K</kbd> cruise &nbsp; <kbd>V</kbd> rain &nbsp; <kbd>R</kbd> reset &nbsp; <kbd>B</kbd> boost &nbsp; <kbd>G</kbd> walk &nbsp; <kbd>T</kbd> train</div>
     <div id="hud-fps"></div>
     <div id="side-btns">
         <button class="side-btn" id="garage-btn">GARAGE</button>
@@ -143,6 +143,10 @@
         <button class="side-btn" id="view-btn">VIEW</button>
         <button class="side-btn" id="reset-btn" style="background: linear-gradient(135deg, #ffb000, #d68a00); color: #1a1200">RESET CAR (R)</button>
         <button class="side-btn" id="tow-btn" style="background: linear-gradient(135deg, #ffcf4a, #e0a300); color: #1a1200">TOW TRUCK</button>
+        <button class="side-btn" id="fix-btn" style="background: linear-gradient(135deg, #38d66b, #1f9a4a)">FIX CAR</button>
+        <button class="side-btn" id="walk-btn" style="background: linear-gradient(135deg, #52b8ff, #1f7fd0)">WALK (G)</button>
+        <button class="side-btn" id="boost-btn" style="background: linear-gradient(135deg, #ff3b4a, #b80d1c)">BOOST (B)</button>
+        <button class="side-btn" id="music-btn" style="background: linear-gradient(135deg, #c04bff, #7a1fd0)">MUSIC</button>
     </div>
     <div id="hud-delivery"></div>
     <div id="hud-tires"></div>
@@ -203,6 +207,10 @@
         <div class="modal-head"><h2>MAP</h2><button class="toggle-btn" id="map-cancel">STOP SELF-DRIVE</button><button class="toggle-btn" data-close="map-modal">CLOSE</button></div>
         <div class="modal-body" style="padding:8px"><canvas id="map-canvas" style="width:100%;border-radius:10px;cursor:crosshair"></canvas></div>
     </div></div>
+    <div class="modal" id="music-modal"><div class="modal-box" style="width:min(460px,94vw)">
+        <div class="modal-head"><h2>MUSIC</h2><button class="toggle-btn" id="music-stop">STOP</button><button class="toggle-btn" data-close="music-modal">CLOSE</button></div>
+        <div class="modal-body" id="music-list"></div>
+    </div></div>
     <div class="modal" id="travel-modal"><div class="modal-box" style="width:min(420px,94vw)">
         <div class="modal-head"><h2>FAST TRAVEL</h2><button class="toggle-btn" data-close="travel-modal">CLOSE</button></div>
         <div class="modal-body" id="travel-list"></div>
@@ -218,7 +226,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
     <script>
     // Load the game files with a cache-busting stamp so Safari never runs a stale mix of old and new files
-    (function () { const v = Date.now(); ['config','save','textures','sky','terrain','road','signs','train','city','cities','traffic','world','carmodels','audio','car','game','features','races','selfdrive','multiplayer','osm','ui','minimap','debug','main'].forEach(function (f) { document.write('<script src="js/' + f + '.js?v=' + v + '"><\/script>'); }); })();
+    (function () { const v = Date.now(); ['config','save','textures','sky','terrain','road','signs','train','peds','walk','music','city','cities','traffic','world','carmodels','audio','car','game','features','races','selfdrive','multiplayer','osm','ui','minimap','debug','main'].forEach(function (f) { document.write('<script src="js/' + f + '.js?v=' + v + '"><\/script>'); }); })();
     </script>
 </body>
 </html>
