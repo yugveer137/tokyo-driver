@@ -1,5 +1,6 @@
 // tokyo-driver1 v2 — MUSIC. A few original rap tracks the game makes on the fly with WebAudio
-// (kick, snare, hats, 808 bass, a synth line) and raps through the browser's speech voice.
+// (kick, snare, hats, 808 bass, a synth line). Instrumental only: the lyrics are kept in the
+// song list for reference but are not spoken (the user wanted no talking).
 // No audio files, nothing downloaded. Music.play(id) / Music.stop(); Music.songs lists them.
 window.Music = (function () {
     const M = { songs: [], current: null, playing: false };
@@ -78,7 +79,7 @@ window.Music = (function () {
         const Ctx = window.AudioContext || window.webkitAudioContext; if (!Ctx) return;
         ctx = new Ctx();
         const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 6;
-        master = ctx.createGain(); master.gain.value = 0.35;
+        master = ctx.createGain(); master.gain.value = 0.7;
         master.connect(comp); comp.connect(ctx.destination);
         noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
         const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -155,7 +156,6 @@ window.Music = (function () {
         const stepLen = 60 / song.bpm / 4;
         while (nextStep < ctx.currentTime + 0.25) {
             playStep(step, nextStep);
-            if (step === 0 && bar >= 2) speakLine(song.lyrics[(bar - 2) % song.lyrics.length], (nextStep - ctx.currentTime) * 1000);
             step = (step + 1) % 16; if (step === 0) bar++;
             nextStep += stepLen;
         }
@@ -167,7 +167,6 @@ window.Music = (function () {
         song = M.songs.find(s => s.id === id) || M.songs[0];
         M.current = song; M.playing = true;
         step = 0; bar = 0; nextStep = ctx.currentTime + 0.1;
-        if (window.speechSynthesis) { try { speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(' ')); } catch (e) {} }   // unlock the voice on this click
         timer = setInterval(schedule, 50); schedule();
         if (window.UI) UI.toast('♪ ' + song.title, 2500);
     };

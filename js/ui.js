@@ -108,7 +108,7 @@ window.UI = (function () {
             list.appendChild(b);
         });
         const note = document.createElement('div'); note.style.cssText = 'opacity:0.7;font-size:0.8rem;margin-top:8px;line-height:1.4';
-        note.textContent = 'Four original rap tracks the game plays live (beat, 808s, synth). The rap voice is your browser\'s speech voice, so it sounds different on every device.';
+        note.textContent = 'Four original instrumental rap beats the game plays live (drums, 808s, synth).';
         list.appendChild(note);
     };
     U.showMenu = function () { $('start-screen').style.display = 'flex'; };
