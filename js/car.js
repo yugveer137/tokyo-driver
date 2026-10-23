@@ -75,6 +75,12 @@ window.Car = (function () {
         body.addShape(new CANNON.Box(t.half), new CANNON.Vec3(0, t.offsetY, 0));
         body.position.set(pos.x, pos.y, pos.z);
         body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), yaw || 0);
+        // hard hits (walls, buildings, traffic) are reported to Features for tire damage
+        body.addEventListener('collide', (e) => {
+            if (!C.onImpact) return;
+            const v = Math.abs(e.contact.getImpactVelocityAlongNormal());
+            if (v > 4) C.onImpact(v);
+        });
         world.addBody(body);
 
         const vehicle = new CANNON.RaycastVehicle({ chassisBody: body, indexRightAxis: 0, indexUpAxis: 1, indexForwardAxis: 2 });
@@ -206,6 +212,9 @@ window.Car = (function () {
         }
         if (C.drifting) engine *= 0.6;
         if (C.autoBrake && C.mph > 2) { engine = 0; brake = Math.max(brake, 35); C.throttle = 0; }
+        // worn tires: less power and a lower cap (Features.tires)
+        const grip = C.tireGrip === undefined ? 1 : C.tireGrip;
+        if (grip < 1) { engine *= grip; if (C.mph > 25 + 60 * grip) engine = 0; }
         v.applyEngineForce(engine, 2); v.applyEngineForce(engine, 3);
         for (let i = 0; i < 4; i++) v.setBrake(brake, i);
 

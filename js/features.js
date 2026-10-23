@@ -187,10 +187,94 @@ window.Features = (function () {
         }
     }
 
-    F.init = function (sc) { scene = sc; };
+    // ---------- tires + tow truck ----------
+    // Pressure wears with speed and drops on hard impacts. Low pressure softens handling and
+    // caps speed; at <= 6 psi the car is stranded until a tow truck drives up and repairs it.
+    const Tires = { psi: [32, 32, 32, 32], stranded: false, tow: null, lastImpact: 0 };
+    F.tires = Tires;
+    function tireHud() {
+        const el = document.getElementById('hud-tires'); if (!el) return;
+        const min = Math.min(...Tires.psi);
+        el.textContent = Tires.stranded ? 'STRANDED — tow truck on its way' : min < 14 ? 'LOW TIRE PRESSURE (' + Math.round(min) + ' psi)' : '';
+        el.style.color = Tires.stranded ? '#ff5d6c' : '#ffb000';
+    }
+    F.onImpact = function (speedAlongNormal) {
+        const now = performance.now();
+        if (speedAlongNormal < 7 || now - Tires.lastImpact < 800) return;
+        Tires.lastImpact = now;
+        const i = Math.floor(Math.random() * 4);
+        Tires.psi[i] = Math.max(0, Tires.psi[i] - (12 + Math.random() * 22));
+        UI.toast('Crash! Tire ' + (i + 1) + ' lost pressure');
+        if (window.GameAudio) GameAudio.npcHorn();
+        tireHud();
+    };
+    function updateTires(dt) {
+        if (!Tires.stranded) {
+            const wear = Car.mph > 100 ? 0.08 : Car.mph > 60 ? 0.02 : 0.005;
+            for (let i = 0; i < 4; i++) Tires.psi[i] = Math.max(0, Tires.psi[i] - wear * dt);
+            const min = Math.min(...Tires.psi);
+            Car.tireGrip = min < 14 ? 0.55 + (min / 14) * 0.45 : 1;
+            if (min <= 6) {
+                Tires.stranded = true; Car.tireGrip = 0.2;
+                UI.toast('Tire blown out. A tow truck is coming.', 3000);
+                spawnTow();
+            }
+            if (Math.floor(performance.now() / 500) % 2 === 0) tireHud();
+            return;
+        }
+        // stranded: creep only, wait for the tow truck
+        Car.cruise = null;
+        updateTow(dt);
+    }
+    function spawnTow() {
+        const g = new THREE.Group();
+        const paint = new THREE.MeshStandardMaterial({ color: 0xffb000, roughness: 0.5 }), dark = new THREE.MeshStandardMaterial({ color: 0x222222 });
+        const bed = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.8, 6), paint); bed.position.y = 0.9; g.add(bed);
+        const cab = new THREE.Mesh(new THREE.BoxGeometry(2.1, 1.3, 2), dark); cab.position.set(0, 1.9, 1.8); g.add(cab);
+        const boom = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 3), paint); boom.position.set(0, 2.2, -1.6); boom.rotation.x = 0.5; g.add(boom);
+        const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 6), new THREE.MeshStandardMaterial({ color: 0xffa000, emissive: 0xffa000, emissiveIntensity: 2 })); beacon.position.set(0, 2.7, 1.8); g.add(beacon);
+        const wheelGeom = new THREE.CylinderGeometry(0.45, 0.45, 0.4, 10); wheelGeom.rotateZ(Math.PI / 2);
+        [[1, 2], [-1, 2], [1, -1.8], [-1, -1.8]].forEach(([x, z]) => { const w = new THREE.Mesh(wheelGeom, dark); w.position.set(x, 0.45, z); g.add(w); });
+        g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+        // start 120 units behind the car along its heading, on the ground
+        const yaw = Car.yaw(), p = Car.body.position;
+        const sx = p.x - Math.sin(yaw) * 120, sz = p.z - Math.cos(yaw) * 120;
+        g.position.set(sx, Terrain.height(sx, sz), sz); g.rotation.y = yaw;
+        scene.add(g);
+        Tires.tow = { mesh: g, phase: 'approach', t: 0, beacon };
+    }
+    function updateTow(dt) {
+        const T = Tires.tow; if (!T) return;
+        const p = Car.body.position, m = T.mesh;
+        T.beacon.material.emissiveIntensity = Math.floor(performance.now() / 300) % 2 ? 2.5 : 0.2;
+        if (T.phase === 'approach') {
+            const dx = p.x - m.position.x, dz = p.z - m.position.z, d = Math.hypot(dx, dz);
+            if (d > 9) {
+                const step = Math.min(d - 9, 14 * dt);
+                m.position.x += dx / d * step; m.position.z += dz / d * step;
+                m.position.y = Math.max(Terrain.height(m.position.x, m.position.z), p.y - 0.8) ;
+                m.rotation.y = Math.atan2(dx, dz);
+            } else { T.phase = 'repair'; T.t = 0; UI.toast('Tow truck here. Repairing tires…', 2500); }
+        } else if (T.phase === 'repair') {
+            T.t += dt;
+            if (T.t > 5) {
+                Tires.psi = [32, 32, 32, 32]; Tires.stranded = false; Car.tireGrip = 1; T.phase = 'leave'; T.t = 0;
+                UI.toast('Tires repaired. Drive on!', 2500); tireHud();
+            }
+        } else {
+            T.t += dt;
+            m.position.x += Math.sin(m.rotation.y) * 12 * dt; m.position.z += Math.cos(m.rotation.y) * 12 * dt;
+            if (T.t > 8) { scene.remove(m); Tires.tow = null; }
+        }
+    }
+
+    F.init = function (sc) {
+        scene = sc;
+        Car.onImpact = F.onImpact;
+    };
     F.update = function (dt) {
         if (!Car.body || !Game.started) return;
-        updateDelivery(dt); updateRain(dt); updateDrift(dt); updateLights(); updateAids(dt);
+        updateDelivery(dt); updateRain(dt); updateDrift(dt); updateLights(); updateAids(dt); updateTires(dt);
     };
     return F;
 })();
