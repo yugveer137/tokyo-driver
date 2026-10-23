@@ -58,6 +58,7 @@
         UI.init();
         SelfDrive.init();
         Multiplayer.init(scene);
+        OSM.init(scene, world);
         Minimap.init();
         World.build();
         Game.load();
@@ -97,7 +98,7 @@
         if (Car.body) {
             Traffic.update(dt, Car.body.position, Car.mph / CFG.MPH);
             if (Game.started) Game.updateCoins(dt, Car.body.position);
-            if (frameNo++ % 15 === 0) {
+            if (frameNo++ % 15 === 0 && !OSM.isReal()) {
                 UI.area = World.areaAt(Car.body.position);
                 UI.limit = World.speedLimitAt(Car.body.position);
             }

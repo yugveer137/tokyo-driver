@@ -57,6 +57,8 @@ window.UI = (function () {
         $('train-btn').onclick = () => { if (Game.started) Train.toggle(); };
         $('map-btn').onclick = () => { SelfDrive.draw(); $('map-modal').classList.add('open'); };
         $('map-cancel').onclick = () => { SelfDrive.cancel(); U.closeModals(); };
+        $('osm-btn').onclick = () => { if (Game.started) OSM.enter(); };
+        $('osm-exit').onclick = () => OSM.exit();
         $('fwrace-btn').onclick = () => { if (Game.started) Races.startFreeway(); };
         $('lane-btn').onclick = () => { if (Game.started) Features.toggleLaneLock(); };
         $('front-btn').onclick = () => { if (Game.started) Features.toggleFrontLock(); };

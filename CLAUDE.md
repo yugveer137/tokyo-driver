@@ -51,7 +51,10 @@ Serve the repo root (e.g. `python3 -m http.server 8731`, also `.claude/launch.js
 - Cities register terrain plateaus at define time; streets/buildings are built lazily within ~2700
   units of the player and dropped beyond ~3900.
 
-## Not yet ported from classic.html
+## Also in js/
 
-Multiplayer (PeerJS), street/freeway races, train, tires + tow truck, map + self-drive,
-lane/front lock, turn signals/hazards. The OpenStreetMap "real map" mode is still to do.
+`races.js` (freeway race vs AI, city checkpoint race), `train.js` (railway + stations + drivable
+train, T), `selfdrive.js` (route map M + click-to-self-drive), `multiplayer.js` (PeerJS invite
+link, 20 Hz sync, `?room=`), `osm.js` (REAL MAP: Overpass streets + extruded buildings of the
+current city's real downtown, built at x=60000). `features.js` also holds lane/front lock,
+tires + tow truck and turn signals. Everything from classic.html is ported.
