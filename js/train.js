@@ -93,7 +93,11 @@ window.Train = (function () {
         const path = Road.drapedQuad(pathMid.p.x, pathMid.p.z, 2.4, Road.yawOf(pathMid.tan) + Math.PI / 2, stairMat, Road.DRAPE + 0.03, 2); path.scale.z = pathLen / 2.4; group.push(path);
         if (window.Walk) { const sf = Walk.addSurface(top, bot, 1.5, city); const ps = Walk.addSurface(bot, Road.at(fw, city.s - 30, T.LAT - 6).p, 1.5, city); }
         if (window.Peds) Peds.spawnPlatform(city, f.p, f.tan);
-        T.stations.push({ city, s: city.s, meshes: group });
+        // a tall blue beacon so the stop can be seen from the freeway when you are on foot
+        const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 40, 8), new THREE.MeshBasicMaterial({ color: 0x3fa9ff, transparent: true, opacity: 0.55 }));
+        beacon.position.copy(f.p); beacon.position.y = Terrain.height(f.p.x, f.p.z) + 20; group.push(beacon);
+        const platform = f.p.clone(); platform.y = Terrain.height(f.p.x, f.p.z) + 0.9;
+        T.stations.push({ city, s: city.s, meshes: group, platform });
         return group;
     };
 

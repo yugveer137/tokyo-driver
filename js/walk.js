@@ -59,17 +59,17 @@ window.Walk = (function () {
     };
     W.getIn = function () {
         if (W.avatar) scene.remove(W.avatar); W.avatar = null;
-        W.active = false; Car.parked = false; Car.view = prevView;
+        W.active = false; Car.parked = false; Car.view = prevView; W.hideGuide();
         UI.toast('Back in the car');
     };
     W.leaveForTrain = function () {           // the train takes over from here
         if (W.avatar) scene.remove(W.avatar); W.avatar = null;
-        W.active = false; Car.parked = false; Car.view = prevView;
+        W.active = false; Car.parked = false; Car.view = prevView; W.hideGuide();
     };
 
     W.update = function (dt) {
         if (!W.active || !W.avatar) return;
-        const k = Car.keys, run = k.drift, sp = run ? 6 : 3;
+        const k = Car.keys, run = k.drift, sp = run ? 9 : 4;
         if (k.left) W.yaw += 2.6 * dt;
         if (k.right) W.yaw -= 2.6 * dt;
         let mv = 0; if (k.fwd) mv = sp; else if (k.back) mv = -sp * 0.55;
@@ -86,6 +86,8 @@ window.Walk = (function () {
         camPos.lerp(tmp, 1 - Math.exp(-dt * 7)); camera.position.copy(camPos);
         camLook.set(Math.sin(W.yaw) * 2, 1.4, Math.cos(W.yaw) * 2).add(W.pos); camera.lookAt(camLook);
         camera.fov += (70 - camera.fov) * (1 - Math.exp(-dt * 4)); camera.updateProjectionMatrix();
+        // guide line to the nearest train stop, so you can walk there on your own
+        guide();
         // hints
         const now = performance.now();
         if (now - lastHint > 4000) {
@@ -93,5 +95,20 @@ window.Walk = (function () {
             else if (window.Train && Train.near(W.pos)) { UI.toast('T: board the train', 1500); lastHint = now; }
         }
     };
+    // "Train stop 240 m, up ahead on your left" while on foot; the station beacon marks it
+    let guideEl = null, guideFrame = 0;
+    function guide() {
+        if (guideFrame++ % 10 || !window.Train) return;
+        if (!guideEl) { guideEl = document.getElementById('hud-walk'); if (!guideEl) return; }
+        let best = null, bd = Infinity;
+        Train.stations.forEach(st => { if (!st.city.loaded || !st.platform) return; const d = st.platform.distanceTo(W.pos); if (d < bd) { bd = d; best = st; } });
+        if (!best) { guideEl.textContent = 'No train stop near here — stops are beside the freeway at every city'; return; }
+        const dx = best.platform.x - W.pos.x, dz = best.platform.z - W.pos.z;
+        let rel = Math.atan2(dx, dz) - W.yaw; while (rel > Math.PI) rel -= 2 * Math.PI; while (rel < -Math.PI) rel += 2 * Math.PI;
+        const where = Math.abs(rel) < 0.4 ? 'straight ahead' : Math.abs(rel) > 2.7 ? 'behind you' : rel > 0 ? 'on your left' : 'on your right';
+        const steps = bd < 15 ? 'Train stop right here — press T when the train is in' : best.city.name + ' train stop: ' + Math.round(bd) + ' m, ' + where + (bd > 60 ? ' (look for the blue beacon; stairs go down from the freeway\'s left shoulder)' : '');
+        guideEl.textContent = steps;
+    }
+    W.hideGuide = function () { if (guideEl) guideEl.textContent = ''; };
     return W;
 })();

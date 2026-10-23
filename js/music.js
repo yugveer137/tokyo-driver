@@ -78,8 +78,8 @@ window.Music = (function () {
         if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
         const Ctx = window.AudioContext || window.webkitAudioContext; if (!Ctx) return;
         ctx = new Ctx();
-        const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 6;
-        master = ctx.createGain(); master.gain.value = 0.7;
+        const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -10; comp.ratio.value = 8; comp.knee.value = 6;
+        master = ctx.createGain(); master.gain.value = 1.4;    // loud; the compressor keeps it from clipping
         master.connect(comp); comp.connect(ctx.destination);
         noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
         const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
