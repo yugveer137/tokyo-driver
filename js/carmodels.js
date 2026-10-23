@@ -261,8 +261,8 @@
                 maxSpeed: 2000,
                 acceleration: 100,
                 handling: 0.022,
-                color: 0x111111,
-                bodyColor: 0x111111,
+                color: 0x23272e,
+                bodyColor: 0x23272e,
                 isElectric: true,
                 heavyCar: true,
                 isRaceCar: true
@@ -1019,6 +1019,11 @@
                 [-1, 1].forEach(sd => _cv.box(g, 0.04, 0.3, 0.6, carbon, sd * 1.0, 1.24, -2.0, 0, 0, 0, false));
                 _cv.arches(g, 2.2, bodyMat, { zs: [1.5, -1.5], y: 0.05, r: 0.44 });
                 _cv.mirrors(g, 2.0, 0.86, 0.35, bodyMat);
+                // Racing livery so a dark body still reads as a car: twin stripes + door numbers
+                const stripe = new THREE.MeshStandardMaterial({ color: 0xff2d2d, roughness: 0.4, metalness: 0.2 });
+                [-0.32, 0.32].forEach(x => { _cv.box(g, 0.22, 0.02, 2.2, stripe, x, 0.585, 1.2, 0, 0, 0, false); _cv.box(g, 0.2, 0.02, 1.5, stripe, x, 0.99, -0.2, 0, 0, 0, false); });
+                const plate = new THREE.MeshStandardMaterial({ color: 0xf4f4f4, roughness: 0.5 });
+                [-1, 1].forEach(sd => _cv.box(g, 0.02, 0.26, 0.5, plate, sd * 1.11, 0.42, 0.2, 0, 0, 0, false));
                 [-0.7, 0.7].forEach(x => _cv.box(g, 0.5, 0.06, 0.06, _cv.emissive(0xffffff), x, 0.45, 2.3, 0, 0, 0, false));
                 _cv.box(g, 1.8, 0.06, 0.06, _cv.emissive(0xff1a1a), 0, 0.45, -2.3, 0, 0, 0, false);
                 [-0.6, 0.6].forEach(x => _cv.box(g, 0.5, 0.15, 0.1, carbon, x, 0.3, 2.3));

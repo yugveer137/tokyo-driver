@@ -5,16 +5,17 @@ window.CFG = {
     CYCLE: { day: 60, night: 60 },      // seconds; dawn and dusk blend inside these
     MPH: 2.237,                         // units/s -> mph
 
-    // Gearbox ported from the old game: each gear caps speed at a fraction of the car's max
-    // and scales engine force.
+    // Gearbox: each gear caps speed at a fraction of the car's max. The old game also cut the
+    // engine force in higher gears, which made shifting up feel like slowing down; now every
+    // forward gear pulls the same, so shifting up only ever raises the ceiling.
     GEARS: [
         { name: 'R', speedFrac: 0.2,  force: 0.5 },
-        { name: '1', speedFrac: 0.5,  force: 2.0 },
-        { name: '2', speedFrac: 0.65, force: 1.6 },
-        { name: '3', speedFrac: 0.8,  force: 1.3 },
-        { name: '4', speedFrac: 0.9,  force: 1.0 },
-        { name: '5', speedFrac: 0.95, force: 0.8 },
-        { name: '6', speedFrac: 1.0,  force: 0.65 }
+        { name: '1', speedFrac: 0.5,  force: 1.8 },
+        { name: '2', speedFrac: 0.65, force: 1.8 },
+        { name: '3', speedFrac: 0.8,  force: 1.8 },
+        { name: '4', speedFrac: 0.9,  force: 1.8 },
+        { name: '5', speedFrac: 0.95, force: 1.8 },
+        { name: '6', speedFrac: 1.0,  force: 1.8 }
     ],
 
     // Used until carmodels.js (the ported 32-car table) is loaded.

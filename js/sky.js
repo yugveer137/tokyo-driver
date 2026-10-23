@@ -80,6 +80,21 @@ window.Sky = (function () {
 
         scene.fog = new THREE.FogExp2(0xcfe6ff, 0.0012);
         scene.background = null;
+        // Environment maps so metallic paint and glass reflect the sky (day and night versions)
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        const envFrom = (top, hor, ground, sunX) => {
+            const c = document.createElement('canvas'); c.width = 256; c.height = 128;
+            const ctx = c.getContext('2d');
+            const g = ctx.createLinearGradient(0, 0, 0, 128);
+            g.addColorStop(0, top); g.addColorStop(0.5, hor); g.addColorStop(0.55, ground); g.addColorStop(1, ground);
+            ctx.fillStyle = g; ctx.fillRect(0, 0, 256, 128);
+            if (sunX !== undefined) { const r = ctx.createRadialGradient(sunX, 40, 2, sunX, 40, 30); r.addColorStop(0, 'rgba(255,250,230,1)'); r.addColorStop(1, 'rgba(255,250,230,0)'); ctx.fillStyle = r; ctx.fillRect(0, 0, 256, 128); }
+            const t = new THREE.CanvasTexture(c); t.mapping = THREE.EquirectangularReflectionMapping;
+            const env = pmrem.fromEquirectangular(t).texture; t.dispose(); return env;
+        };
+        S.envDay = envFrom('#5a93e0', '#dbe9ff', '#6f7f66', 190);
+        S.envNight = envFrom('#070a1a', '#1a2040', '#0b0d12');
+        scene.environment = S.envDay;
         S.update(0, new THREE.Vector3());
     };
 
@@ -121,6 +136,7 @@ window.Sky = (function () {
         scene.fog.density = (0.0025 - 0.0013 * dl) * (S.rain ? 1.8 : 1) * (S.fogBoost || 1);
         if (S.rain) { u.uTop.value.multiplyScalar(0.55); u.uHorizon.value.multiplyScalar(0.7); sun.intensity *= 0.5; }
         if (renderer) renderer.toneMappingExposure = 0.8 + 0.25 * dl;
+        if (S.envDay) { const want = dl > 0.4 ? S.envDay : S.envNight; if (scene.environment !== want) scene.environment = want; }
     };
 
     // Clock text for the HUD: 24-hour cycle mapped onto the day/night loop, 6:00 = sunrise
