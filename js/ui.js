@@ -22,6 +22,9 @@ window.UI = (function () {
             if (e.code === 'KeyN') Sky.speed = Sky.speed === 1 ? 12 : 1;
             if (e.code === 'KeyV') Features.toggleRain();
             if (e.code === 'KeyK') Features.toggleCruise();
+            if (e.code === 'KeyQ') Features.setSignal('left');
+            if (e.code === 'KeyE') Features.setSignal('right');
+            if (e.code === 'KeyH') Features.setSignal('hazard');
             if (e.code === 'Escape') U.closeModals();
         });
         window.addEventListener('keyup', e => { if (keyMap[e.code]) Car.keys[keyMap[e.code]] = false; });

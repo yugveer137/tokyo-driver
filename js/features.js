@@ -99,10 +99,28 @@ window.Features = (function () {
         }
     }
 
+    // ---------- turn signals, hazards, brake lights ----------
+    // The ported car bodies expose group.userData.hazardLights (each with userData.side) and
+    // .brakeLights; we drive their opacity like the old updateHazardLights() did.
+    F.signal = 'off';           // 'off' | 'left' | 'right' | 'hazard'
+    F.setSignal = function (s) {
+        F.signal = (F.signal === s) ? 'off' : s;
+        UI.toast(F.signal === 'off' ? 'Signals off' : F.signal === 'hazard' ? 'Hazard lights on' : 'Signalling ' + F.signal);
+    };
+    function updateLights() {
+        const ud = Car.group && Car.group.userData; if (!ud) return;
+        const blinkOn = Math.floor(performance.now() / 400) % 2 === 0;
+        (ud.hazardLights || []).forEach(l => {
+            const active = (F.signal === 'hazard' || F.signal === l.userData.side) && blinkOn;
+            l.material.opacity = active ? 1 : 0;
+        });
+        (ud.brakeLights || []).forEach(l => { l.material.opacity = Car.keys.back ? 1 : 0.3; });
+    }
+
     F.init = function (sc) { scene = sc; };
     F.update = function (dt) {
         if (!Car.body || !Game.started) return;
-        updateDelivery(dt); updateRain(dt); updateDrift(dt);
+        updateDelivery(dt); updateRain(dt); updateDrift(dt); updateLights();
     };
     return F;
 })();
