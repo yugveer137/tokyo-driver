@@ -43,6 +43,7 @@
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1200);
         initRenderer();
         initPhysics();
+        window.game = { scene, camera, renderer, world, tick, render: () => renderer.render(scene, camera) };   // shared handles (also for console tests)
         Tex.build(renderer);
         Sky.init(scene, renderer);
         Terrain.init(scene, world);
@@ -70,7 +71,6 @@
         Multiplayer.checkInvite();
 
         clock = new THREE.Clock();
-        window.game = { scene, camera, renderer, world, tick, render: () => renderer.render(scene, camera) };   // for debugging in the console
         requestAnimationFrame(loop);
     }
 

@@ -45,11 +45,12 @@ window.World = (function () {
         // barrier gaps where ramps leave and join each carriageway
         const gapsRight = [], gapsLeft = [];
         W.cities.forEach((c, k) => {
-            if (c.side === 1) { gapsRight.push([c.s - 1250, c.s - 900]); gapsRight.push([c.s + 770, c.s + 1120]); }
-            else { gapsLeft.push([c.s + 900, c.s + 1250]); gapsLeft.push([c.s - 1120, c.s - 770]); }
+            // the freeway wall opens only while a ramp runs alongside the deck (first/last 180 units)
+            if (c.side === 1) { gapsRight.push([c.s - 1250, c.s - 1020]); gapsRight.push([c.s + 890, c.s + 1120]); }
+            else { gapsLeft.push([c.s + 1020, c.s + 1250]); gapsLeft.push([c.s - 1120, c.s - 890]); }
             if (k < W.cities.length - 1) {
-                gapsRight.push([c.s + 1450, c.s + 1950]); gapsLeft.push([c.s + 1450, c.s + 1950]);   // northbound U-turn (s+1500)
-                gapsLeft.push([c.s + 1960, c.s + 2450]); gapsRight.push([c.s + 1960, c.s + 2450]);   // southbound U-turn (s+2400)
+                gapsRight.push([c.s + 1450, c.s + 1680]); gapsLeft.push([c.s + 1450, c.s + 1680]);   // northbound U-turn (s+1500)
+                gapsLeft.push([c.s + 2220, c.s + 2450]); gapsRight.push([c.s + 2220, c.s + 2450]);   // southbound U-turn (s+2400)
             }
         });
         W.freeway = Road.define({ type: 'freeway', name: 'I-80', points: lifted, gapsRight, gapsLeft, segLen: 8 });
@@ -66,16 +67,18 @@ window.World = (function () {
     // U-turns on the way to the next city.
     function loadCityRoads(city) {
         const fw = W.freeway, hw = fw.width / 2, d = city.side;
+        // The ramps' peel-off profile ends 280 units from the exit/merge point; the foot of each
+        // ramp sits another ~160 units on so the last drop/climb (about 8 m) stays gentle.
         const sExit = city.s - d * 1200, sMerge = city.s + d * 1070;
         const pts = [];
-        for (let k = -900; k <= 780; k += 60) { const f = Road.at(fw, city.s + d * k, d * COLLECTOR_LAT); pts.push([f.p.x, 0, f.p.z]); }
+        for (let k = -780; k <= 700; k += 60) { const f = Road.at(fw, city.s + d * k, d * COLLECTOR_LAT); pts.push([f.p.x, 0, f.p.z]); }
         const collector = Road.build({ type: 'avenue', name: city.collectorName || (city.name + ' Frontage Rd'), conform: true, points: pts });
         city.roads.push(collector);
         city.collector = collector;
-        const land = Road.at(fw, city.s - d * 900, d * COLLECTOR_LAT);
+        const land = Road.at(fw, city.s - d * 760, d * COLLECTOR_LAT);
         const exit = Road.exit(fw, sExit, d, land.p, land.tan.clone().multiplyScalar(d), 'Exit ' + city.exitNumber);
         city.roads.push(exit); W.exits.push(exit);
-        const leave = Road.at(fw, city.s + d * 780, d * COLLECTOR_LAT);
+        const leave = Road.at(fw, city.s + d * 620, d * COLLECTOR_LAT);
         const ramp = Road.onramp(fw, sMerge, d, leave.p, leave.tan.clone().multiplyScalar(d), city.name + ' on-ramp');
         city.roads.push(ramp);
         Traffic.linkRamp(exit); Traffic.linkRamp(ramp);
@@ -97,6 +100,19 @@ window.World = (function () {
         if (limS > 60 && limS < fw.length - 60) { const a = at(limS, hw + 2.6); city.signs.push(Signs.plain(a.p, a.facing, 'ENTERING', name, 5, 2.4)); }
         const wel = Road.at(exit, 300, Road.types.ramp.laneW / 2 + Road.types.ramp.shoulder + 1.5); city.signs.push(Signs.plain(wel.p, Signs.facingFrom(wel.tan), 'WELCOME TO', name, 5, 2.4));
 
+        // service station beside the collector, just past the exit: where the tow truck takes you
+        const sv = Road.at(collector, 140, 0), svOff = Road.at(collector, 140, collector.halfW + 9);
+        const svY = Terrain.height(svOff.p.x, svOff.p.z);
+        const garage = new THREE.Mesh(new THREE.BoxGeometry(14, 5, 9), new THREE.MeshStandardMaterial({ color: 0xe8e2d6, map: Tex.facade, roughness: 0.8 }));
+        garage.position.set(svOff.p.x, svY + 2.5, svOff.p.z); garage.rotation.y = Road.yawOf(sv.tan); garage.castShadow = true; garage.receiveShadow = true;
+        game.scene.add(garage); city.meshes.push(garage);
+        const door = new THREE.Mesh(new THREE.PlaneGeometry(6, 3.6), new THREE.MeshStandardMaterial({ color: 0x3a4650, roughness: 0.6 }));
+        door.position.copy(garage.position).addScaledVector(sv.right, -4.6); door.position.y = svY + 1.8; door.rotation.y = Road.yawOf(sv.tan) + Math.PI / 2;
+        game.scene.add(door); city.meshes.push(door);
+        const sp = Road.at(collector, 128, collector.halfW + 2.5); sp.p.y = Terrain.height(sp.p.x, sp.p.z) + 0.3;
+        city.signs.push(Signs.plain(sp.p, Signs.facingFrom(sv.tan) + Math.PI / 2, 'SERVICE', 'STATION', 4, 2.2));
+        city.servicePoint = Road.at(collector, 140, collector.lanes.find(l => l.dir === 1).offset).p.clone();
+
         // U-turns toward the next city: northbound one at +1500, southbound one at +2400
         // (each loop spans about 470 units of freeway on both sides; they must not overlap)
         const k = W.cities.indexOf(city);
@@ -116,9 +132,9 @@ window.World = (function () {
 
     // Stream freeway chunks and cities around the player
     let lastS = 0, frame = 0;
-    W.update = function (pos) {
+    W.update = function (pos, force) {
         frame++;
-        if (frame % 10 === 1) lastS = Road.nearest(W.freeway, pos).s;
+        if (force || frame % 10 === 1) lastS = Road.nearest(W.freeway, pos).s;
         const fw = W.freeway;
         const c0 = Math.floor((lastS - LOAD_DIST) / CHUNK), c1 = Math.floor((lastS + LOAD_DIST) / CHUNK);
         for (let c = Math.max(0, c0); c <= c1; c++) {
@@ -144,7 +160,7 @@ window.World = (function () {
         const s = Math.max(100, Math.min(W.freeway.length - 100, city.s - d * (1200 + 900)));
         const f = Road.at(W.freeway, s, d * LANE_R());
         Terrain.update(f.p);
-        W.update(f.p);
+        W.update(f.p, true);
         Car.teleport(f.p.x, f.p.y + 1.2, f.p.z, Road.yawOf(f.tan.clone().multiplyScalar(d)));
     };
 

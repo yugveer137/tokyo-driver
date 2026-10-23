@@ -41,6 +41,9 @@
         #hud-tires { position: fixed; left: 50%; top: 52px; transform: translateX(-50%); background: var(--hud); border-radius: 10px; padding: 6px 14px; font-size: 0.8rem; font-weight: 800; color: #ffb000; pointer-events: none; animation: blink 1s infinite; }
         #hud-tires:empty { display: none; }
         @keyframes blink { 50% { opacity: 0.4; } }
+        #tada { position: fixed; left: 50%; top: 30%; transform: translate(-50%, -50%) scale(0.3); font-size: 3.6rem; font-weight: 900; letter-spacing: 4px; color: #ffd21e; text-shadow: 0 0 24px #ff9a00, 0 4px 0 #7a4a00; opacity: 0; pointer-events: none; }
+        #tada.show { animation: tada 2.2s ease-out forwards; }
+        @keyframes tada { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3) rotate(-8deg); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1.15) rotate(4deg); } 30% { transform: translate(-50%, -50%) scale(1) rotate(0); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -60%) scale(1); } }
         #train-btn { background: linear-gradient(135deg, #b5651d, #8a4a12); }
         #map-btn { background: linear-gradient(135deg, #2f9bff, #1d6fd6); }
         #osm-btn { background: linear-gradient(135deg, #1fb57a, #12875a); } #osm-exit { background: linear-gradient(135deg, #e0202a, #a8121a); }
@@ -143,6 +146,7 @@
     </div>
     <div id="hud-delivery"></div>
     <div id="hud-tires"></div>
+    <div id="tada"></div>
     <div id="race-hud"></div>
     <div id="toast"></div>
     <canvas id="minimap"></canvas>
@@ -212,30 +216,9 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
-    <script src="js/config.js"></script>
-    <script src="js/save.js"></script>
-    <script src="js/textures.js"></script>
-    <script src="js/sky.js"></script>
-    <script src="js/terrain.js"></script>
-    <script src="js/road.js"></script>
-    <script src="js/signs.js"></script>
-    <script src="js/train.js"></script>
-    <script src="js/city.js"></script>
-    <script src="js/cities.js"></script>
-    <script src="js/traffic.js"></script>
-    <script src="js/world.js"></script>
-    <script src="js/carmodels.js"></script>
-    <script src="js/audio.js"></script>
-    <script src="js/car.js"></script>
-    <script src="js/game.js"></script>
-    <script src="js/features.js"></script>
-    <script src="js/races.js"></script>
-    <script src="js/selfdrive.js"></script>
-    <script src="js/multiplayer.js"></script>
-    <script src="js/osm.js"></script>
-    <script src="js/ui.js"></script>
-    <script src="js/minimap.js"></script>
-    <script src="js/debug.js"></script>
-    <script src="js/main.js"></script>
+    <script>
+    // Load the game files with a cache-busting stamp so Safari never runs a stale mix of old and new files
+    (function () { const v = Date.now(); ['config','save','textures','sky','terrain','road','signs','train','city','cities','traffic','world','carmodels','audio','car','game','features','races','selfdrive','multiplayer','osm','ui','minimap','debug','main'].forEach(function (f) { document.write('<script src="js/' + f + '.js?v=' + v + '"><\/script>'); }); })();
+    </script>
 </body>
 </html>

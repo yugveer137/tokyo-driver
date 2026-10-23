@@ -343,7 +343,7 @@ window.Road = (function () {
         pts.push(end); pts.push(tail);
         clearTerrain(pts, 3, pts.length - 2);
         const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5);
-        const rec = R.build({ type: 'ramp', curve, name: name || 'exit', segLen: 6, hugTerrain: true, gapsLeft: [[0, 260]], openEnd: 45 });
+        const rec = R.build({ type: 'ramp', curve, name: name || 'exit', segLen: 6, hugTerrain: true, gapsLeft: [[0, 170]], openEnd: 45 });
         rec.isExit = true; rec.from = fw; rec.s0 = s0; rec.dir = dir;
         return rec;
     };
@@ -360,7 +360,7 @@ window.Road = (function () {
         clearTerrain(pts, 2, pts.length - 5);
         const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5);
         const len = curve.getLength();
-        const rec = R.build({ type: 'ramp', curve, name: name || 'onramp', segLen: 6, hugTerrain: true, gapsLeft: [[len - 260, len]], openStart: 45 });
+        const rec = R.build({ type: 'ramp', curve, name: name || 'onramp', segLen: 6, hugTerrain: true, gapsLeft: [[len - 170, len]], openStart: 45 });
         rec.isOnramp = true; rec.from = fw; rec.s1 = s1; rec.dir = dir;
         return rec;
     };
@@ -382,7 +382,7 @@ window.Road = (function () {
         clearTerrain(pts, 3, pts.length - 4);
         const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5);
         const len = curve.getLength();
-        const rec = R.build({ type: 'ramp', curve, name: name || 'U-turn', segLen: 6, hugTerrain: true, gapsLeft: [[0, 260], [len - 260, len]] });
+        const rec = R.build({ type: 'ramp', curve, name: name || 'U-turn', segLen: 6, hugTerrain: true, gapsLeft: [[0, 170], [len - 170, len]] });
         rec.isExit = true; rec.isOnramp = true; rec.isUturn = true; rec.from = fw; rec.s0 = sU; rec.s1 = sU; rec.dir = dir; rec.mergeDir = -dir;
         R.removePiersNear(fw, rec);
         return rec;

@@ -70,17 +70,18 @@ window.SelfDrive = (function () {
     }
 
     // ---------- self-drive ----------
-    S.goTo = function (point) {
+    S.goTo = function (point, opts) {
+        opts = opts || {};
         // snap to the nearest built road
         let best = null, bd = Infinity;
         Road.all.forEach(r => { if (!Object.keys(r.chunks).length) return; const n = Road.nearest(r, point); if (n.dist < bd) { bd = n.dist; best = { r, n }; } });
         S.dest = best ? best.n.frame.p.clone() : point.clone();
         S.destRoad = best ? best.r : null;
-        S.active = true; S.cross = null;
+        S.active = true; S.cross = null; S.opts = opts; S.lastTow = null;
         const cur = nearestRoad(Car.body.position);
         S.road = cur.r; S.dir = headingDir(cur.r, cur.n);
         S.laneIndex = S.road.lanes.filter(l => l.dir === S.dir).length - 1;
-        UI.toast('Self-drive on — ' + Math.round(S.dest.distanceTo(Car.body.position)) + ' m. Touch the wheel to cancel.', 3000);
+        if (!opts.quiet) UI.toast('Self-drive on — ' + Math.round(S.dest.distanceTo(Car.body.position)) + ' m. Touch the wheel to cancel.', 3000);
     };
     S.cancel = function (quiet) {
         if (!S.active) return;
@@ -116,7 +117,13 @@ window.SelfDrive = (function () {
         if (!S.active || !Car.body) return;
         if (Car.keys.fwd || Car.keys.back || Car.keys.left || Car.keys.right) { S.cancel(); return; }
         const pos = Car.body.position;
-        if (pos.distanceTo(S.dest) < 14) { S.cancel(true); Car.cruise = null; UI.toast('You have arrived.', 2500); return; }
+        if (pos.distanceTo(S.dest) < 14) {
+            const o = S.opts || {};
+            S.cancel(true); Car.cruise = null;
+            if (o.tow) S.lastTow = 'arrived';
+            if (o.onArrive) o.onArrive(); else if (!o.quiet) UI.toast('You have arrived.', 2500);
+            return;
+        }
         // re-snap to whatever road we're actually on (ramps, lane changes)
         // (only once we've actually left the current road's corridor, so a turn in progress sticks)
         const cur = nearestRoad(pos);
@@ -162,11 +169,13 @@ window.SelfDrive = (function () {
         // how much the road bends in the next 40 units -> slow down for curves
         const t1 = Road.at(S.road, ahead1, 0).tan, t2 = Road.at(S.road, Math.max(0, Math.min(S.road.length, n.s + S.dir * 40)), 0).tan;
         const bend = Math.acos(Math.max(-1, Math.min(1, t1.dot(t2))));
-        const limit = S.road.type === 'freeway' ? 62 : S.road.type === 'ramp' ? 26 : 26;
+        // the tow truck is in a hurry: 100 on the freeway, 60 on ramps and streets, 35 in bends
+        const tow = !!(S.opts && S.opts.tow);
+        const limit = S.road.type === 'freeway' ? (tow ? 100 : 62) : (tow ? 60 : 26);
         let target = limit;
-        if (bend > 0.12) target = Math.min(target, 16);
-        if (Math.abs(e) > 0.25) target = Math.min(target, 12);
-        if (toEnd < 30 && S.road !== World.freeway) target = Math.min(target, 14);
+        if (bend > 0.12) target = Math.min(target, tow ? 35 : 16);
+        if (Math.abs(e) > 0.25) target = Math.min(target, tow ? 24 : 12);
+        if (toEnd < 30 && S.road !== World.freeway) target = Math.min(target, tow ? 28 : 14);
         if (pos.distanceTo(S.dest) < 60) target = Math.min(target, 12);
         Car.cruise = target;
         // stuck watchdog: 4 s without moving -> give up rather than sit there

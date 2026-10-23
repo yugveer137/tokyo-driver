@@ -216,6 +216,7 @@ window.Features = (function () {
     };
     function updateTires(dt) {
         if (Tires.tow && !Tires.stranded) updateTow(dt);
+        if (Tires.tow && (Tires.tow.phase === 'tow' || Tires.tow.phase === 'hook' || Tires.tow.phase === 'drop')) { if (Tires.stranded) updateTow(dt); return; }
         if (!Tires.stranded) {
             const wear = Car.mph > 100 ? 0.08 : Car.mph > 60 ? 0.02 : 0.005;
             for (let i = 0; i < 4; i++) Tires.psi[i] = Math.max(0, Tires.psi[i] - wear * dt);
@@ -232,6 +233,16 @@ window.Features = (function () {
         // stranded: creep only, wait for the tow truck
         Car.cruise = null;
         updateTow(dt);
+    }
+    // the closest loaded city that has a service station on its collector road
+    function nearestStation() {
+        let best = null, bd = Infinity;
+        World.cities.forEach(c => {
+            if (!c.loaded || !c.servicePoint) return;
+            const d = c.servicePoint.distanceTo(Car.body.position);
+            if (d < bd) { bd = d; best = { city: c, point: c.servicePoint }; }
+        });
+        return best;
     }
     function spawnTow() {
         const g = new THREE.Group();
@@ -261,7 +272,35 @@ window.Features = (function () {
                 m.position.x += dx / d * step; m.position.z += dz / d * step;
                 m.position.y = Math.max(Terrain.height(m.position.x, m.position.z), p.y - 0.8) ;
                 m.rotation.y = Math.atan2(dx, dz);
-            } else { T.phase = 'repair'; T.t = 0; UI.toast('Tow truck here. Repairing tires…', 2500); }
+            } else {
+                // hook up and tow the car to the nearest city's service station; if no station is
+                // reachable (open country, nothing loaded), repair on the spot instead
+                const station = nearestStation();
+                if (station) { T.phase = 'hook'; T.t = 0; T.station = station; UI.toast('Tow truck here. Hooking you up…', 2500); }
+                else { T.phase = 'repair'; T.t = 0; UI.toast('Tow truck here. Repairing tires…', 2500); }
+            }
+        } else if (T.phase === 'hook') {
+            T.t += dt;
+            if (T.t > 2) {
+                T.phase = 'tow'; T.t = 0;
+                Tires.stranded = false; Car.tireGrip = 1; Car.cruise = null;
+                SelfDrive.goTo(T.station.point, { quiet: true, tow: true, onArrive: () => { T.phase = 'drop'; T.t = 0; } });
+                UI.toast('Towing you to the ' + T.station.city.name + ' service station', 3000);
+            }
+        } else if (T.phase === 'tow') {
+            // the truck rides just ahead of the car, pulling it along the autopilot's route
+            const yaw = Car.yaw();
+            m.position.set(p.x + Math.sin(yaw) * 7.5, p.y - 0.9, p.z + Math.cos(yaw) * 7.5);
+            m.rotation.y = yaw;
+            if (!SelfDrive.active && SelfDrive.lastTow !== 'arrived') {   // the player grabbed the wheel
+                T.phase = 'leave'; T.t = 0; UI.toast('Unhooked. The tow truck leaves.', 2500);
+            }
+        } else if (T.phase === 'drop') {
+            T.t += dt;
+            if (T.t > 3) {
+                Tires.psi = [32, 32, 32, 32]; Tires.stranded = false; Car.tireGrip = 1; T.phase = 'leave'; T.t = 0;
+                UI.toast('Service station: tires repaired. Drive on!', 3000); tireHud();
+            }
         } else if (T.phase === 'repair') {
             T.t += dt;
             if (T.t > 5) {
@@ -275,13 +314,24 @@ window.Features = (function () {
         }
     }
 
+    // "TA-DA!" banner each time you blow past a new speed milestone
+    const Tada = { next: 65, el: null };
+    function updateTada() {
+        if (Car.mph >= Tada.next) {
+            const el = Tada.el || (Tada.el = document.getElementById('tada'));
+            if (el) { el.textContent = 'TA-DA! ' + Tada.next + ' MPH'; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show'); }
+            Tada.next = Tada.next < 100 ? 100 : Tada.next < 150 ? 150 : Tada.next + 100;
+            if (window.GameAudio) GameAudio.honk();
+        }
+    }
+
     F.init = function (sc) {
         scene = sc;
         Car.onImpact = F.onImpact;
     };
     F.update = function (dt) {
         if (!Car.body || !Game.started) return;
-        updateDelivery(dt); updateRain(dt); updateDrift(dt); updateLights(); updateAids(dt); updateTires(dt);
+        updateDelivery(dt); updateRain(dt); updateDrift(dt); updateLights(); updateAids(dt); updateTires(dt); updateTada();
     };
     return F;
 })();
