@@ -65,6 +65,7 @@ window.UI = (function () {
         $('front-btn').onclick = () => { if (Game.started) Features.toggleFrontLock(); };
         $('view-btn').onclick = () => Car.toggleView();
         $('reset-btn').onclick = () => { if (Game.started) Car.reset(); };
+        $('tow-btn').onclick = () => { if (Game.started) Features.callTow(); };
         document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => $(b.dataset.close).classList.remove('open'));
 
         // touch controls on touch devices

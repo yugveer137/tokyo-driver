@@ -208,7 +208,14 @@ window.Features = (function () {
         if (window.GameAudio) GameAudio.npcHorn();
         tireHud();
     };
+    // TOW TRUCK button: call one any time (fixes low tires too); it drives up from behind you
+    F.callTow = function () {
+        if (Tires.tow) { UI.toast('The tow truck is already on its way'); return; }
+        spawnTow();
+        UI.toast('Tow truck called — it is coming up behind you', 2500);
+    };
     function updateTires(dt) {
+        if (Tires.tow && !Tires.stranded) updateTow(dt);
         if (!Tires.stranded) {
             const wear = Car.mph > 100 ? 0.08 : Car.mph > 60 ? 0.02 : 0.005;
             for (let i = 0; i < 4; i++) Tires.psi[i] = Math.max(0, Tires.psi[i] - wear * dt);
@@ -217,7 +224,7 @@ window.Features = (function () {
             if (min <= 6) {
                 Tires.stranded = true; Car.tireGrip = 0.2;
                 UI.toast('Tire blown out. A tow truck is coming.', 3000);
-                spawnTow();
+                if (!Tires.tow) spawnTow();
             }
             if (Math.floor(performance.now() / 500) % 2 === 0) tireHud();
             return;
