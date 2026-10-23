@@ -56,6 +56,7 @@
         Features.init(scene);
         Races.init(scene);
         UI.init();
+        SelfDrive.init();
         Minimap.init();
         World.build();
         Game.load();
@@ -102,6 +103,7 @@
             Minimap.update(Car.body.position, Car.yaw());
             Features.update(dt);
             Races.update(dt);
+            SelfDrive.update(dt);
         }
         UI.update(fps);
     }

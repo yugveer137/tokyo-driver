@@ -26,6 +26,7 @@ window.UI = (function () {
             if (e.code === 'KeyE') Features.setSignal('right');
             if (e.code === 'KeyH') Features.setSignal('hazard');
             if (e.code === 'KeyT') Train.toggle();
+            if (e.code === 'KeyM') { SelfDrive.draw(); $('map-modal').classList.toggle('open'); }
             if (e.code === 'Escape') U.closeModals();
         });
         window.addEventListener('keyup', e => { if (keyMap[e.code]) Car.keys[keyMap[e.code]] = false; });
@@ -54,6 +55,8 @@ window.UI = (function () {
         $('rain-btn').onclick = () => Features.toggleRain();
         $('race-btn').onclick = () => { if (Game.started) Races.startStreet(); };
         $('train-btn').onclick = () => { if (Game.started) Train.toggle(); };
+        $('map-btn').onclick = () => { SelfDrive.draw(); $('map-modal').classList.add('open'); };
+        $('map-cancel').onclick = () => { SelfDrive.cancel(); U.closeModals(); };
         $('fwrace-btn').onclick = () => { if (Game.started) Races.startFreeway(); };
         $('lane-btn').onclick = () => { if (Game.started) Features.toggleLaneLock(); };
         $('front-btn').onclick = () => { if (Game.started) Features.toggleFrontLock(); };

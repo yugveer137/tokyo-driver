@@ -42,6 +42,7 @@
         #hud-tires:empty { display: none; }
         @keyframes blink { 50% { opacity: 0.4; } }
         #train-btn { background: linear-gradient(135deg, #b5651d, #8a4a12); }
+        #map-btn { background: linear-gradient(135deg, #2f9bff, #1d6fd6); }
         #race-btn { background: linear-gradient(135deg, #e0202a, #a8121a); } #fwrace-btn { background: linear-gradient(135deg, #ff6a2f, #d6471c); }
         #race-hud { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--hud); border-radius: 10px; padding: 8px 16px; font-weight: 800; color: #ffd21e; pointer-events: none; }
         #race-hud:empty { display: none; }
@@ -123,6 +124,7 @@
         <button class="side-btn" id="race-btn">RACE</button>
         <button class="side-btn" id="fwrace-btn">FREEWAY RACE</button>
         <button class="side-btn" id="train-btn">TRAIN</button>
+        <button class="side-btn" id="map-btn">MAP</button>
         <button class="side-btn" id="cruise-btn">CRUISE</button>
         <button class="side-btn" id="lane-btn">LANE LOCK</button>
         <button class="side-btn" id="front-btn">FRONT LOCK</button>
@@ -166,6 +168,10 @@
         <div class="modal-head"><h2>GARAGE</h2><span id="garage-coins" style="color:#ffd21e;font-weight:800"></span><button class="toggle-btn" data-close="garage-modal">CLOSE</button></div>
         <div class="modal-body"><div id="cars-grid"></div></div>
     </div></div>
+    <div class="modal" id="map-modal"><div class="modal-box" style="width:min(1000px,96vw)">
+        <div class="modal-head"><h2>MAP</h2><button class="toggle-btn" id="map-cancel">STOP SELF-DRIVE</button><button class="toggle-btn" data-close="map-modal">CLOSE</button></div>
+        <div class="modal-body" style="padding:8px"><canvas id="map-canvas" style="width:100%;border-radius:10px;cursor:crosshair"></canvas></div>
+    </div></div>
     <div class="modal" id="travel-modal"><div class="modal-box" style="width:min(420px,94vw)">
         <div class="modal-head"><h2>FAST TRAVEL</h2><button class="toggle-btn" data-close="travel-modal">CLOSE</button></div>
         <div class="modal-body" id="travel-list"></div>
@@ -197,6 +203,7 @@
     <script src="js/game.js"></script>
     <script src="js/features.js"></script>
     <script src="js/races.js"></script>
+    <script src="js/selfdrive.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/minimap.js"></script>
     <script src="js/debug.js"></script>

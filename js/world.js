@@ -76,9 +76,10 @@ window.World = (function () {
         Traffic.linkRamp(exit); Traffic.linkRamp(ramp);
         if (window.Train && !city.station) { city.station = true; Train.station(city).forEach(m => city.meshes.push(m)); }
         // connect the collector to the grid: short EW stubs from the collector to street column 0
+        // (the freeway side is local +x: city.toWorld(+W/2, ...) is the column nearest the collector)
         for (let i = 0; i <= city.rows; i += 2) {
-            const a = city.toWorld(-city.W / 2 - 34, city.streetZ(i)), b = city.toWorld(-city.W / 2 - city.street / 2, city.streetZ(i));
-            const m = city.toWorld(-city.W / 2 - 22, city.streetZ(i));
+            const a = city.toWorld(city.W / 2 + 34, city.streetZ(i)), b = city.toWorld(city.W / 2 + city.street / 2, city.streetZ(i));
+            const m = city.toWorld(city.W / 2 + 22, city.streetZ(i));
             city.roads.push(Road.build({ type: 'avenue', name: city.streets.ew[i % city.streets.ew.length], conform: true, points: [[a.x, 0, a.z], [m.x, 0, m.z], [b.x, 0, b.z]] }));
         }
         // signs on the freeway: 1 mile, 1/2 mile, exit-only, gore, city limit
