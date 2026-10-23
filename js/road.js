@@ -168,6 +168,8 @@ window.Road = (function () {
         const segLen = length / segs;
         const fr = frames(curve, segs);
         if (spec.conform) fr.forEach(f => { f.p.y = Terrain.height(f.p.x, f.p.z) + lift; });
+        // ramps: never let the deck sink below the land between waypoints (walls + physics follow the frames)
+        if (spec.hugTerrain) fr.forEach(f => { const g = Terrain.height(f.p.x, f.p.z) + 0.5; if (f.p.y < g) f.p.y = g; });
         const rec = { name: spec.name || spec.type, type: spec.type, typeDef: type, curve, length, width: W, halfW, frames: fr,
                       segLen, lanes: [], spec, lift, chunks: {} };
 
@@ -207,16 +209,18 @@ window.Road = (function () {
             mesh(strip(fr, { x: halfW, y: 0 }, { x: halfW, y: -1.4 }, 4, length, 0, 0.35), dm, false, chunk);
             mesh(strip(fr, { x: halfW, y: -1.4 }, { x: -halfW, y: -1.4 }, 4, length), dm, false, chunk);
             const pierGeom = new THREE.CylinderGeometry(1.1, 1.3, 1, 12);
+            chunk.piers = [];
             for (let i = 1; i < fr.length; i += Math.max(1, Math.round(24 / rec.segLen))) {
                 const f = fr[i];
                 [-halfW * 0.45, halfW * 0.45].forEach(off => {
                     const px = f.p.x + f.right.x * off, pz = f.p.z + f.right.z * off;
                     const g2 = Terrain.height(px, pz), h2 = f.p.y - 1.3 - g2 + 0.5;
                     if (h2 < 1.2) return;
+                    if (pierBlocked(px, pz)) return;               // a U-turn loop passes under here
                     const pier = new THREE.Mesh(pierGeom, pierMat());
                     pier.scale.y = h2; pier.position.set(px, g2 - 0.5 + h2 / 2, pz);
                     pier.castShadow = true; pier.receiveShadow = true;
-                    scene.add(pier); chunk.meshes.push(pier);
+                    scene.add(pier); chunk.meshes.push(pier); chunk.piers.push(pier);
                 });
             }
         }
@@ -291,6 +295,25 @@ window.Road = (function () {
     // Yaw that makes a car (forward = local +z) face along `tan`
     R.yawOf = (tan) => Math.atan2(tan.x, tan.z);
 
+    // Piers must not stand in a U-turn loop that passes under the freeway
+    function pierBlocked(px, pz) {
+        for (let k = 0; k < R.all.length; k++) {
+            const u = R.all[k]; if (!u.isUturn) continue;
+            for (let i = 0; i < u.frames.length; i++) { const p = u.frames[i].p; if (Math.hypot(p.x - px, p.z - pz) < 8) return true; }
+        }
+        return false;
+    }
+    R.removePiersNear = function (fw, ramp) {
+        Object.values(fw.chunks).forEach(chunk => {
+            if (!chunk.piers) return;
+            chunk.piers = chunk.piers.filter(pier => {
+                const hit = ramp.frames.some(f => Math.hypot(f.p.x - pier.position.x, f.p.z - pier.position.z) < 8);
+                if (hit) { scene.remove(pier); chunk.meshes.splice(chunk.meshes.indexOf(pier), 1); }
+                return !hit;
+            });
+        });
+    };
+
     // Keep ramp waypoints [i0, i1] at least 0.6 above the land so hills never poke through
     function clearTerrain(pts, i0, i1) {
         for (let i = i0; i <= i1; i++) {
@@ -299,55 +322,69 @@ window.Road = (function () {
         }
     }
 
-    // An exit: a single-lane ramp peeling off the right (side=1) or left (side=-1) edge of
-    // `fw` at arc-length s0, descending to `toPoint` (street level), continuing along `toDir`.
-    R.exit = function (fw, s0, side, toPoint, toDir, name) {
-        const hw = fw.width / 2, rw = widthOf(R.types.ramp) / 2;
-        const pts = [];
-        // lateral offsets are measured from the freeway's edge (hw); the ramp starts fully on
-        // the deck over the shoulder (its wall continues the freeway's wall) and peels outward
-        const add = (s, lat, dy) => { const f = R.at(fw, s, side * (hw + lat), 0); f.p.y += dy; pts.push(f.p); };
-        add(s0 - 40, -rw + 0.6, 0.03);
-        add(s0 + 40, -rw + 1.4, 0.03);
-        add(s0 + 100, 0.6, 0.03);
-        add(s0 + 160, 5.0, -0.6);
-        add(s0 + 220, 13.0, -2.4);
-        // the foot of the ramp lands on the terrain exactly like a draped street does
-        const end = toPoint.clone(), dir = toDir.clone().normalize();
+    // Ramps always leave / join on the driver's RIGHT. `dir` is the direction of travel on the
+    // freeway: +1 = toward increasing s (northbound), -1 = the other carriageway. Lateral
+    // offsets are measured from the freeway's edge (hw); the freeway is on the ramp's left.
+    // The peel-off profile stays near deck height until lateral 32 so it clears the railway.
+    const PEEL = [[-40, 'rw0.6', 0.03], [40, 'rw1.4', 0.03], [100, 0.6, 0.03], [160, 5.0, -0.3], [220, 20.0, -0.9], [280, 32.0, -1.6]];
+    function peelPoint(fw, sBase, dir, k, lat, dy) {
+        const rw = widthOf(R.types.ramp) / 2, hw = fw.width / 2;
+        const l = lat === 'rw0.6' ? -rw + 0.6 : lat === 'rw1.4' ? -rw + 1.4 : lat;
+        const f = R.at(fw, sBase + dir * k, dir * (hw + l), 0); f.p.y += dy; return f.p;
+    }
+
+    // An exit at arc-length s0, descending to `toPoint` (street level), continuing along `toDir`.
+    R.exit = function (fw, s0, dir, toPoint, toDir, name) {
+        const pts = PEEL.map(([k, lat, dy]) => peelPoint(fw, s0, dir, k, lat, dy));
+        const end = toPoint.clone(), d = toDir.clone().normalize();
         end.y = Terrain.height(end.x, end.z) + R.DRAPE;
-        const tail = end.clone().addScaledVector(dir, 30); tail.y = Terrain.height(tail.x, tail.z) + R.DRAPE;
-        pts.push(end.clone().addScaledVector(dir, -40).setY((pts[pts.length - 1].y + end.y) / 2));
+        const tail = end.clone().addScaledVector(d, 30); tail.y = Terrain.height(tail.x, tail.z) + R.DRAPE;
+        pts.push(end.clone().addScaledVector(d, -40).setY((pts[pts.length - 1].y + end.y) / 2));
         pts.push(end); pts.push(tail);
         clearTerrain(pts, 3, pts.length - 2);
         const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5);
-        // the freeway-side wall is left open only where the ramp still touches the freeway
-        const gapsIn = [[0, 200]];
-        const rec = R.build({ type: 'ramp', curve, name: name || 'exit', segLen: 6, gapsLeft: side === 1 ? gapsIn : undefined, gapsRight: side === -1 ? gapsIn : undefined, openEnd: 45 });
-        rec.isExit = true; rec.from = fw; rec.s0 = s0; rec.side = side;
+        const rec = R.build({ type: 'ramp', curve, name: name || 'exit', segLen: 6, hugTerrain: true, gapsLeft: [[0, 260]], openEnd: 45 });
+        rec.isExit = true; rec.from = fw; rec.s0 = s0; rec.dir = dir;
         return rec;
     };
 
     // An on-ramp: from a street point (heading fromDir) climbing to merge with `fw` at s1.
-    R.onramp = function (fw, s1, side, fromPoint, fromDir, name) {
-        const hw = fw.width / 2, rw = widthOf(R.types.ramp) / 2;
-        const pts = [], dir = fromDir.clone().normalize();
+    R.onramp = function (fw, s1, dir, fromPoint, fromDir, name) {
+        const pts = [], d = fromDir.clone().normalize();
         const start = fromPoint.clone(); start.y = Terrain.height(start.x, start.z) + R.DRAPE;
-        const head = start.clone().addScaledVector(dir, -30); head.y = Terrain.height(head.x, head.z) + R.DRAPE;
+        const head = start.clone().addScaledVector(d, -30); head.y = Terrain.height(head.x, head.z) + R.DRAPE;
         pts.push(head); pts.push(start);
-        const add = (s, lat, dy) => { const f = R.at(fw, s, side * (hw + lat), 0); f.p.y += dy; pts.push(f.p); };
-        const climbTo = R.at(fw, s1 - 220).p.y - 2.4;
-        pts.push(start.clone().addScaledVector(dir, 40).setY(start.y + (climbTo - start.y) * 0.3));
-        add(s1 - 220, 13.0, -2.4);
-        add(s1 - 160, 5.0, -0.6);
-        add(s1 - 100, 0.6, 0.03);
-        add(s1 - 40, -rw + 1.4, 0.03);
-        add(s1 + 40, -rw + 0.6, 0.03);
-        clearTerrain(pts, 2, pts.length - 4);
+        const climb = PEEL.slice().reverse().map(([k, lat, dy]) => peelPoint(fw, s1, dir, -k, lat, dy));   // merge is reached last
+        pts.push(start.clone().addScaledVector(d, 40).setY(start.y + (climb[0].y - start.y) * 0.3));
+        climb.forEach(p => pts.push(p));
+        clearTerrain(pts, 2, pts.length - 5);
         const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5);
         const len = curve.getLength();
-        const gapsIn = [[len - 200, len]];
-        const rec = R.build({ type: 'ramp', curve, name: name || 'onramp', segLen: 6, gapsLeft: side === 1 ? gapsIn : undefined, gapsRight: side === -1 ? gapsIn : undefined, openStart: 45 });
-        rec.isOnramp = true; rec.from = fw; rec.s1 = s1; rec.side = side;
+        const rec = R.build({ type: 'ramp', curve, name: name || 'onramp', segLen: 6, hugTerrain: true, gapsLeft: [[len - 260, len]], openStart: 45 });
+        rec.isOnramp = true; rec.from = fw; rec.s1 = s1; rec.dir = dir;
+        return rec;
+    };
+
+    // A U-turn: exits right at sU, drops to the ground, loops under the elevated freeway and
+    // merges onto the opposite carriageway at the same sU, now travelling in direction -dir.
+    R.uturn = function (fw, sU, dir, name) {
+        const pts = PEEL.map(([k, lat, dy]) => peelPoint(fw, sU, dir, k, lat, dy));
+        const hw = fw.width / 2;
+        // ground level: `lat` here is measured from the freeway CENTRELINE (signed by dir)
+        const groundC = (k, lat) => { const f = R.at(fw, sU + dir * k, dir * lat, 0); f.p.y = Terrain.height(f.p.x, f.p.z) + 0.8; return f.p; };
+        pts.push(groundC(340, hw + 36));
+        // a semicircle of radius 40 centred on the freeway at sU+380: crosses under the deck at sU+420
+        const RADIUS = 48, cS = 380;
+        for (let a = 90; a >= -90; a -= 30) { const th = a * Math.PI / 180; pts.push(groundC(cS + RADIUS * Math.cos(th), RADIUS * Math.sin(th))); }
+        pts.push(groundC(340, -(hw + 36)));
+        // merge onto the other carriageway: its right edge is lateral -(hw + lat) for travel in -dir
+        PEEL.slice().reverse().forEach(([k, lat, dy]) => pts.push(peelPoint(fw, sU, -dir, -k, lat, dy)));
+        clearTerrain(pts, 3, pts.length - 4);
+        const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5);
+        const len = curve.getLength();
+        const rec = R.build({ type: 'ramp', curve, name: name || 'U-turn', segLen: 6, hugTerrain: true, gapsLeft: [[0, 260], [len - 260, len]] });
+        rec.isExit = true; rec.isOnramp = true; rec.isUturn = true; rec.from = fw; rec.s0 = sU; rec.s1 = sU; rec.dir = dir; rec.mergeDir = -dir;
+        R.removePiersNear(fw, rec);
         return rec;
     };
 

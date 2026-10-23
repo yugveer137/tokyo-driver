@@ -261,7 +261,7 @@ window.Car = (function () {
         // tightens the radius.
         const wheelbase = Math.abs(t.points[0][2] - t.points[2][2]) || 2.6;
         const handling = Math.sqrt(0.012 / Math.max(d.handling || 0.012, 0.004));
-        const radius = (7 + C.mph * 1.1) * handling;
+        const radius = (6 + C.mph * 0.85) * handling;
         const maxSteer = Math.min(0.5, Math.atan(wheelbase / radius));
         let target = 0;
         if (keys.left) target = maxSteer;

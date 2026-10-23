@@ -12,13 +12,13 @@ window.Traffic = (function () {
     T.init = function (sc, w) { scene = sc; world = w; };
 
     // ---------- links between roads (mid-road junctions) ----------
-    // When a car on `from` (travelling dir +1 in lane `laneIndex`) passes arc length sFrom, with
-    // probability p it continues on `to` at sTo.
-    T.link = function (from, sFrom, to, sTo, laneIndex, p) { T.links.push({ from, sFrom, to, sTo, laneIndex, p }); };
+    // When a car on `from` (travelling fromDir in lane `laneIndex`) passes arc length sFrom, with
+    // probability p it continues on `to` at sTo travelling toDir.
+    T.link = function (from, sFrom, to, sTo, laneIndex, p, fromDir, toDir) { T.links.push({ from, sFrom, to, sTo, laneIndex, p, fromDir: fromDir || 1, toDir: toDir || 1 }); };
     T.linkRamp = function (rec) {
-        const fw = rec.from, hw = fw.width / 2;
-        if (rec.isExit) T.link(fw, rec.s0 - 40, rec, 0, fw.typeDef.lanes - 1, 0.4);
-        if (rec.isOnramp) T.link(rec, rec.length - 10, fw, rec.s1 + 40, fw.typeDef.lanes - 1, 1);
+        const fw = rec.from, outer = fw.typeDef.lanes - 1, d = rec.dir || 1;
+        if (rec.isExit) T.link(fw, rec.s0 - d * 40, rec, 0, outer, rec.isUturn ? 0.15 : 0.4, d, 1);
+        if (rec.isOnramp) { const md = rec.mergeDir || d; T.link(rec, rec.length - 10, fw, rec.s1 - md * 40, outer, 1, 1, md); }
     };
     T.unlinkRoad = function (rec) { T.links = T.links.filter(l => l.from !== rec && l.to !== rec); T.cars.filter(c => c.road === rec).forEach(remove); };
 
@@ -199,11 +199,12 @@ window.Traffic = (function () {
             if (c.cooldown === 0) {
                 for (let k = 0; k < T.links.length; k++) {
                     const l = T.links[k];
-                    if (l.from !== c.road || c.dir !== 1 || c.lane.index !== l.laneIndex) continue;
-                    const before = c.s, after = c.s + c.speed * dt;
-                    if (before < l.sFrom && after >= l.sFrom && Math.random() < l.p && Object.keys(l.to.chunks).length) {
-                        const lane = laneFor(l.to, 1, l.to.typeDef.lanes - 1);
-                        c.road = l.to; c.s = l.sTo; c.lane = lane; c.dir = 1; c.cooldown = 3;
+                    if (l.from !== c.road || c.dir !== l.fromDir || c.lane.index !== l.laneIndex) continue;
+                    const before = c.s, after = c.s + c.dir * c.speed * dt;
+                    const crossed = l.fromDir === 1 ? (before < l.sFrom && after >= l.sFrom) : (before > l.sFrom && after <= l.sFrom);
+                    if (crossed && Math.random() < l.p && Object.keys(l.to.chunks).length) {
+                        const lane = laneFor(l.to, l.toDir, l.to.typeDef.lanes - 1);
+                        c.road = l.to; c.s = l.sTo; c.lane = lane; c.dir = l.toDir; c.cooldown = 3;
                         c.limit = c.road.type === 'freeway' ? rnd(26, 34) : c.road.type === 'ramp' ? rnd(14, 18) : rnd(11, 16);
                         break;
                     }

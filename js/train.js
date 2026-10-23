@@ -2,7 +2,7 @@
 // left of the freeway, with a station at every city. Press T (or the TRAIN button) near the
 // train to board: the camera follows it, W/S drive it, T again gets off beside the track.
 window.Train = (function () {
-    const T = { LAT: -34, chunks: {}, riding: false, speed: 0, s: 0, stations: [] };
+    const T = { LAT: -64, chunks: {}, riding: false, speed: 0, s: 0, stations: [] };   // between the left collector and the left cities
     let scene, mesh, railTex, railMat;
     const MAX = 55;            // units/s (~120 mph)
 

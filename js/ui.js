@@ -134,7 +134,7 @@ window.UI = (function () {
         World.cities.forEach(c => {
             const b = document.createElement('button');
             b.className = 'travel-btn';
-            b.innerHTML = `${c.name}<small>${c.sub || ''} · Exit ${c.exitNumber}</small>`;
+            b.innerHTML = `${c.name}<small>${c.sub || ''} · Exit ${c.exitNumber} · ${c.side === 1 ? 'northbound side' : 'southbound side'}</small>`;
             b.onclick = () => { U.closeModals(); World.travelTo(c); U.toast('On I-80, one mile before the ' + c.name + ' exit'); };
             list.appendChild(b);
         });
