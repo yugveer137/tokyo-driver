@@ -30,29 +30,45 @@ window.SelfDrive = (function () {
         const lat = (my - H / 2) / (LAT_SCALE * (H / 2 - PAD) / 900);
         return Road.at(World.freeway, Math.max(0, Math.min(World.freeway.length, s)), lat).p;
     }
+    // the I-15 loop is drawn as a second strip below I-80
+    const ROW2 = H - 90;
+    function toMap2(p) {
+        const fw = World.freeways[1]; if (!fw) return null;
+        const n = Road.nearest(fw, p), f = n.frame;
+        const dx = p.x - f.p.x, dz = p.z - f.p.z;
+        const lat = dx * f.right.x + dz * f.right.z;
+        return { x: PAD + n.s / fw.length * (W - 2 * PAD), y: ROW2 + lat * LAT_SCALE * 40 / 900, s: n.s, lat, dist: n.dist };
+    }
     S.draw = function () {
         ctx.fillStyle = '#0f1522'; ctx.fillRect(0, 0, W, H);
-        // train line and freeway
+        // train line and I-80
         ctx.strokeStyle = '#6b6257'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
         ctx.beginPath(); ctx.moveTo(PAD, H / 2 + Train.LAT * LAT_SCALE * (H / 2 - PAD) / 900); ctx.lineTo(W - PAD, H / 2 + Train.LAT * LAT_SCALE * (H / 2 - PAD) / 900); ctx.stroke();
         ctx.setLineDash([]);
         ctx.strokeStyle = '#cfd3d8'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(PAD, H / 2); ctx.lineTo(W - PAD, H / 2); ctx.stroke();
         ctx.fillStyle = '#9ab'; ctx.font = 'bold 12px sans-serif'; ctx.fillText('I-80', PAD, H / 2 - 10);
-        // cities: box + name + exit number; collector + ramps as thin lines
+        // I-15 loop strip
+        if (World.freeways[1]) {
+            ctx.strokeStyle = '#b9bec4'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(PAD, ROW2); ctx.lineTo(W - PAD, ROW2); ctx.stroke();
+            ctx.fillStyle = '#9ab'; ctx.fillText('I-15 loop (leaves I-80 before Reno, rejoins before Las Vegas)', PAD, ROW2 - 10);
+        }
+        // cities: box + name + exit number
         World.cities.forEach(c => {
-            const m = toMap(new THREE.Vector3(c.center.x, 0, c.center.z));
-            const w = c.D / World.freeway.length * (W - 2 * PAD), h = c.W * LAT_SCALE * (H / 2 - PAD) / 900;
+            const onLoop = c.fw && c.fw.index === 1;
+            const m = onLoop ? toMap2(new THREE.Vector3(c.center.x, 0, c.center.z)) : toMap(new THREE.Vector3(c.center.x, 0, c.center.z));
+            const w = c.D / c.fw.length * (W - 2 * PAD), h = c.W * LAT_SCALE * (onLoop ? 40 : (H / 2 - PAD)) / 900;
             ctx.fillStyle = c.loaded ? 'rgba(124,247,168,0.25)' : 'rgba(90,110,140,0.35)';
             ctx.fillRect(m.x - w / 2, m.y - h / 2, w, h);
             ctx.strokeStyle = '#7cf7a8'; ctx.lineWidth = 1; ctx.strokeRect(m.x - w / 2, m.y - h / 2, w, h);
             ctx.fillStyle = '#fff'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
             ctx.fillText(c.name, m.x, m.y + h / 2 + 16);
-            ctx.fillStyle = '#ffd21e'; ctx.font = '11px sans-serif'; ctx.fillText('Exit ' + c.exitNumber, m.x - w / 2 - 10, H / 2 + 16);
+            ctx.fillStyle = '#ffd21e'; ctx.font = '11px sans-serif'; ctx.fillText('Exit ' + c.exitNumber, m.x - w / 2 - 10, (onLoop ? ROW2 : H / 2) + 16);
             ctx.textAlign = 'left';
         });
-        // player
+        // player (on whichever strip is closer)
         if (Car.body) {
-            const m = toMap(Car.body.position);
+            const m2 = toMap2(Car.body.position), m1 = toMap(Car.body.position);
+            const m = (m2 && m2.dist < Road.nearest(World.freeway, Car.body.position).dist) ? m2 : m1;
             ctx.fillStyle = '#7cf7a8'; ctx.beginPath(); ctx.arc(m.x, m.y, 6, 0, 6.3); ctx.fill();
             ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
         }
@@ -129,23 +145,24 @@ window.SelfDrive = (function () {
         const cur = nearestRoad(pos);
         if (cur && cur.r !== S.road && cur.n.dist < cur.r.width * 0.6 && Road.nearest(S.road, pos).dist > S.road.width * 0.7) { S.road = cur.r; S.dir = headingDir(cur.r, cur.n); S.laneIndex = Math.min(S.laneIndex, S.road.lanes.filter(l => l.dir === S.dir).length - 1); }
         const n = Road.nearest(S.road, pos);
-        // take a city exit when the destination is not on the freeway and the exit leads toward it
-        if (S.road === World.freeway && S.destRoad !== World.freeway) {
-            const link = Traffic.links.find(l => l.from === World.freeway && l.to.isExit && l.sFrom > n.s && l.sFrom < n.s + 400 && Object.keys(l.to.chunks).length);
+        // take an exit when the destination is not on this freeway and the exit leads toward it
+        const onFreeway = S.road.type === 'freeway';
+        if (onFreeway && S.destRoad !== S.road) {
+            const link = Traffic.links.find(l => l.from === S.road && l.to.isExit && l.fromDir === S.dir && (S.dir === 1 ? (l.sFrom > n.s && l.sFrom < n.s + 400) : (l.sFrom < n.s && l.sFrom > n.s - 400)) && Object.keys(l.to.chunks).length);
             if (link) {
                 const exitEnd = Road.at(link.to, link.to.length, 0).p;
-                if (exitEnd.distanceTo(S.dest) < pos.distanceTo(S.dest)) { S.laneIndex = World.freeway.typeDef.lanes - 1; if (n.s > link.sFrom - 60) { S.road = link.to; S.dir = 1; S.laneIndex = 0; } }
+                if (exitEnd.distanceTo(S.dest) < pos.distanceTo(S.dest)) { S.laneIndex = S.road.typeDef.lanes - 1; if (Math.abs(n.s - link.sFrom) < 60) { S.road = link.to; S.dir = 1; S.laneIndex = 0; } }
             }
         }
         const toEnd = S.dir === 1 ? S.road.length - n.s : n.s;
-        if (toEnd < 10 && S.road !== World.freeway) {
+        if (toEnd < 10 && !onFreeway) {
             const nx = chooseNext();
             if (nx) { S.road = nx.road; S.dir = nx.dir; S.laneIndex = Math.min(S.laneIndex, S.road.lanes.filter(l => l.dir === S.dir).length - 1); }
         }
         // side roads joining mid-way (city stubs off the collector): turn onto one if its far
         // end gets us closer to the destination than staying on this road would
         S.scan = (S.scan || 0) + 1;
-        if (S.road !== World.freeway && S.scan % 10 === 0) {
+        if (!onFreeway && S.scan % 10 === 0) {
             const ourFar = Road.at(S.road, S.dir === 1 ? S.road.length : 0, 0).p.distanceTo(S.dest);
             let best = null;
             Road.all.forEach(o => {
@@ -175,7 +192,7 @@ window.SelfDrive = (function () {
         let target = limit;
         if (bend > 0.12) target = Math.min(target, tow ? 35 : 16);
         if (Math.abs(e) > 0.25) target = Math.min(target, tow ? 24 : 12);
-        if (toEnd < 30 && S.road !== World.freeway) target = Math.min(target, tow ? 28 : 14);
+        if (toEnd < 30 && !onFreeway) target = Math.min(target, tow ? 28 : 14);
         if (pos.distanceTo(S.dest) < 60) target = Math.min(target, 12);
         Car.cruise = target;
         // stuck watchdog: 4 s without moving -> give up rather than sit there

@@ -22,7 +22,7 @@ window.Features = (function () {
         const pos = Car.body.position;
         // destination: a random intersection in the nearest loaded city, else the next city
         let city = World.cities.filter(c => c.loaded).sort((a, b) => a.center.x === b.center.x ? 0 : 0)[0];
-        if (!city) { const s = Road.nearest(World.freeway, pos).s; city = World.cities.find(c => c.s > s) || World.cities[World.cities.length - 1]; }
+        if (!city) { const near = World.freewayAt(pos); city = near.fw.cities.find(c => c.s > near.n.s) || near.fw.cities[near.fw.cities.length - 1]; }
         const i = 1 + Math.floor(Math.random() * (city.rows - 1)), j = 1 + Math.floor(Math.random() * (city.cols - 1));
         const p = city.toWorld(city.streetX(j), city.streetZ(i));
         const dist = p.distanceTo(pos);
@@ -134,9 +134,10 @@ window.Features = (function () {
     };
     // where the player is on the freeway: {s, lateral, dir, frame} or null
     function freewayPose() {
-        const fw = World.freeway, pos = Car.body.position;
-        const n = Road.nearest(fw, pos);
-        if (n.dist > fw.width) return null;
+        const pos = Car.body.position;
+        const near = World.freewayAt(pos), fw = near.fw, n = near.n;
+        if (!fw || n.dist > fw.width) return null;
+        A.fw = fw;
         const f = n.frame, dx = pos.x - f.p.x, dz = pos.z - f.p.z;
         const yaw = Car.yaw(), fwd = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
         const dir = fwd.dot(f.tan) >= 0 ? 1 : -1;
@@ -146,21 +147,21 @@ window.Features = (function () {
     function trafficAhead(pose, laneIndex, maxGap) {
         let best = null;
         Traffic.cars.forEach(c => {
-            if (c.road !== World.freeway || c.dir !== pose.dir || c.lane.index !== laneIndex) return;
+            if (c.road !== A.fw || c.dir !== pose.dir || c.lane.index !== laneIndex) return;
             const gap = (c.s - pose.s) * pose.dir;
             if (gap > -6 && gap < maxGap && (best === null || gap < best.gap)) best = { gap, speed: c.speed };
         });
         return best;
     }
     function laneClear(pose, laneIndex) {
-        return !Traffic.cars.some(c => c.road === World.freeway && c.dir === pose.dir && c.lane.index === laneIndex && Math.abs(c.s - pose.s) < 28);
+        return !Traffic.cars.some(c => c.road === A.fw && c.dir === pose.dir && c.lane.index === laneIndex && Math.abs(c.s - pose.s) < 28);
     }
     function updateAids(dt) {
         A.cooldown = Math.max(0, A.cooldown - dt);
         if (!A.lane && !A.front) { Car.assistSteer = null; Car.autoBrake = false; return; }
         const pose = freewayPose();
         if (!pose) { Car.assistSteer = null; Car.autoBrake = false; return; }
-        const lanes = World.freeway.lanes.filter(l => l.dir === pose.dir);
+        const lanes = A.fw.lanes.filter(l => l.dir === pose.dir);
         if (A.lane) {
             if (Car.keys.left || Car.keys.right) { F.toggleLaneLock(); return; }
             if (A.laneIndex === null) {

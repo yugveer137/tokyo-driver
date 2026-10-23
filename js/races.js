@@ -24,9 +24,10 @@ window.Races = (function () {
     // ---------- freeway race ----------
     R.startFreeway = function () {
         if (R.active) { UI.toast('A race is already on'); return; }
-        const fw = World.freeway, pos = Car.body.position;
-        const n = Road.nearest(fw, pos);
-        if (n.dist > fw.width) { UI.toast('Get on the freeway first'); return; }
+        const pos = Car.body.position;
+        const near = World.freewayAt(pos), fw = near.fw, n = near.n;
+        if (!fw || n.dist > fw.width) { UI.toast('Get on the freeway first'); return; }
+        R.fw = fw;
         const lanes = fw.lanes.filter(l => l.dir === 1);
         const opp = [0xe0202a, 0x1f6fe0].map((col, k) => {
             const lane = lanes[k];
@@ -92,7 +93,7 @@ window.Races = (function () {
         }
         const pos = Car.body.position;
         if (A.kind === 'freeway') {
-            const fw = World.freeway;
+            const fw = R.fw || World.freeway;
             const me = Road.nearest(fw, pos).s;
             let ahead = 0;
             A.opp.forEach(o => {

@@ -141,6 +141,31 @@ window.CITIES = (function () {
         }
     }
 
+    function slcTemple(city, h) {
+        const granite = std(0xd9d5cc);
+        const base = new THREE.Mesh(new THREE.BoxGeometry(40, 30, 22), granite); put(h, city, base, 0, 0, 15);
+        for (let k = 0; k < 6; k++) { const sp = new THREE.Mesh(new THREE.ConeGeometry(2.2, 18, 6), granite); put(h, city, sp, -16 + (k % 3) * 16, k < 3 ? -9 : 9, 39); }
+        const p = city.toWorld(0, 0); h.addBox(40, 30, 22, p.x, Terrain.height(p.x, p.z) + 15, p.z, city.heading);
+    }
+    function denverCashRegister(city, h) {
+        const glass = std(0xf0e6c8);
+        const body = new THREE.Mesh(new THREE.BoxGeometry(26, 120, 18), glass); put(h, city, body, 0, 0, 60);
+        const crown = new THREE.Mesh(new THREE.CylinderGeometry(13, 13, 14, 24, 1, false, 0, Math.PI), glass); crown.rotation.z = Math.PI / 2; put(h, city, crown, 0, 0, 120);
+        const p = city.toWorld(0, 0); h.addBox(26, 120, 18, p.x, Terrain.height(p.x, p.z) + 60, p.z, city.heading);
+    }
+    function willisTower(city, h) {
+        const black = std(0x1b1e24);
+        [[0, 0, 220, 16], [-16, 0, 180, 16], [16, 0, 180, 16], [0, -16, 150, 16], [0, 16, 150, 16], [-16, -16, 110, 16], [16, 16, 110, 16]].forEach(([x, z, hh, w]) => {
+            const m = new THREE.Mesh(new THREE.BoxGeometry(w, hh, w), black); put(h, city, m, x, z, hh / 2);
+        });
+        [-5, 5].forEach(x => { const a = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.6, 40, 6), std(0xdddddd)); put(h, city, a, x, 0, 240); });
+        const p = city.toWorld(0, 0); h.addBox(48, 220, 48, p.x, Terrain.height(p.x, p.z) + 110, p.z, city.heading);
+    }
+    function cloudGate(city, h) {
+        const bean = new THREE.Mesh(new THREE.SphereGeometry(9, 24, 16), new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 1, roughness: 0.08 }));
+        bean.scale.set(1.6, 0.8, 1); put(h, city, bean, city.W / 2 - 60, -city.D / 2 + 60, 9);
+    }
+
     // --- city specs ---
     return [
         {
@@ -199,6 +224,31 @@ window.CITIES = (function () {
             skyline: (d) => d < 0.5 ? [70, 190] : [30, 70],
             palette: [0xb7aa96, 0x9c9388, 0x7d8690, 0xc9c1b4, 0x6f7a86],
             landmarks: [empireState, chrysler], exitNumber: 73
+        },
+        // ---- I-15 loop (branches off I-80 near Reno, rejoins before Las Vegas) ----
+        {
+            id: 'slc', name: 'Salt Lake City', sub: 'Temple Square', fw: 1, rows: 5, cols: 5, block: 64, street: 20,
+            streets: { ns: ['State St', 'Main St', 'West Temple', '200 East', '300 East', '400 East'],
+                       ew: ['South Temple', '100 South', '200 South', '300 South', '400 South', 'North Temple'] },
+            skyline: (d) => d < 0.3 ? [30, 90] : [8, 22],
+            palette: [0xe9e2d2, 0xd8cdb6, 0xc9c0b0, 0xaab4bd, 0xf2eee6],
+            landmarks: [slcTemple], exitNumber: 301, parks: [[2, 2]]
+        },
+        {
+            id: 'denver', name: 'Denver', sub: 'LoDo', fw: 1, rows: 5, cols: 6, block: 60, street: 18,
+            streets: { ns: ['Broadway', 'Lincoln St', 'Speer Blvd', 'Colfax Ave', 'Larimer St', 'Blake St', 'Wazee St'],
+                       ew: ['16th St Mall', '17th St', '18th St', '20th St', 'Market St', 'Champa St'] },
+            skyline: (d) => d < 0.3 ? [40, 120] : d < 0.6 ? [12, 36] : [7, 14],
+            palette: [0xc9b79c, 0xb59e7e, 0x9fb3c8, 0xd9d2c5, 0x8f8a80],
+            landmarks: [denverCashRegister], exitNumber: 312, parks: [[1, 3]]
+        },
+        {
+            id: 'chicago', name: 'Chicago', sub: 'The Loop', fw: 1, rows: 6, cols: 6, block: 56, street: 18,
+            streets: { ns: ['Michigan Ave', 'State St', 'Wabash Ave', 'Dearborn St', 'Clark St', 'LaSalle St', 'Wacker Dr'],
+                       ew: ['Randolph St', 'Washington St', 'Madison St', 'Monroe St', 'Adams St', 'Jackson Blvd', 'Van Buren St'] },
+            skyline: (d) => d < 0.45 ? [70, 200] : [25, 60],
+            palette: [0x8a8f96, 0x6f7681, 0xb4aa9a, 0xcfc6b8, 0x5f6670],
+            landmarks: [willisTower, cloudGate], exitNumber: 328
         }
     ];
 })();

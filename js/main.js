@@ -30,7 +30,27 @@
         };
         world = new CANNON.World();
         world.gravity.set(0, CFG.GRAVITY, 0);
+        // The default ArrayCollisionMatrix zeroes an N*N/2 array every step (18 million entries with
+        // the road boxes streamed in); the hash-based one costs nothing.
+        world.collisionMatrix = new CANNON.ObjectCollisionMatrix();
+        world.collisionMatrixPrevious = new CANNON.ObjectCollisionMatrix();
         world.broadphase = new CANNON.SAPBroadphase(world);
+        world.broadphase.axisIndex = 2;        // the world is long along z; sweep on that axis
+        // Cannon 0.6.2's sweep tests "do these two need checking" BEFORE the bounds break, so every
+        // static body walks the whole list (thousands of road boxes -> 100+ ms a step). Break first.
+        world.broadphase.collisionPairs = function (w, p1, p2) {
+            const bodies = this.axisList, N = bodies.length, ax = this.axisIndex, check = CANNON.SAPBroadphase.checkBounds;
+            if (this.dirty) { this.sortList(); this.dirty = false; }
+            for (let i = 0; i < N; i++) {
+                const bi = bodies[i];
+                for (let j = i + 1; j < N; j++) {
+                    const bj = bodies[j];
+                    if (!check(bi, bj, ax)) break;
+                    if (!this.needBroadphaseCollision(bi, bj)) continue;
+                    this.intersectionTest(bi, bj, p1, p2);
+                }
+            }
+        };
         world.solver.iterations = 10;
         world.defaultContactMaterial.friction = 0.4;
         world.groundMaterial = new CANNON.Material('ground');
@@ -98,7 +118,10 @@
     }
 
     // One simulation step without rendering (also callable from the console for testing)
+    let axisFrames = 0;
     function tick(dt) {
+        // re-pick the sweep axis now and then: I-80 runs along z, the I-15 loop along x
+        if (++axisFrames % 600 === 0 && world.broadphase.autoDetectAxis) { world.broadphase.autoDetectAxis(); world.broadphase.dirty = true; }
         if (dt > 0) world.step(1 / 60, dt, 3);
         if (Car.body) Train.update(dt, Car.body.position);
         Car.update(dt);
