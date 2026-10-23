@@ -1,98 +1,57 @@
-# Tokyo Night Driver
+# tokyo-driver1
 
-A single-file 3D driving game built with Three.js (r128) and Cannon.js (0.6.2). Everything lives in `index.html` (~4400 lines).
+A browser driving game: Three.js r128 + Cannon.js 0.6.2 from CDN, plain `<script>` files on
+`window` globals, no build step, no modules. Hosted as static files on GitHub Pages. Tested in
+Safari. The title shown to players is **tokyo-driver1**.
 
-## Architecture
+`index.html` is the current game (rebuilt from scratch, Oct 2026). `classic.html` is the old
+single-file game kept for reference; do not develop it further.
 
-- **Single HTML file** — all CSS, HTML, and JS inline. No build system, no modules.
-- **Three.js** for rendering (CDN r128)
-- **Cannon.js** for physics (CDN 0.6.2, `RaycastVehicle` for car physics)
-- **Web Audio API** for procedural engine sounds (3 oscillators + distortion + filter)
-- **localStorage** for persistence (coins, owned cars, selected car)
+## Run
 
-## Game Structure
+Serve the repo root (e.g. `python3 -m http.server 8731`, also `.claude/launch.json` name
+`tokyo`) and open `/` — or `/#creator` to skip the login and $1 gates while developing.
 
-### World Layout (Z-axis is north)
-```
-Tokyo City (grid) → Freeway I-80 → San Francisco → Sacramento → Truckee
-                                     ↘ Exit ramp → Connecting road → Golden Gate Bridge
-```
-Portal system teleports to themed cities: New York, London, Paris.
+## Files (`js/`, load order as in index.html)
 
-### Key Globals
-- `scene, camera, renderer` — Three.js basics
-- `world` — Cannon.js physics world
-- `carBody, vehicle` — Player physics (RaycastVehicle)
-- `car, carGroup` — Player visual mesh
-- `carWheelMeshes, wheelBodies` — Wheel visuals + physics (separate from carGroup!)
-- `gameState` — coins, ownedCars, selectedCar, gameStarted, wanted state
-- `freewayData` — freeway geometry positions (rampX, sfStartZ, totalEndZ, etc.)
-- `keys` — keyboard input state
+| File | Owns |
+|---|---|
+| `config.js` | constants: gravity, day/night lengths, gear table |
+| `save.js` | login gate, $1 pay gate + unlock code, per-account saves (`td:<acct>:<key>`), `#creator` `#reset` `#wipe` |
+| `textures.js` | procedural canvas textures (`Tex.asphalt/concrete/facade/grain/grass`), `scaleBoxUVs`, `scalePlaneUVs`, `textCanvas` |
+| `sky.js` | sky dome shader, sun, stars, day/night cycle (60 s day / 60 s night), all scene lights + fog + exposure. `Sky.night` 0..1 |
+| `terrain.js` | `Terrain.height(x,z)` (base hills + `Terrain.shapers`), streamed 200-unit chunks with Cannon Heightfields (collision group 2) |
+| `road.js` | spline roads: `Road.define/buildRange/build`, lane offsets, `Road.at(rec,s,lateral)`, `Road.nearest`, `Road.exit`, `Road.onramp`, `Road.drapedQuad` |
+| `signs.js` | exit boards, gore signs, plain signs, street blades (`Signs.facingFrom(tan)`) |
+| `city.js` | city generator: draped street grid, intersections + traffic lights, blocks, buildings with window maps, lamps; `City.define/load/unload/update` |
+| `cities.js` | the 7 cities (Tokyo, San Francisco, Oakland, Sacramento, Reno, Las Vegas, New York): street names, skylines, landmark builders |
+| `traffic.js` | AI cars on lanes: following, red lights, turns at road ends, exits/merges via `Traffic.link`, kinematic boxes |
+| `world.js` | the route: one elevated freeway (I-80) streamed in 400-unit chunks, cities every 2600 units with exit + collector + on-ramp + signs, `World.travelTo`, `areaAt`, `speedLimitAt` |
+| `carmodels.js` | the 32 cars (`CARS`) and their body/wheel/interior builders (`CarModels`) ported from the old game |
+| `audio.js` | engine, screech, wind, horns (`GameAudio`) |
+| `car.js` | player RaycastVehicle, auto/manual gears, drift, anti-flip, chase + cockpit camera, headlights, dash canvas |
+| `game.js` | coins/cars state through `Save`, coin pickups |
+| `features.js` | deliveries, cruise (K), rain (V), drift rewards |
+| `ui.js` | HUD, start menu, settings, garage, fast travel, keyboard + touch |
+| `minimap.js` | heading-up minimap canvas |
+| `debug.js` | `Debug.goto(road, s, lateral)`, `Debug.drive(roads, ticks, mph)` test driver |
+| `main.js` | boot (`Save.boot().then(init)`), physics world, `game.tick(dt)` / `game.render()` for console tests |
 
-### Car System (`cars` object, ~line 553)
-Each car has: `name, price, maxSpeed, acceleration, handling, color, bodyColor`
-Optional flags: `isElectric`, `isTruck`, `isDrift`, `heavyCar`
+## Conventions that bite
 
-| Car | Price | Notes |
-|-----|-------|-------|
-| Starter | 0 | Default car |
-| Sport GT | 150 | |
-| Muscle King | 150 | |
-| Supercar | 150 | |
-| Hyperion | 150 | |
-| Legend X | 150 | |
-| Tokyo EV | 150 | `isElectric: true` |
-| Trailer Truck | 150 | `isTruck: true` — custom truck model, heavy physics, 60mph cap |
-| Supra MK4 | 150 | `isDrift: true, heavyCar: true` — low rear friction for drifting |
-| Ferrari SF90 | 50 | `heavyCar: true` — 1000mph max |
-| McLaren P1 | 50 | `heavyCar: true` — 1000mph max |
+- **Driver's right**: `frame.right = tan x up` (negative x when heading +z). Rotations built from a
+  frame must use `makeBasis(-right, up, tan)`. Lane offsets > 0 are the forward (dir +1) side.
+- Roads are either **deck** roads (freeway, ramps: own box physics, skirts, piers, barriers) or
+  **conform** streets (draped on the terrain, no physics; cars ride the heightfield).
+- The car chassis ignores terrain collisions (`collisionFilterMask: ~2`); wheels still raycast it.
+  Cannon's box-vs-heightfield contact gives phantom walls otherwise.
+- The preview pane freezes `requestAnimationFrame` when hidden: test with `game.tick()` loops and
+  `game.render()` from the console, never by waiting.
+- Fast steering at speed is tamed by a turning-radius formula + a yaw-rate cap in `car.js`.
+- Cities register terrain plateaus at define time; streets/buildings are built lazily within ~2700
+  units of the player and dropped beyond ~3900.
 
-### Physics Flags in `createCar()` (~line 3507)
-- `isTruck` — larger chassis (1.3x0.7x4.5), mass 250, custom visual model with cab+trailer
-- `isDrift` — front wheels frictionSlip=4, rear=1.2 (oversteer/drift)
-- `heavyCar` — mass 400, angular damping 0.95, roll influence 0.001, stiffer suspension
-- Speed cap: engine force cuts off at `carData.maxSpeed` for all cars
+## Not yet ported from classic.html
 
-### Important Patterns
-
-**Car switching (`selectCar`, ~line 4333):** Must clean up:
-1. `scene.remove(car)` — car body group
-2. `carWheelMeshes.forEach(w => scene.remove(w))` — wheel meshes (added to scene, NOT carGroup)
-3. `vehicle.removeFromWorld(world)` — RaycastVehicle
-4. `world.removeBody(carBody)` — chassis physics
-5. `wheelBodies.forEach(wb => world.removeBody(wb))` — wheel physics
-
-**Freeway barrier gaps:** SF freeway is split into 2 segments (before/after z 700-900) with right-side barrier removed to allow exit ramp to Golden Gate Bridge.
-
-**Golden Gate Bridge:** At `(freewayX + 180, y=15, sfStartZ + 1200)`. South ramp is 150 units long, reaches ground level. Connected to freeway exit via diagonal road.
-
-### Key Function Map
-
-| Function | Line | Purpose |
-|----------|------|---------|
-| `init()` | 736 | Setup scene, physics, city, freeway, cars |
-| `createCar()` | 3507 | Build car visual + physics (handles truck/drift/heavy) |
-| `updateCar()` | 3937 | Physics controls, speed cap, camera follow |
-| `createFreeway()` | 1042 | I-80 freeway from city to SF |
-| `createSanFrancisco()` | 1340 | SF section with exit gap + bridge road |
-| `createGoldenGateBridge()` | 2314 | Bridge with ground-reaching ramps |
-| `selectCar()` | 4333 | Switch car (cleans up old meshes + physics) |
-| `renderShop()` | 4278 | Garage UI |
-| `initEngineSound()` | 4387 | Web Audio engine sound setup |
-| `updateEngineSound()` | 4441 | Pitch/volume tied to speed + throttle |
-| `animate()` | 4248 | Main game loop |
-
-### UI Elements
-- `#shop-btn` — GARAGE button (top: 340px, right: 20px — below mini-map)
-- `#mini-map` — Map display (top: 20px, right: 20px, 200x300px)
-- `#shop-modal` — Car purchase/select modal
-- `#hud` — Speed, speed limit, area, wanted status
-- `#controls-hint` — Keyboard controls display
-
-## Common Pitfalls
-- Wheel meshes are scene children, NOT carGroup children — must remove separately
-- Freeway barriers are created inside `createFreewaySegment` — to add gaps, split into multiple segments
-- Bridge ramps need to be long enough (150 units) to span ground (y=0) to deck (y=15) at 0.1 rad pitch
-- Cars with extreme acceleration flip over — use `heavyCar` flag (mass 400, low roll influence)
-- `maxSpeed` is enforced by cutting engine force in `updateCar()`, not by clamping velocity
-- Audio requires user gesture — initialized on START button click
+Multiplayer (PeerJS), street/freeway races, train, tires + tow truck, map + self-drive,
+lane/front lock, turn signals/hazards. The OpenStreetMap "real map" mode is still to do.
