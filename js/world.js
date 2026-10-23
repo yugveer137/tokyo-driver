@@ -136,6 +136,7 @@ window.World = (function () {
         city.roads.push(ramp);
         Traffic.linkRamp(exit); Traffic.linkRamp(ramp);
         if (window.Train && !city.station && fw === W.freeway) { city.station = true; Train.station(city).forEach(m => city.meshes.push(m)); }
+        if (city.extraRoads) city.extraRoads(city).forEach(r => city.roads.push(r));
         // connect the collector to the grid: short stubs from the collector to the nearest street column
         // (the freeway side is local +x: city.toWorld(+W/2, ...) is the column nearest the collector)
         for (let i = 0; i <= city.rows; i += 2) {

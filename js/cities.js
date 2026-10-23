@@ -55,8 +55,8 @@ window.CITIES = (function () {
     function goldenGate(city, h) {
         // two towers and a suspended deck ribbon running along the city's far edge
         const orange = std(0xc0471b);
-        const lz = city.D / 2 + 120;
-        [-120, 120].forEach(lx => {
+        const lz = city.D / 2 + 160;
+        [-70, 70].forEach(lx => {
             const p = city.toWorld(lx, lz); const g = Terrain.height(p.x, p.z);
             [-5, 5].forEach(off => {
                 const t = new THREE.Mesh(new THREE.BoxGeometry(3, 90, 3), orange);
@@ -64,19 +64,40 @@ window.CITIES = (function () {
             });
             [30, 60, 85].forEach(y => { const b = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 13), orange); b.position.set(p.x, g + y, p.z); b.rotation.y = city.heading; h.addMesh(b, true); });
         });
-        const a = city.toWorld(-200, lz), b = city.toWorld(200, lz);
-        const deck = new THREE.Mesh(new THREE.BoxGeometry(400, 2, 16), orange);
-        deck.position.set((a.x + b.x) / 2, Terrain.height(a.x, a.z) + 25, (a.z + b.z) / 2); deck.rotation.y = city.heading; h.addMesh(deck, true);
-        // main cables: catenary approximated with a tube through a few points
+        // the deck itself is a drivable road (goldenGateRoad below); only the cables are here
+        const a = city.toWorld(-200, lz);
+        const deckY = 12;
         [-7, 7].forEach(side => {
             const pts = [];
-            for (let x = -200; x <= 200; x += 20) {
-                const sag = (x < -120 || x > 120) ? 25 + (Math.abs(x) - 120) * -0.3 + 60 : 25 + 60 - (1 - Math.pow(x / 120, 2)) * 55;
+            for (let x = -130; x <= 130; x += 10) {
+                const sag = Math.abs(x) > 70 ? deckY + 60 - (Math.abs(x) - 70) * 0.7 : deckY + 60 - (1 - Math.pow(x / 70, 2)) * 50;
                 const q = city.toWorld(x, lz + side); pts.push(new THREE.Vector3(q.x, Terrain.height(a.x, a.z) + sag, q.z));
             }
             const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, 0.4, 5, false), orange);
             h.addMesh(tube, false);
         });
+    }
+    // The bridge as a road: up a ramp from the end of one street, along the deck 14 m above the
+    // water, and back down onto another street, so it joins the grid at both ends.
+    function goldenGateRoad(city) {
+        const lz = city.D / 2 + 160, R = 60;
+        const left = city.streetX(1), right = city.streetX(city.cols - 1);
+        const pts = [];
+        const ground = (lx, lzz) => { const p = city.toWorld(lx, lzz); return Terrain.height(p.x, p.z); };
+        const base = ground(0, lz) + 12;                                    // deck height above the water
+        const add = (lx, lzz, y) => { const p = city.toWorld(lx, lzz); pts.push([p.x, y === undefined ? base : ground(lx, lzz) + Road.DRAPE + y, p.z]); };
+        // climb from the street end, sweep round a quarter circle onto the deck, cross, and mirror
+        add(left, city.D / 2 + 10, 0); add(left, city.D / 2 + 40, 2);
+        add(left, lz - R - 10); add(left, lz - R);
+        // quarter circle curving inward (toward the other end of the bridge), centre (left+R, lz-R)
+        [30, 60].forEach(a => { const r = a * Math.PI / 180; add(left + R - R * Math.cos(r), lz - R + R * Math.sin(r)); });
+        add(left + R, lz);
+        for (let x = left + R + 30; x <= right - R - 30; x += 30) add(x, lz);
+        add(right - R, lz);
+        [60, 30].forEach(a => { const r = a * Math.PI / 180; add(right - R + R * Math.cos(r), lz - R + R * Math.sin(r)); });
+        add(right, lz - R); add(right, lz - R - 10);
+        add(right, city.D / 2 + 40, 2); add(right, city.D / 2 + 10, 0);
+        return [Road.build({ type: 'avenue', name: 'Golden Gate Bridge', points: pts, segLen: 8, hugTerrain: true })];
     }
     function empireState(city, h) {
         const stone = std(0xb9b2a4);
@@ -183,7 +204,7 @@ window.CITIES = (function () {
                        ew: ['Market St', 'Mission St', 'Geary St', 'Lombard St', 'Bush St', 'California St', 'Broadway'] },
             skyline: (d) => d < 0.3 ? [60, 150] : d < 0.6 ? [15, 40] : [8, 16],
             palette: [0xf2ead9, 0xe6d9c4, 0xd9c8b4, 0xbfc9d6, 0xf7f3ea],
-            landmarks: [transamerica, goldenGate], exitNumber: 12, parks: [[1, 4], [4, 1]]
+            landmarks: [transamerica, goldenGate], extraRoads: goldenGateRoad, exitNumber: 12, parks: [[1, 4], [4, 1]]
         },
         {
             id: 'oakland', name: 'Oakland', sub: 'Jack London Square', rows: 5, cols: 5, block: 60, street: 18,

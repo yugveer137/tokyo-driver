@@ -295,10 +295,10 @@ window.Road = (function () {
     // Yaw that makes a car (forward = local +z) face along `tan`
     R.yawOf = (tan) => Math.atan2(tan.x, tan.z);
 
-    // Piers must not stand in a U-turn loop that passes under the freeway
+    // Piers must not stand in a U-turn loop (or anything else flagged underFreeway) that passes under the freeway
     function pierBlocked(px, pz) {
         for (let k = 0; k < R.all.length; k++) {
-            const u = R.all[k]; if (!u.isUturn) continue;
+            const u = R.all[k]; if (!u.isUturn && !u.underFreeway) continue;
             for (let i = 0; i < u.frames.length; i++) { const p = u.frames[i].p; if (Math.hypot(p.x - px, p.z - pz) < 8) return true; }
         }
         return false;
