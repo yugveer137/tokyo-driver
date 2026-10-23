@@ -51,6 +51,8 @@ window.UI = (function () {
         $('delivery-btn').onclick = () => { if (Game.started) Features.startDelivery(); };
         $('cruise-btn').onclick = () => { if (Game.started) Features.toggleCruise(); };
         $('rain-btn').onclick = () => Features.toggleRain();
+        $('lane-btn').onclick = () => { if (Game.started) Features.toggleLaneLock(); };
+        $('front-btn').onclick = () => { if (Game.started) Features.toggleFrontLock(); };
         $('view-btn').onclick = () => Car.toggleView();
         document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => $(b.dataset.close).classList.remove('open'));
 

@@ -205,6 +205,7 @@ window.Car = (function () {
             brake = C.mph < 3 ? 12 : 0.6 + Math.min(C.mph, 150) / 150 * 2.5;   // coast / engine braking
         }
         if (C.drifting) engine *= 0.6;
+        if (C.autoBrake && C.mph > 2) { engine = 0; brake = Math.max(brake, 35); C.throttle = 0; }
         v.applyEngineForce(engine, 2); v.applyEngineForce(engine, 3);
         for (let i = 0; i < 4; i++) v.setBrake(brake, i);
 
@@ -218,6 +219,7 @@ window.Car = (function () {
         let target = 0;
         if (keys.left) target = maxSteer;
         if (keys.right) target = -maxSteer;
+        if (C.assistSteer !== null && C.assistSteer !== undefined && !keys.left && !keys.right) target = Math.max(-maxSteer, Math.min(maxSteer, C.assistSteer));
         const k = 1 - Math.exp(-dt * 8);
         steer += (target - steer) * k;
         v.setSteeringValue(steer, 0); v.setSteeringValue(steer, 1);

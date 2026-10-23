@@ -34,6 +34,8 @@
         #delivery-btn { background: linear-gradient(135deg, #ff5d7a, #d63a58); }
         #cruise-btn { background: linear-gradient(135deg, #5a6b7a, #3b4650); } #cruise-btn.on { background: linear-gradient(135deg, #38d66b, #1f9a48); }
         #rain-btn { background: linear-gradient(135deg, #5a6b7a, #3b4650); }
+        #lane-btn, #front-btn { background: linear-gradient(135deg, #5a6b7a, #3b4650); }
+        #lane-btn.on, #front-btn.on { background: linear-gradient(135deg, #38d66b, #1f9a48); }
         #hud-delivery { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); background: var(--hud); border-radius: 10px; padding: 6px 14px; font-size: 0.8rem; font-weight: 700; color: #3af0ff; pointer-events: none; }
         #hud-delivery:empty { display: none; }
         #toast { position: fixed; left: 50%; top: 18%; transform: translateX(-50%); background: #000a; border: 1px solid #fff3; border-radius: 10px; padding: 10px 18px; font-weight: 700; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
@@ -112,6 +114,8 @@
         <button class="side-btn" id="travel-btn">FAST TRAVEL</button>
         <button class="side-btn" id="delivery-btn">DELIVERIES</button>
         <button class="side-btn" id="cruise-btn">CRUISE</button>
+        <button class="side-btn" id="lane-btn">LANE LOCK</button>
+        <button class="side-btn" id="front-btn">FRONT LOCK</button>
         <button class="side-btn" id="rain-btn">RAIN</button>
         <button class="side-btn" id="honk-btn">HONK</button>
         <button class="side-btn" id="view-btn">VIEW</button>
