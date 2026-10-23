@@ -31,6 +31,23 @@
 
     // ---------- CSS (copied from the old index.html) ----------
     const CSS = `
+        /* Title board: tokyo-driver1 / PLAY */
+        #splash-gate {
+            position: fixed; inset: 0; z-index: 3100; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; color: #fff; font-family: monospace;
+            background: radial-gradient(ellipse at 50% 30%, #16233f 0%, #0b1020 55%, #05070e 100%);
+        }
+        #splash-gate h1 {
+            font-size: clamp(2.4rem, 8vw, 5rem); letter-spacing: 6px; color: #00e5ff; margin: 0 0 10px;
+            text-shadow: 0 0 30px rgba(0, 229, 255, 0.7), 0 0 60px rgba(0, 229, 255, 0.3);
+        }
+        #splash-gate p { color: #9ab; font-size: 0.95rem; margin: 0 0 36px; text-align: center; max-width: 520px; line-height: 1.5; padding: 0 20px; }
+        #splash-play {
+            padding: 22px 90px; font-size: 1.8rem; font-weight: 900; letter-spacing: 6px; border: none; border-radius: 50px;
+            color: #06290f; background: linear-gradient(135deg, #7cf7a8, #38d66b); box-shadow: 0 0 50px rgba(56, 214, 107, 0.6); cursor: pointer; font-family: inherit;
+        }
+        #splash-play:hover { transform: scale(1.04); }
+        #splash-gate small { position: absolute; bottom: 24px; color: #567; font-size: 0.75rem; }
         /* Login Gate (first-visit email + code) */
         #login-gate {
             position: fixed;
@@ -256,18 +273,23 @@
         </div>
     `;
 
+    const SPLASH_HTML = `
+        <h1>tokyo-driver1</h1>
+        <p>Drive from Tokyo to New York. Real exits, seven cities, traffic, day and night.<br>$1 to play, once.</p>
+        <button id="splash-play">PLAY</button>
+        <small>Questions: ${OWNER_EMAIL}</small>
+    `;
+
     const PAY_HTML = `
         <div class="pay-card">
             <h2>tokyo-driver1</h2>
             <div class="pay-price">$1</div>
-            <p class="pay-sub">One-time payment to play.<br>You only pay once.</p>
+            <p class="pay-sub">One-time payment to play. You only pay once.<br>
+               Pay with the button, or send $1 to <b style="color:#fff">${OWNER_EMAIL}</b> (PayPal),<br>
+               then email that address your game login to get your unlock code.</p>
             <button id="pay-btn">PAY $1</button>
-            <div id="pay-after">
-                <p class="pay-sub">Done paying?</p>
-                <button id="paid-btn">I'VE PAID &mdash; PLAY</button>
-            </div>
             <div id="pay-note"></div>
-            <a id="contact-owner" href="#">CONTACT OWNER</a>
+            <a id="contact-owner" href="#" style="display:block">EMAIL ${OWNER_EMAIL}</a>
             <div id="unlock-row">
                 <label for="unlock-input">Have an unlock code?</label>
                 <div class="unlock-line">
@@ -452,6 +474,14 @@
 
     // $1 pay gate. Payment happens on the payment company's own secure site --
     // this page never asks for card details.
+    // Title board: "tokyo-driver1 — PLAY". Shown before the login and pay screens.
+    function showSplash() {
+        return new Promise(function (resolve) {
+            const gate = makeGate('splash-gate', SPLASH_HTML);
+            gate.querySelector('#splash-play').addEventListener('click', function () { gate.remove(); resolve(); });
+        });
+    }
+
     function showPayGate() {
         return new Promise(function (resolve) {
             const gate = makeGate('pay-gate', PAY_HTML);
@@ -462,24 +492,24 @@
                 resolve();
             }
 
+            // The contact link always carries the player's login so the owner knows who paid
+            const subject = 'tokyo-driver1 - paying $1';
+            const body = 'Hi! I want to pay $1 to play tokyo-driver1.\n\nMy game login: ' +
+                (account() || '(not signed in)') + '\n';
+            const contact = gate.querySelector('#contact-owner');
+            contact.href = 'mailto:' + OWNER_EMAIL + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+
             gate.querySelector('#pay-btn').addEventListener('click', function () {
                 const link = String(getGlobal(PAY_LINK_KEY, '') || '').trim();
                 if (!link) {
-                    noteEl.textContent = 'Payment isn\'t set up yet. Email the owner to sort it out:';
-                    // Pre-fill the email with the player's game login so the owner knows who it is
-                    const subject = 'tokyo-driver1 - paying $1';
-                    const body = 'Hi! I want to pay $1 to play tokyo-driver1.\n\nMy game login: ' +
-                        (account() || '(not signed in)') + '\n';
-                    const contact = gate.querySelector('#contact-owner');
-                    contact.href = 'mailto:' + OWNER_EMAIL + '?subject=' + encodeURIComponent(subject) +
-                        '&body=' + encodeURIComponent(body);
-                    contact.style.display = 'block';
+                    // No payment link set by the owner yet: the email is the way to pay
+                    noteEl.textContent = 'Send $1 to ' + OWNER_EMAIL + ' and email your login; you get an unlock code back.';
+                    window.location.href = contact.href;
                     return;
                 }
                 window.open(link, '_blank', 'noopener');
-                gate.querySelector('#pay-after').style.display = 'block';
+                noteEl.textContent = 'After paying, email ' + OWNER_EMAIL + ' your game login to get your unlock code.';
             });
-            gate.querySelector('#paid-btn').addEventListener('click', unlock);
 
             // Unlock code the owner emails to people who've paid. Only its SHA-256 fingerprint
             // is stored here, so reading the page source doesn't reveal it. Honor system:
@@ -543,6 +573,7 @@
         bootPromise = new Promise(function (resolve) { whenBody(resolve); }).then(async function () {
             runUrlSwitches();
             migrateOldKeys();
+            if (!isCreator()) await showSplash();
             if (!session.get()) await showLoginGate();
             if (!isCreator() && !isPaid()) await showPayGate();
             return { account: account(), isCreator: isCreator() };
