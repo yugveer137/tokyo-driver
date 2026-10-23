@@ -15,11 +15,11 @@ window.Road = (function () {
     // Cross-section presets (widths in world units; a lane is 3.6)
     R.types = {
         freeway: { lanes: 3, laneW: 3.6, shoulder: 2.4, median: 2.0, twoWay: true, barriers: true, deck: true },
-        ramp:    { lanes: 1, laneW: 4.2, shoulder: 1.4, median: 0,   twoWay: false, barriers: true, deck: true },
+        ramp:    { lanes: 1, laneW: 5.6, shoulder: 2.1, median: 0,   twoWay: false, barriers: true, deck: true },
         street:  { lanes: 1, laneW: 3.6, shoulder: 0.4, median: 0,   twoWay: true, barriers: false, deck: false },
         avenue:  { lanes: 2, laneW: 3.5, shoulder: 0.5, median: 1.2, twoWay: true, barriers: false, deck: false }
     };
-    function widthOf(t) { return (t.twoWay ? 2 : 1) * (t.lanes * t.laneW + t.shoulder) + t.median; }
+    function widthOf(t) { return t.twoWay ? 2 * (t.lanes * t.laneW + t.shoulder) + t.median : t.lanes * t.laneW + 2 * t.shoulder; }
     R.widthOf = (name) => widthOf(R.types[name]);
 
     const stripCache = {};

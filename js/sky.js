@@ -119,6 +119,8 @@ window.Sky = (function () {
 
         dome.position.copy(focus);
         stars.position.copy(focus);
+        // keep the dome inside the camera's view distance (it is clipped to black otherwise)
+        if (window.game && game.camera) { const k = Math.min(1, game.camera.far * 0.92 / 850); dome.scale.setScalar(k); stars.scale.setScalar(k); }
         stars.material.opacity = (1 - dl) * 0.9;
 
         sun.position.copy(focus).addScaledVector(S.sunDir, 300);
