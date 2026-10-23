@@ -57,6 +57,7 @@
         Races.init(scene);
         UI.init();
         SelfDrive.init();
+        Multiplayer.init(scene);
         Minimap.init();
         World.build();
         Game.load();
@@ -65,6 +66,7 @@
         World.update(World.spawn);
         Car.spawn(Game.carData(), World.spawn, World.spawnYaw);
         UI.showMenu();
+        Multiplayer.checkInvite();
 
         clock = new THREE.Clock();
         window.game = { scene, camera, renderer, world, tick, render: () => renderer.render(scene, camera) };   // for debugging in the console
@@ -104,6 +106,7 @@
             Features.update(dt);
             Races.update(dt);
             SelfDrive.update(dt);
+            Multiplayer.update(dt);
         }
         UI.update(fps);
     }

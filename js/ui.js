@@ -36,7 +36,7 @@ window.UI = (function () {
         $('newgame-btn').onclick = () => { if (confirm('Start a new game? Coins and cars are reset for this account.')) { Game.newGame(); Game.selectCar('starter'); U.enterDriveReady(); } };
         $('settings-btn').onclick = () => { $('menu-main').style.display = 'none'; $('settings-panel').style.display = 'block'; refreshSettings(); };
         $('settings-back').onclick = () => { $('menu-main').style.display = 'block'; $('settings-panel').style.display = 'none'; };
-        $('multiplayer-btn').onclick = () => U.toast('Multiplayer is coming back in the next update');
+        $('multiplayer-btn').onclick = () => Multiplayer.showMenu();
         $('sound-toggle').onclick = () => { if (window.GameAudio) { GameAudio.setEnabled(!GameAudio.isEnabled()); refreshSettings(); } };
         $('switch-player-btn').onclick = () => Save.signOut();
         $('paylink-save').onclick = () => {
