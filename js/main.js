@@ -53,6 +53,7 @@
         Car.init(scene, world, camera);
         Game.initCoins(scene);
         Features.init(scene);
+        Races.init(scene);
         UI.init();
         Minimap.init();
         World.build();
@@ -98,6 +99,7 @@
             if (Game.started && window.GameAudio) GameAudio.update({ mph: Car.mph, throttle: Car.throttle, lateralVel: Car.lateralVel, drifting: Car.drifting });
             Minimap.update(Car.body.position, Car.yaw());
             Features.update(dt);
+            Races.update(dt);
         }
         UI.update(fps);
     }

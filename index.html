@@ -41,6 +41,9 @@
         #hud-tires { position: fixed; left: 50%; top: 52px; transform: translateX(-50%); background: var(--hud); border-radius: 10px; padding: 6px 14px; font-size: 0.8rem; font-weight: 800; color: #ffb000; pointer-events: none; animation: blink 1s infinite; }
         #hud-tires:empty { display: none; }
         @keyframes blink { 50% { opacity: 0.4; } }
+        #race-btn { background: linear-gradient(135deg, #e0202a, #a8121a); } #fwrace-btn { background: linear-gradient(135deg, #ff6a2f, #d6471c); }
+        #race-hud { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--hud); border-radius: 10px; padding: 8px 16px; font-weight: 800; color: #ffd21e; pointer-events: none; }
+        #race-hud:empty { display: none; }
         #toast { position: fixed; left: 50%; top: 18%; transform: translateX(-50%); background: #000a; border: 1px solid #fff3; border-radius: 10px; padding: 10px 18px; font-weight: 700; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
         #toast.show { opacity: 1; }
         #minimap { position: fixed; right: 16px; bottom: 80px; width: 200px; height: 200px; border-radius: 50%; box-shadow: 0 4px 16px #0008; pointer-events: none; }
@@ -116,6 +119,8 @@
         <button class="side-btn" id="garage-btn">GARAGE</button>
         <button class="side-btn" id="travel-btn">FAST TRAVEL</button>
         <button class="side-btn" id="delivery-btn">DELIVERIES</button>
+        <button class="side-btn" id="race-btn">RACE</button>
+        <button class="side-btn" id="fwrace-btn">FREEWAY RACE</button>
         <button class="side-btn" id="cruise-btn">CRUISE</button>
         <button class="side-btn" id="lane-btn">LANE LOCK</button>
         <button class="side-btn" id="front-btn">FRONT LOCK</button>
@@ -125,6 +130,7 @@
     </div>
     <div id="hud-delivery"></div>
     <div id="hud-tires"></div>
+    <div id="race-hud"></div>
     <div id="toast"></div>
     <canvas id="minimap"></canvas>
 
@@ -187,6 +193,7 @@
     <script src="js/car.js"></script>
     <script src="js/game.js"></script>
     <script src="js/features.js"></script>
+    <script src="js/races.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/minimap.js"></script>
     <script src="js/debug.js"></script>
