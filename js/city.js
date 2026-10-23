@@ -161,7 +161,6 @@ window.City = (function () {
             heads[axis].push(lenses);
             g.position.set(base.x, gy, base.z);
             g.rotation.y = city.heading + rot;
-            g.traverse(o => { if (o.isMesh) o.castShadow = true; });
             scene.add(g); city.meshes.push(g);
         });
         const L = { city, heads, phase: ((i + j) % 2) * 4, nsGreen: true, ewGreen: false };
@@ -245,9 +244,9 @@ window.City = (function () {
         for (let k = 0; k < count; k++) {
             const lx = cx + (Math.random() - 0.5) * span, lz = cz + (Math.random() - 0.5) * span;
             const p = city.toWorld(lx, lz); const g = Terrain.height(p.x, p.z) + 0.3;
-            const t = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 3, 6), trunk); t.position.set(p.x, g + 1.5, p.z); addMesh(city, t, true);
+            const t = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 3, 6), trunk); t.position.set(p.x, g + 1.5, p.z); addMesh(city, t, false);
             const s = rnd(2, 3.5);
-            const l = new THREE.Mesh(new THREE.SphereGeometry(s, 8, 6), leaf); l.position.set(p.x, g + 3 + s * 0.7, p.z); addMesh(city, l, true);
+            const l = new THREE.Mesh(new THREE.SphereGeometry(s, 8, 6), leaf); l.position.set(p.x, g + 3 + s * 0.7, p.z); addMesh(city, l, false);
         }
     }
 

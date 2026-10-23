@@ -40,7 +40,7 @@ window.Traffic = (function () {
             const h = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.1), head); h.position.set(x, 0.85, long / 2 + 0.02); g.add(h);
             const t = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.1), tail); t.position.set(x, 0.85, -long / 2 - 0.02); g.add(t);
         });
-        g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+        body.castShadow = true;          // only the body: wheels and lamps are not worth a shadow pass each
         g.userData.lights = { head, tail };
         g.userData.size = [1.9, tall, long];
         return g;

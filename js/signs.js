@@ -26,7 +26,6 @@ window.Signs = (function () {
     function place(g, pos, facing, lift) {
         g.position.copy(pos); g.position.y += lift;
         g.rotation.y = facing;
-        g.traverse(o => { if (o.isMesh) o.castShadow = true; });
         scene.add(g);
         return g;
     }

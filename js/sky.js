@@ -67,9 +67,9 @@ window.Sky = (function () {
 
         sun = new THREE.DirectionalLight(0xffffff, 1.2);
         sun.castShadow = true;
-        sun.shadow.mapSize.set(2048, 2048);
+        sun.shadow.mapSize.set(1536, 1536);
         const sc2 = sun.shadow.camera;
-        sc2.left = -120; sc2.right = 120; sc2.top = 120; sc2.bottom = -120; sc2.near = 1; sc2.far = 700;
+        sc2.left = -90; sc2.right = 90; sc2.top = 90; sc2.bottom = -90; sc2.near = 1; sc2.far = 600;
         sun.shadow.bias = -0.0006;
         scene.add(sun); scene.add(sun.target);
 
@@ -118,7 +118,7 @@ window.Sky = (function () {
         ambient.intensity = 0.1 + 0.12 * dl;
 
         scene.fog.color.copy(u.uHorizon.value);
-        scene.fog.density = (0.0025 - 0.0013 * dl) * (S.rain ? 1.8 : 1);
+        scene.fog.density = (0.0025 - 0.0013 * dl) * (S.rain ? 1.8 : 1) * (S.fogBoost || 1);
         if (S.rain) { u.uTop.value.multiplyScalar(0.55); u.uHorizon.value.multiplyScalar(0.7); sun.intensity *= 0.5; }
         if (renderer) renderer.toneMappingExposure = 0.8 + 0.25 * dl;
     };

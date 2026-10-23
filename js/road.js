@@ -320,7 +320,9 @@ window.Road = (function () {
         pts.push(end); pts.push(tail);
         clearTerrain(pts, 3, pts.length - 2);
         const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5);
-        const rec = R.build({ type: 'ramp', curve, name: name || 'exit', segLen: 6, openLeft: side === 1, openRight: side === -1, openEnd: 80 });
+        // the freeway-side wall is left open only where the ramp still touches the freeway
+        const gapsIn = [[0, 200]];
+        const rec = R.build({ type: 'ramp', curve, name: name || 'exit', segLen: 6, gapsLeft: side === 1 ? gapsIn : undefined, gapsRight: side === -1 ? gapsIn : undefined, openEnd: 45 });
         rec.isExit = true; rec.from = fw; rec.s0 = s0; rec.side = side;
         return rec;
     };
@@ -342,7 +344,9 @@ window.Road = (function () {
         add(s1 + 40, -rw + 0.6, 0.03);
         clearTerrain(pts, 2, pts.length - 4);
         const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5);
-        const rec = R.build({ type: 'ramp', curve, name: name || 'onramp', segLen: 6, openLeft: side === 1, openRight: side === -1, openStart: 80 });
+        const len = curve.getLength();
+        const gapsIn = [[len - 200, len]];
+        const rec = R.build({ type: 'ramp', curve, name: name || 'onramp', segLen: 6, gapsLeft: side === 1 ? gapsIn : undefined, gapsRight: side === -1 ? gapsIn : undefined, openStart: 45 });
         rec.isOnramp = true; rec.from = fw; rec.s1 = s1; rec.side = side;
         return rec;
     };

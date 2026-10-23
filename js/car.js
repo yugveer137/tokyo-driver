@@ -163,6 +163,37 @@ window.Car = (function () {
         dashTex.needsUpdate = true;
     }
 
+    // Put the car back on the nearest built road, upright, facing along it (R key, and
+    // automatically after a few seconds stuck or on its side).
+    C.reset = function (quiet) {
+        if (!C.body) return;
+        const pos = C.body.position;
+        let best = null, bd = Infinity;
+        Road.all.forEach(r => { if (!Object.keys(r.chunks).length) return; const n = Road.nearest(r, pos); if (n.dist < bd) { bd = n.dist; best = { r, n }; } });
+        if (!best) return;
+        const r = best.r, f = best.n.frame;
+        const yaw = C.yaw(), fwd = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+        const dir = (fwd.dot(f.tan) >= 0 || !r.typeDef.twoWay) ? 1 : -1;
+        const lanes = r.lanes.filter(l => l.dir === dir);
+        const lane = lanes[Math.min(lanes.length - 1, Math.floor(lanes.length / 2))] || r.lanes[0];
+        const at = Road.at(r, best.n.s, lane.offset);
+        const tan = at.tan.clone().multiplyScalar(dir);
+        C.teleport(at.p.x, at.p.y + 1.2, at.p.z, Road.yawOf(tan));
+        C.stuckTimer = 0; C.cruise = null;
+        if (!quiet && window.UI) UI.toast('Back on the road');
+    };
+    C.stuckTimer = 0;
+    function watchStuck(dt) {
+        const b = C.body;
+        tmpQ.set(b.quaternion.x, b.quaternion.y, b.quaternion.z, b.quaternion.w);
+        tmpV.set(0, 1, 0).applyQuaternion(tmpQ);
+        const onSide = tmpV.y < 0.86;                      // leaning more than ~30 degrees
+        const pushingButStill = keys.fwd && C.mph < 2;
+        const fallen = b.position.y < Terrain.height(b.position.x, b.position.z) - 3;
+        if (onSide || pushingButStill || fallen) C.stuckTimer += dt; else C.stuckTimer = 0;
+        if (C.stuckTimer > 4 || fallen && C.stuckTimer > 1) C.reset();
+    }
+
     C.gearUp = function () { if (C.gear < CFG.GEARS.length - 1) C.gear++; C.manualTimer = 4; };
     C.gearDown = function () { if (C.gear > 0) C.gear--; C.manualTimer = 4; };
     C.toggleView = function () { C.view = C.view === 'chase' ? 'cockpit' : 'chase'; };
@@ -268,6 +299,8 @@ window.Car = (function () {
             b.angularVelocity.x *= 0.1; b.angularVelocity.z *= 0.1;
             if (b.position.y < Terrain.height(b.position.x, b.position.z) + 1) b.position.y = Terrain.height(b.position.x, b.position.z) + 1;
         }
+
+        watchStuck(dt);
 
         // Visuals follow physics
         C.group.position.copy(b.position);

@@ -26,6 +26,7 @@ window.UI = (function () {
             if (e.code === 'KeyE') Features.setSignal('right');
             if (e.code === 'KeyH') Features.setSignal('hazard');
             if (e.code === 'KeyT') Train.toggle();
+            if (e.code === 'KeyR') Car.reset();
             if (e.code === 'KeyM') { SelfDrive.draw(); $('map-modal').classList.toggle('open'); }
             if (e.code === 'Escape') U.closeModals();
         });
@@ -63,6 +64,7 @@ window.UI = (function () {
         $('lane-btn').onclick = () => { if (Game.started) Features.toggleLaneLock(); };
         $('front-btn').onclick = () => { if (Game.started) Features.toggleFrontLock(); };
         $('view-btn').onclick = () => Car.toggleView();
+        $('reset-btn').onclick = () => { if (Game.started) Car.reset(); };
         document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => $(b.dataset.close).classList.remove('open'));
 
         // touch controls on touch devices

@@ -8,7 +8,7 @@
         renderer.setPixelRatio(pixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.shadowMap.type = THREE.PCFShadowMap;      // PCFSoft costs ~2x on Safari
         renderer.outputEncoding = THREE.sRGBEncoding;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         renderer.toneMappingExposure = 1.0;
@@ -74,15 +74,27 @@
         requestAnimationFrame(loop);
     }
 
+    // Adaptive quality: drop the render resolution first; if it is still slow, switch the
+    // shadows off and pull the view distance in. Steps back up when the frame rate recovers.
+    let lowFrames = 0, quality = 2;   // 2 = shadows on, 1 = shadows off, 0 = shadows off + short view
+    function setQuality(q) {
+        if (q === quality) return; quality = q;
+        renderer.shadowMap.enabled = q >= 2;
+        scene.traverse(o => { if (o.material) { const ms = Array.isArray(o.material) ? o.material : [o.material]; ms.forEach(m => m.needsUpdate = true); } });
+        camera.far = q === 0 ? 650 : 1200; camera.updateProjectionMatrix();
+        Sky.fogBoost = q === 0 ? 1.6 : 1;
+    }
     function adaptResolution(dt) {
         fpsSamples.push(1 / Math.max(dt, 1e-3));
         if (fpsSamples.length < 60) return;
         fps = fpsSamples.reduce((a, b) => a + b, 0) / fpsSamples.length;
         fpsSamples = [];
         const maxPR = Math.min(window.devicePixelRatio, 2);
-        if (fps < 42 && pixelRatio > 0.8) pixelRatio = Math.max(0.8, pixelRatio - 0.2);
-        else if (fps > 57 && pixelRatio < maxPR) pixelRatio = Math.min(maxPR, pixelRatio + 0.15);
+        if (fps < 42 && pixelRatio > 0.6) pixelRatio = Math.max(0.6, pixelRatio - 0.2);
+        else if (fps > 57 && pixelRatio < maxPR && quality === 2) pixelRatio = Math.min(maxPR, pixelRatio + 0.15);
         if (Math.abs(renderer.getPixelRatio() - pixelRatio) > 0.01) renderer.setPixelRatio(pixelRatio);
+        if (fps < 36 && pixelRatio <= 0.61) { if (++lowFrames >= 2) { setQuality(Math.max(0, quality - 1)); lowFrames = 0; } }
+        else if (fps > 55) { if (--lowFrames <= -6) { setQuality(Math.min(2, quality + 1)); lowFrames = 0; } }
     }
 
     // One simulation step without rendering (also callable from the console for testing)
