@@ -1,10 +1,9 @@
 // tokyo-driver1 v2 — the train. A railway runs the length of the route on the ground to the
 // left of the freeway, with a station at every city. Press T (or the TRAIN button) near the
-// train to board: the camera follows it, W/S drive it, T again gets off beside the track.
+// train (stopped at a station) to board: it runs to a timetable, T again gets off beside the track.
 window.Train = (function () {
     const T = { LAT: -64, chunks: {}, riding: false, speed: 0, s: 0, stations: [] };   // between the left collector and the left cities
-    let scene, mesh, railTex, railMat;
-    const MAX = 55;            // units/s (~120 mph)
+    let scene, railTex, railMat;
 
     T.init = function (sc) {
         scene = sc;
@@ -16,8 +15,6 @@ window.Train = (function () {
         });
         railTex.wrapS = THREE.ClampToEdgeWrapping; railTex.wrapT = THREE.RepeatWrapping;
         railMat = new THREE.MeshStandardMaterial({ map: railTex, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
-        mesh = buildTrain(); mesh.visible = false; scene.add(mesh);
-        T.s = 300;
     };
 
     function buildTrain() {
@@ -104,13 +101,49 @@ window.Train = (function () {
     T.pose = function (s) { return Road.at(World.freeway, s, T.LAT); };
     T.groundAt = function (s) { const f = T.pose(s); f.p.y = Terrain.height(f.p.x, f.p.z) + Road.DRAPE + 0.05; return f; };
 
-    T.near = function (pos) { return mesh && mesh.visible && mesh.position.distanceTo(pos) < 40; };
+    // ---- timetable ----
+    // Stations are the I-80 cities. Trains run out and back along the line as one big loop of
+    // "nodes" (0,1,...,last,...,1): every minute each train moves one node on; it waits DWELL
+    // seconds at the station, then takes the rest of the minute to reach the next one. One train
+    // per node means every stop sees a train each minute (the middle stops: one each way).
+    const SLOT = 60, DWELL = 15;
+    T.clock = 0; T.trains = [];
+    function stationS() { return World.freeway.cities.map(c => c.s).sort((a, b) => a - b); }
+    function nodes() { const st = stationS(); const out = st.slice(); for (let i = st.length - 2; i >= 1; i--) out.push(st[i]); return out; }
+    function ensureTrains(n) {
+        while (T.trains.length < n) { const m = buildTrain(); m.visible = false; scene.add(m); T.trains.push({ mesh: m, s: 0, speed: 0, dir: 1, atStation: false, node: -1 }); }
+    }
+    // where train p is right now
+    function placeTrain(p, tr, nd, playerPos) {
+        const N = nd.length, slot = Math.floor(T.clock / SLOT), phase = T.clock - slot * SLOT;
+        const node = (p + slot) % N, next = (node + 1) % N;
+        const s0 = nd[node], s1 = nd[next];
+        tr.dir = s1 >= s0 ? 1 : -1; tr.node = node; tr.nextS = s1;
+        if (phase < DWELL) { tr.s = s0; tr.speed = 0; tr.atStation = true; tr.leavesIn = DWELL - phase; }
+        else {
+            const f = (phase - DWELL) / (SLOT - DWELL), ease = f * f * (3 - 2 * f);          // smooth start and stop
+            tr.s = s0 + (s1 - s0) * ease; tr.speed = Math.abs(s1 - s0) * 6 * f * (1 - f) / (SLOT - DWELL); tr.atStation = false; tr.arrivesIn = (1 - f) * (SLOT - DWELL);
+        }
+        const fr = T.groundAt(tr.s);
+        tr.mesh.position.copy(fr.p);
+        tr.mesh.rotation.set(0, Road.yawOf(fr.tan) + (tr.dir === 1 ? 0 : Math.PI), 0);
+        tr.mesh.visible = tr.mesh.position.distanceTo(playerPos) < 1500;
+        tr.frame = fr;
+    }
+    // seconds until the next train stops at the station at arc length sSt (and whether one is there now)
+    T.nextAt = function (sSt) {
+        const slot = Math.floor(T.clock / SLOT), phase = T.clock - slot * SLOT;
+        const here = T.trains.find(tr => tr.atStation && Math.abs(tr.s - sSt) < 1);
+        return here ? { here: true, leavesIn: Math.ceil(here.leavesIn) } : { here: false, inSeconds: Math.ceil(SLOT - phase) };
+    };
+    // the train you can board: stopped at a station within 40 m of you
+    T.near = function (pos) { return T.trains.find(tr => tr.mesh.visible && tr.atStation && tr.mesh.position.distanceTo(pos) < 40) || null; };
     T.toggleView = function () { T.inside = !T.inside; UI.toast(T.inside ? 'Inside the train' : 'Outside view'); };
     T.toggle = function () {
         if (T.riding) {
-            T.riding = false;
-            mesh.userData.inside.visible = false;
-            const f = T.groundAt(T.s);
+            const tr = T.ride; T.riding = false; T.ride = null;
+            tr.mesh.userData.inside.visible = false;
+            const f = T.groundAt(tr.s);
             const side = f.p.clone().addScaledVector(f.right, -8);
             Car.teleport(side.x, Terrain.height(side.x, side.z) + 1.2, side.z, Road.yawOf(f.tan));
             Car.group.visible = true; Car.wheels.forEach(w => w.visible = true);
@@ -121,52 +154,44 @@ window.Train = (function () {
         }
         const onFoot = window.Walk && Walk.active;
         const who = onFoot ? Walk.pos : Car.body.position;
-        if (!T.near(who)) { UI.toast('Walk up to the train first (it waits at every station, down the stairs on the left of the freeway)', 3500); return; }
+        const tr = T.near(who);
+        if (!tr) {
+            const st = T.stations.filter(x => x.city.loaded).sort((a, b) => a.platform.distanceTo(who) - b.platform.distanceTo(who))[0];
+            const when = st ? T.nextAt(st.s) : null;
+            UI.toast(when ? 'No train here yet — next one stops at ' + st.city.name + ' in ' + when.inSeconds + ' s. Wait on the platform.' : 'Walk up to a train stopped at a station (stops are beside the freeway at every city)', 3500);
+            return;
+        }
         if (onFoot) { Walk.leaveForTrain(); T.onFoot = true; }
-        T.riding = true; T.inside = true; Car.frozen = true;
+        T.riding = true; T.ride = tr; T.inside = true; Car.frozen = true;
         Car.group.visible = false; Car.wheels.forEach(w => w.visible = false);
-        UI.toast('All aboard! W/S drive the train, C inside/outside, T to get off', 3000);
+        UI.toast('All aboard! Trains run to a timetable — C inside/outside, T to get off at a stop', 3000);
     };
 
     T.update = function (dt, playerPos) {
         if (!World.freeway) return;
-        const fw = World.freeway;
-        // keep the train within range of the player when not ridden: park it at the nearest station behind the player
-        if (!T.riding) {
-            const ps = Road.nearest(fw, playerPos).s;
-            if (Math.abs(T.s - ps) > 2000) {
-                const st = T.stations.map(s => s.s).filter(s => s < ps + 300).sort((a, b) => b - a)[0];
-                if (st !== undefined) { T.s = st; T.speed = 0; }
-            }
-            // idle trains crawl between stations slowly
-            const next = T.stations.map(s => s.s).filter(s => s > T.s + 5).sort((a, b) => a - b)[0];
-            if (next !== undefined && Math.abs(T.s - ps) < 1500) { T.speed = Math.min(12, T.speed + 4 * dt); if (next - T.s < 60) T.speed = Math.max(0, T.speed - 10 * dt); if (next - T.s < 2) T.speed = 0; }
+        T.clock += dt;
+        const nd = nodes(); ensureTrains(nd.length);
+        for (let p = 0; p < nd.length; p++) placeTrain(p, T.trains[p], nd, playerPos);
+        if (!T.riding) return;
+        const tr = T.ride, f = tr.frame;
+        T.s = tr.s; T.speed = tr.speed;
+        // park the car body under the train (frozen) so the world streams around it
+        Car.body.position.set(f.p.x, f.p.y + 1, f.p.z); Car.body.velocity.set(0, 0, 0); Car.body.angularVelocity.set(0, 0, 0);
+        Car.body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Road.yawOf(f.tan));
+        Car.mph = tr.speed * CFG.MPH;
+        // announce stops
+        if (tr.atStation && !T.announced) { T.announced = true; const city = World.freeway.cities.find(c => Math.abs(c.s - tr.s) < 1); if (city) UI.toast('This stop: ' + city.name + '. Doors open for ' + DWELL + ' s — press T to get off.', 4000); }
+        if (!tr.atStation) T.announced = false;
+        const cam = game.camera;
+        tr.mesh.userData.inside.visible = !!T.inside;
+        if (T.inside) {
+            tr.mesh.updateMatrixWorld();
+            const eye = tr.mesh.localToWorld(new THREE.Vector3(-0.9, 3.0, 2.0)), look = tr.mesh.localToWorld(new THREE.Vector3(-0.9, 2.85, 40));
+            cam.position.copy(eye); cam.lookAt(look);
         } else {
-            if (Car.keys.fwd) T.speed = Math.min(MAX, T.speed + 8 * dt);
-            else if (Car.keys.back) T.speed = Math.max(0, T.speed - 16 * dt);
-            else T.speed = Math.max(0, T.speed - 2 * dt);
-        }
-        T.s = Math.max(50, Math.min(fw.length - 50, T.s + T.speed * dt));
-        const f = T.groundAt(T.s);
-        mesh.position.copy(f.p);
-        mesh.rotation.set(0, Road.yawOf(f.tan), 0);
-        mesh.visible = mesh.position.distanceTo(playerPos) < 1500;
-        if (T.riding) {
-            // park the car body under the train (frozen) so the world streams around it
-            Car.body.position.set(f.p.x, f.p.y + 1, f.p.z); Car.body.velocity.set(0, 0, 0); Car.body.angularVelocity.set(0, 0, 0);
-            Car.body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Road.yawOf(f.tan));
-            Car.mph = T.speed * CFG.MPH;
-            const cam = game.camera;
-            mesh.userData.inside.visible = !!T.inside;
-            if (T.inside) {
-                mesh.updateMatrixWorld();
-                const eye = mesh.localToWorld(new THREE.Vector3(-0.9, 3.0, 2.0)), look = mesh.localToWorld(new THREE.Vector3(-0.9, 2.85, 40));
-                cam.position.copy(eye); cam.lookAt(look);
-            } else {
-                const back = f.p.clone().addScaledVector(f.tan, -28).addScaledVector(f.right, 10); back.y = f.p.y + 12;
-                cam.position.lerp(back, 1 - Math.exp(-dt * 4));
-                cam.lookAt(f.p.x, f.p.y + 3, f.p.z);
-            }
+            const back = f.p.clone().addScaledVector(f.tan, -28 * tr.dir).addScaledVector(f.right, 10); back.y = f.p.y + 12;
+            cam.position.lerp(back, 1 - Math.exp(-dt * 4));
+            cam.lookAt(f.p.x, f.p.y + 3, f.p.z);
         }
     };
 

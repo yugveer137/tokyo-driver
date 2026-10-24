@@ -106,7 +106,9 @@ window.Walk = (function () {
         const dx = best.platform.x - W.pos.x, dz = best.platform.z - W.pos.z;
         let rel = Math.atan2(dx, dz) - W.yaw; while (rel > Math.PI) rel -= 2 * Math.PI; while (rel < -Math.PI) rel += 2 * Math.PI;
         const where = Math.abs(rel) < 0.4 ? 'straight ahead' : Math.abs(rel) > 2.7 ? 'behind you' : rel > 0 ? 'on your left' : 'on your right';
-        const steps = bd < 15 ? 'Train stop right here — press T when the train is in' : best.city.name + ' train stop: ' + Math.round(bd) + ' m, ' + where + (bd > 60 ? ' (look for the blue beacon; stairs go down from the freeway\'s left shoulder)' : '');
+        const when = Train.nextAt(best.s);
+        const timing = when.here ? 'train is in, leaves in ' + when.leavesIn + ' s — press T' : 'next train in ' + when.inSeconds + ' s';
+        const steps = bd < 15 ? 'Train stop: ' + timing : best.city.name + ' train stop: ' + Math.round(bd) + ' m, ' + where + (bd > 60 ? ' (look for the blue beacon; stairs go down from the freeway\'s left shoulder)' : '');
         guideEl.textContent = steps;
     }
     W.hideGuide = function () { if (guideEl) guideEl.textContent = ''; };
