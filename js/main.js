@@ -28,6 +28,12 @@
             if (typeof msg === 'string' && msg.indexOf('faceNormals') !== -1) return;
             rawError.apply(console, arguments);
         };
+        // GLTFLoader r128 warns about a texture extension the Kenney models declare but do not need
+        const rawWarn = console.warn;
+        console.warn = function (msg) {
+            if (typeof msg === 'string' && msg.indexOf('KHR_texture_transform') !== -1) return;
+            rawWarn.apply(console, arguments);
+        };
         world = new CANNON.World();
         world.gravity.set(0, CFG.GRAVITY, 0);
         // The default ArrayCollisionMatrix zeroes an N*N/2 array every step (18 million entries with

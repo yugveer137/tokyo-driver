@@ -43,7 +43,7 @@ window.SelfDrive = (function () {
         ctx.fillStyle = '#0f1522'; ctx.fillRect(0, 0, W, H);
         // train line and I-80
         ctx.strokeStyle = '#6b6257'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
-        ctx.beginPath(); ctx.moveTo(PAD, H / 2 + Train.LAT * LAT_SCALE * (H / 2 - PAD) / 900); ctx.lineTo(W - PAD, H / 2 + Train.LAT * LAT_SCALE * (H / 2 - PAD) / 900); ctx.stroke();
+        [Train.LAT, Train.LAT2].forEach(lat => { ctx.beginPath(); ctx.moveTo(PAD, H / 2 + lat * LAT_SCALE * (H / 2 - PAD) / 900); ctx.lineTo(W - PAD, H / 2 + lat * LAT_SCALE * (H / 2 - PAD) / 900); ctx.stroke(); });
         ctx.setLineDash([]);
         ctx.strokeStyle = '#cfd3d8'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(PAD, H / 2); ctx.lineTo(W - PAD, H / 2); ctx.stroke();
         ctx.fillStyle = '#9ab'; ctx.font = 'bold 12px sans-serif'; ctx.fillText('I-80', PAD, H / 2 - 10);
