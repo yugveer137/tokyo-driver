@@ -71,6 +71,7 @@ window.UI = (function () {
         $('walk-btn').onclick = () => { if (Game.started && window.Walk) Walk.toggle(); };
         $('boost-btn').onclick = () => { if (Game.started) Car.boostStart(); };
         $('fix-btn').onclick = () => { if (Game.started) Features.fixAtWorkshop(); };
+        $('tires-btn').onclick = () => { Features.renderTires(); $('tires-modal').classList.add('open'); };
         $('reset-btn').onclick = () => { if (Game.started) Car.reset(); };
         $('tow-btn').onclick = () => { if (Game.started) Features.callTow(); };
         document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => $(b.dataset.close).classList.remove('open'));

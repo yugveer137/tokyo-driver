@@ -144,6 +144,7 @@
         <button class="side-btn" id="reset-btn" style="background: linear-gradient(135deg, #ffb000, #d68a00); color: #1a1200">RESET CAR (R)</button>
         <button class="side-btn" id="tow-btn" style="background: linear-gradient(135deg, #ffcf4a, #e0a300); color: #1a1200">TOW TRUCK</button>
         <button class="side-btn" id="fix-btn" style="background: linear-gradient(135deg, #38d66b, #1f9a4a)">FIX CAR</button>
+        <button class="side-btn" id="tires-btn" style="background: linear-gradient(135deg, #8a9bb0, #56677c)">TIRE PRESSURE</button>
         <button class="side-btn" id="walk-btn" style="background: linear-gradient(135deg, #52b8ff, #1f7fd0)">WALK (G)</button>
         <button class="side-btn" id="boost-btn" style="background: linear-gradient(135deg, #ff3b4a, #b80d1c)">BOOST (B)</button>
         <button class="side-btn" id="music-btn" style="background: linear-gradient(135deg, #c04bff, #7a1fd0)">MUSIC</button>
@@ -207,6 +208,10 @@
     <div class="modal" id="map-modal"><div class="modal-box" style="width:min(1000px,96vw)">
         <div class="modal-head"><h2>MAP</h2><button class="toggle-btn" id="map-cancel">STOP SELF-DRIVE</button><button class="toggle-btn" data-close="map-modal">CLOSE</button></div>
         <div class="modal-body" style="padding:8px"><canvas id="map-canvas" style="width:100%;border-radius:10px;cursor:crosshair"></canvas></div>
+    </div></div>
+    <div class="modal" id="tires-modal"><div class="modal-box" style="width:min(420px,94vw)">
+        <div class="modal-head"><h2>TIRE PRESSURE</h2><button class="toggle-btn" data-close="tires-modal">CLOSE</button></div>
+        <div class="modal-body" id="tires-list"></div>
     </div></div>
     <div class="modal" id="music-modal"><div class="modal-box" style="width:min(460px,94vw)">
         <div class="modal-head"><h2>MUSIC</h2><button class="toggle-btn" id="music-stop">STOP</button><button class="toggle-btn" data-close="music-modal">CLOSE</button></div>

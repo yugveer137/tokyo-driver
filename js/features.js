@@ -199,15 +199,28 @@ window.Features = (function () {
         el.textContent = Tires.stranded ? (Tires.tow ? 'STRANDED — tow truck on its way' : 'STRANDED — limp to a WORKSHOP (any city) or press TOW TRUCK') : min < 14 ? 'LOW TIRE PRESSURE (' + Math.round(min) + ' psi) — any city WORKSHOP fixes it' : '';
         el.style.color = Tires.stranded ? '#ff5d6c' : '#ffb000';
     }
+    // Only a real crash costs air: over ~30 mph straight into something. A scrape or a tap does
+    // nothing; a big hit (60+ mph) can blow a tire outright.
     F.onImpact = function (speedAlongNormal) {
         const now = performance.now();
-        if (speedAlongNormal < 7 || now - Tires.lastImpact < 800) return;
+        if (speedAlongNormal < 14 || now - Tires.lastImpact < 1500) return;
         Tires.lastImpact = now;
         const i = Math.floor(Math.random() * 4);
-        Tires.psi[i] = Math.max(0, Tires.psi[i] - (12 + Math.random() * 22));
-        UI.toast('Crash! Tire ' + (i + 1) + ' lost pressure');
+        const loss = speedAlongNormal > 27 ? 20 + Math.random() * 14 : 5 + Math.random() * 7;
+        Tires.psi[i] = Math.max(0, Tires.psi[i] - loss);
+        UI.toast('Crash! Tire ' + (i + 1) + ' lost ' + Math.round(loss) + ' psi' + (Tires.psi[i] <= 6 ? ' — blown out' : ''));
         if (window.GameAudio) GameAudio.npcHorn();
         tireHud();
+    };
+    // TIRE PRESSURE panel: the four tires as bars, live while it is open
+    F.renderTires = function () {
+        const el = document.getElementById('tires-list'); if (!el) return;
+        const names = ['Front left', 'Front right', 'Rear left', 'Rear right'];
+        el.innerHTML = Tires.psi.map((p, i) => {
+            const pct = Math.max(0, Math.min(100, p / 32 * 100)), col = p <= 6 ? '#ff5d6c' : p < 14 ? '#ffb000' : '#38d66b';
+            return '<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-weight:700"><span>' + names[i] + '</span><span style="color:' + col + '">' + Math.round(p) + ' psi' + (p <= 6 ? ' — BLOWN' : p < 14 ? ' — low' : '') + '</span></div>' +
+                '<div style="height:12px;border-radius:6px;background:#ffffff18;margin-top:4px"><div style="height:100%;width:' + pct + '%;border-radius:6px;background:' + col + '"></div></div></div>';
+        }).join('') + '<div style="opacity:0.7;font-size:0.8rem;margin-top:10px">32 psi is full. Tires lose air in hard crashes (30+ mph) and wear slowly at speed. Any city WORKSHOP or the FIX CAR button there refills all four; the TOW TRUCK takes you to one.</div>';
     };
     // TOW TRUCK button: call one any time (fixes low tires too); it drives up from behind you
     F.callTow = function () {
@@ -228,6 +241,7 @@ window.Features = (function () {
                 UI.toast('Tire blown out! Limp to a city WORKSHOP, or press TOW TRUCK.', 4000);
             }
             if (Math.floor(performance.now() / 500) % 2 === 0) tireHud();
+            const modal = document.getElementById('tires-modal'); if (modal && modal.classList.contains('open') && Math.floor(performance.now() / 250) % 2 === 0) F.renderTires();
             return;
         }
         // stranded: creep only (to a workshop), or wait for the tow truck

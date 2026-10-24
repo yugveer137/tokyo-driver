@@ -22,17 +22,44 @@ window.Train = (function () {
     function buildTrain() {
         const g = new THREE.Group();
         const paint = new THREE.MeshStandardMaterial({ color: 0x1d6fd6, roughness: 0.4, metalness: 0.5 });
-        const silver = new THREE.MeshStandardMaterial({ color: 0xc9ced4, roughness: 0.3, metalness: 0.7 });
-        const dark = new THREE.MeshStandardMaterial({ color: 0x1a1d22 });
-        const glass = new THREE.MeshStandardMaterial({ color: 0x5a7a9a, roughness: 0.2, metalness: 0.4 });
-        const carLen = 18, gap = 1.2;
+        const silver = new THREE.MeshStandardMaterial({ color: 0xd8dde3, roughness: 0.35, metalness: 0.6 });
+        const dark = new THREE.MeshStandardMaterial({ color: 0x1a1d22, roughness: 0.8 });
+        const glass = new THREE.MeshStandardMaterial({ color: 0x3a5e86, roughness: 0.15, metalness: 0.5 });
+        const stripe = new THREE.MeshStandardMaterial({ color: 0x1d6fd6, roughness: 0.4, metalness: 0.4 });
+        const carLen = 18, gap = 1.0;
+        const box = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); g.add(m); return m; };
         for (let k = 0; k < 4; k++) {
             const z = -k * (carLen + gap);
-            const body = new THREE.Mesh(new THREE.BoxGeometry(3, 3.2, carLen), k === 0 ? paint : silver); body.position.set(0, 2.4, z); g.add(body);
-            const win = new THREE.Mesh(new THREE.BoxGeometry(3.05, 1, carLen - 2), glass); win.position.set(0, 3.1, z); g.add(win);
-            const base = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.8, carLen - 1), dark); base.position.set(0, 0.6, z); g.add(base);
-            if (k === 0) { const nose = new THREE.Mesh(new THREE.ConeGeometry(1.6, 3, 4), paint); nose.rotation.x = Math.PI / 2; nose.rotation.z = Math.PI / 4; nose.position.set(0, 2.2, carLen / 2 + 1.4); g.add(nose); }
+            // running gear: an underframe and two bogies with four wheels each, sitting on the rails
+            box(2.6, 0.3, carLen - 0.6, dark, 0, 0.9, z);
+            [carLen / 2 - 3, -carLen / 2 + 3].forEach(bz => {
+                box(2.2, 0.35, 2.6, dark, 0, 0.55, z + bz);
+                [-1.0, 1.0].forEach(bx => [-0.9, 0.9].forEach(wz => { const wh = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.25, 14), silver); wh.rotation.z = Math.PI / 2; wh.position.set(bx, 0.42, z + bz + wz); g.add(wh); }));
+            });
+            // body: silver shell, blue stripe under the windows, a row of window panes, two doors a side
+            box(3, 2.8, carLen, silver, 0, 2.45, z);
+            box(3.04, 0.12, carLen, dark, 0, 1.1, z);                           // sill
+            box(3.04, 0.35, carLen, stripe, 0, 1.75, z);                        // stripe
+            box(2.6, 0.2, carLen - 0.4, silver, 0, 3.95, z);                     // roof crown
+            [-1, 1].forEach(sd => {
+                for (let wz = -carLen / 2 + 2.4; wz <= carLen / 2 - 2.4; wz += 1.6) {
+                    if (Math.abs(Math.abs(wz) - 5.2) < 0.9) continue;            // door bays
+                    box(0.05, 1.0, 1.2, glass, sd * 1.52, 2.95, z + wz);
+                }
+                [-5.2, 5.2].forEach(dz => { box(0.05, 2.15, 1.3, dark, sd * 1.52, 2.1, z + dz); box(0.06, 0.8, 0.5, glass, sd * 1.53, 2.9, z + dz); box(0.07, 2.1, 0.03, silver, sd * 1.53, 2.1, z + dz); });
+            });
+            box(1.2, 0.35, 2.0, dark, 0, 4.2, z + 3);                             // roof air-con
+            if (k > 0) box(0.3, 0.3, gap + 0.4, dark, 0, 1.0, z + carLen / 2 + gap / 2);   // coupler
         }
+        // the front end: a sloped blue nose with a wraparound cab window, headlights and a pantograph
+        const nose = box(3, 2.4, 2.2, paint, 0, 2.2, carLen / 2 + 0.9); nose.rotation.x = -0.35;
+        box(2.4, 0.9, 0.08, glass, 0, 3.05, carLen / 2 + 1.9);
+        [-0.9, 0.9].forEach(x => box(0.4, 0.25, 0.1, new THREE.MeshStandardMaterial({ color: 0xfff6d8, emissive: 0xfff2c0, emissiveIntensity: 0.8 }), x, 1.7, carLen / 2 + 2.0));
+        const pan = box(1.4, 0.06, 0.08, dark, 0, 5.1, -3); [-0.5, 0.5].forEach(x => { const arm = box(0.06, 1.2, 0.06, dark, x, 4.5, -3); arm.rotation.x = 0.4; });
+        // the back end
+        const tailZ = -3 * (carLen + gap) - carLen / 2;
+        [-0.9, 0.9].forEach(x => box(0.4, 0.25, 0.1, new THREE.MeshStandardMaterial({ color: 0x5a0a0a, emissive: 0xff2020, emissiveIntensity: 0.6 }), x, 1.7, tailZ - 0.05));
+        g.traverse(o => { if (o.isMesh && o.geometry.parameters && (o.geometry.parameters.width > 2 || o.geometry.parameters.radiusTop)) o.castShadow = true; });
         // inside the first car: floor, seats, poles, the window band is the gap between wall strips
         const inside = new THREE.Group();
         // unlit materials (the sun does not reach inside). Unlit colours display lighter than
