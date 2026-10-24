@@ -5,8 +5,11 @@
 // city.toWorld(lx, lz) in the city's local grid coordinates.
 window.CITIES = (function () {
     const std = (hex) => new THREE.MeshStandardMaterial({ color: hex, roughness: 0.6, metalness: 0.2 });
+    // Landmark coordinates are measured from the middle block, not the middle intersection
+    // (city.lmX/lmZ, set in City.define), so a tower never stands in the road.
+    const lm = (city, lx, lz) => city.toWorld(lx + (city.lmX || 0), lz + (city.lmZ || 0));
     const put = (h, city, mesh, lx, lz, yOff, shadow) => {
-        const p = city.toWorld(lx, lz); const g = Terrain.height(p.x, p.z) + 0.3;
+        const p = lm(city, lx, lz); const g = Terrain.height(p.x, p.z) + 0.3;
         mesh.position.set(p.x, g + (yOff || 0), p.z); mesh.rotation.y = city.heading;
         h.addMesh(mesh, shadow !== false); return mesh;
     };
@@ -16,7 +19,7 @@ window.CITIES = (function () {
         // red/white lattice tower: tapered legs, two observation decks, antenna
         const red = std(0xe8431c), white = std(0xf4f4f4);
         const lx = city.W / 2 - 60, lz = -city.D / 2 + 60;
-        const base = city.toWorld(lx, lz); const g = Terrain.height(base.x, base.z) + 0.3;
+        const base = lm(city, lx, lz); const g = Terrain.height(base.x, base.z) + 0.3;
         for (let k = 0; k < 4; k++) {
             const a = (k / 4) * Math.PI * 2 + Math.PI / 4;
             const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 1.6, 110, 6), red);
@@ -49,7 +52,7 @@ window.CITIES = (function () {
         m.rotation.y = Math.PI / 4;
         const lx = 0, lz = 0;
         put(h, city, m, lx, lz, 85);
-        const p = city.toWorld(lx, lz);
+        const p = lm(city, lx, lz);
         h.addBox(20, 170, 20, p.x, Terrain.height(p.x, p.z) + 85, p.z, 0);
     }
     // The bay north of the city: terrain drops to the sea bed, a water sheet sits at sea level.
@@ -137,13 +140,13 @@ window.CITIES = (function () {
             put(h, city, m, 0, 0, y + (top - y) / 2); y = top;
         });
         const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 1.5, 40, 8), std(0xd8d8d8)); put(h, city, spire, 0, 0, 200);
-        const p = city.toWorld(0, 0); h.addBox(40, 180, 40, p.x, Terrain.height(p.x, p.z) + 90, p.z, 0);
+        const p = lm(city, 0, 0); h.addBox(40, 180, 40, p.x, Terrain.height(p.x, p.z) + 90, p.z, 0);
     }
     function chrysler(city, h) {
         const steel = std(0xcfd6dc);
         const body = new THREE.Mesh(new THREE.BoxGeometry(22, 130, 22), steel); put(h, city, body, 110, -90, 65);
         for (let k = 0; k < 5; k++) { const c = new THREE.Mesh(new THREE.ConeGeometry(11 - k * 2, 8, 8), steel); put(h, city, c, 110, -90, 134 + k * 7); }
-        const p = city.toWorld(110, -90); h.addBox(22, 130, 22, p.x, Terrain.height(p.x, p.z) + 65, p.z, 0);
+        const p = lm(city, 110, -90); h.addBox(22, 130, 22, p.x, Terrain.height(p.x, p.z) + 65, p.z, 0);
     }
     function vegasStrip(city, h) {
         // giant lit casino signs along the main avenue + a pyramid + a sphere
@@ -169,7 +172,7 @@ window.CITIES = (function () {
         const drum = new THREE.Mesh(new THREE.CylinderGeometry(12, 12, 20, 24), stone); put(h, city, drum, 0, 0, 28);
         const dome = new THREE.Mesh(new THREE.SphereGeometry(13, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), stone); put(h, city, dome, 0, 0, 38);
         for (let k = 0; k < 8; k++) { const col = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 14, 8), stone); put(h, city, col, -28 + k * 8, -16, 9); }
-        const p = city.toWorld(0, 0); h.addBox(70, 18, 30, p.x, Terrain.height(p.x, p.z) + 9, p.z, city.heading);
+        const p = lm(city, 0, 0); h.addBox(70, 18, 30, p.x, Terrain.height(p.x, p.z) + 9, p.z, city.heading);
     }
     function renoArch(city, h) {
         const tex = Tex.textCanvas(1024, 200, (ctx, W, H) => {
@@ -195,13 +198,13 @@ window.CITIES = (function () {
         const granite = std(0xd9d5cc);
         const base = new THREE.Mesh(new THREE.BoxGeometry(40, 30, 22), granite); put(h, city, base, 0, 0, 15);
         for (let k = 0; k < 6; k++) { const sp = new THREE.Mesh(new THREE.ConeGeometry(2.2, 18, 6), granite); put(h, city, sp, -16 + (k % 3) * 16, k < 3 ? -9 : 9, 39); }
-        const p = city.toWorld(0, 0); h.addBox(40, 30, 22, p.x, Terrain.height(p.x, p.z) + 15, p.z, city.heading);
+        const p = lm(city, 0, 0); h.addBox(40, 30, 22, p.x, Terrain.height(p.x, p.z) + 15, p.z, city.heading);
     }
     function denverCashRegister(city, h) {
         const glass = std(0xf0e6c8);
         const body = new THREE.Mesh(new THREE.BoxGeometry(26, 120, 18), glass); put(h, city, body, 0, 0, 60);
         const crown = new THREE.Mesh(new THREE.CylinderGeometry(13, 13, 14, 24, 1, false, 0, Math.PI), glass); crown.rotation.z = Math.PI / 2; put(h, city, crown, 0, 0, 120);
-        const p = city.toWorld(0, 0); h.addBox(26, 120, 18, p.x, Terrain.height(p.x, p.z) + 60, p.z, city.heading);
+        const p = lm(city, 0, 0); h.addBox(26, 120, 18, p.x, Terrain.height(p.x, p.z) + 60, p.z, city.heading);
     }
     function willisTower(city, h) {
         const black = std(0x1b1e24);
@@ -209,7 +212,7 @@ window.CITIES = (function () {
             const m = new THREE.Mesh(new THREE.BoxGeometry(w, hh, w), black); put(h, city, m, x, z, hh / 2);
         });
         [-5, 5].forEach(x => { const a = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.6, 40, 6), std(0xdddddd)); put(h, city, a, x, 0, 240); });
-        const p = city.toWorld(0, 0); h.addBox(48, 220, 48, p.x, Terrain.height(p.x, p.z) + 110, p.z, city.heading);
+        const p = lm(city, 0, 0); h.addBox(48, 220, 48, p.x, Terrain.height(p.x, p.z) + 110, p.z, city.heading);
     }
     function cloudGate(city, h) {
         const bean = new THREE.Mesh(new THREE.SphereGeometry(9, 24, 16), new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 1, roughness: 0.08 }));

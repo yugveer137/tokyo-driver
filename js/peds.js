@@ -46,7 +46,7 @@ window.Peds = (function () {
     // sidewalk walkers for a city (called when the city loads)
     P.spawnCity = function (city) {
         if (!scene) return;
-        const n = Math.round(12 + city.rows * city.cols);
+        const n = Math.round(8 + city.rows * city.cols * 0.6);               // each person is a dozen draw calls: keep it modest
         city.peds = city.peds || [];
         for (let k = 0; k < n; k++) {
             const ns = Math.random() < 0.5, side = Math.random() < 0.5 ? -1 : 1;
@@ -80,7 +80,10 @@ window.Peds = (function () {
         for (let i = 0; i < P.walkers.length; i++) {
             const w = P.walkers[i];
             const dx = w.mesh.position.x - playerPos.x, dz = w.mesh.position.z - playerPos.z;
-            if (dx * dx + dz * dz > 350 * 350) continue;
+            const d2 = dx * dx + dz * dz;
+            const show = d2 < 220 * 220;                                        // too small to see further out, so don't draw them
+            if (w.mesh.visible !== show) w.mesh.visible = show;
+            if (!show) continue;
             if (w.idle) { w.t += dt; w.mesh.position.y += Math.sin(w.t * 2) * 0.0005; continue; }
             w.s += w.dir * w.speed * dt;
             if (Math.abs(w.s) > w.len / 2 - 4) { w.dir *= -1; w.s = Math.sign(w.s) * (w.len / 2 - 4); }

@@ -53,10 +53,13 @@ window.Terrain = (function () {
         // iz along -z. So the body sits at the chunk's max-z corner and iz counts toward -z.
         // (Cannon 0.6.2's Trimesh does not return wheel raycast hits, so Heightfield it is;
         // its harmless "faceNormals" console spam is filtered in main.js.)
+        // One extra cell of overlap on every side: Cannon's heightfield ray test misses right on
+        // a chunk edge, and a car parked on a seam would sink through the ground.
+        const PAD = 1;
         const data = [];
-        for (let ix = 0; ix <= N; ix++) {
+        for (let ix = -PAD; ix <= N + PAD; ix++) {
             const col = [];
-            for (let iz = 0; iz <= N; iz++) {
+            for (let iz = -PAD; iz <= N + PAD; iz++) {
                 col.push(T.height(x0 - C / 2 + ix * es, z0 + C / 2 - iz * es));
             }
             data.push(col);
@@ -65,9 +68,10 @@ window.Terrain = (function () {
         // Group 2 = terrain. Wheel raycasts hit it; car chassis boxes ignore it (cannon's
         // box-vs-heightfield contact gives phantom side-wall hits that stop cars dead).
         const body = new CANNON.Body({ mass: 0, material: world.groundMaterial, collisionFilterGroup: 2 });
+        body.isTerrain = true;                                             // main.js's broadphase leaves these out of pair searches
         body.addShape(shape);
         body.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
-        body.position.set(x0 - C / 2, 0, z0 + C / 2);
+        body.position.set(x0 - C / 2 - PAD * es, 0, z0 + C / 2 + PAD * es);
         world.addBody(body);
 
         return { mesh, body, geom };

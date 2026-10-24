@@ -42,21 +42,53 @@
         world.collisionMatrixPrevious = new CANNON.ObjectCollisionMatrix();
         world.broadphase = new CANNON.SAPBroadphase(world);
         world.broadphase.axisIndex = 2;        // the world is long along z; sweep on that axis
-        // Cannon 0.6.2's sweep tests "do these two need checking" BEFORE the bounds break, so every
-        // static body walks the whole list (thousands of road boxes -> 100+ ms a step). Break first.
+        // Cannon 0.6.2's sweep starts a pair search from every body, static ones included, and
+        // tests "do these need checking" before the bounds break: thousands of road boxes made a
+        // step cost 100+ ms. Only moving bodies start a search here: forward along the sorted
+        // list until the next body starts past us, backward only as far as the longest static
+        // body could reach. Terrain heightfields are left out: nothing collides with them (the
+        // car's chassis ignores them, its wheels use raycasts).
         world.broadphase.collisionPairs = function (w, p1, p2) {
-            const bodies = this.axisList, N = bodies.length, ax = this.axisIndex, check = CANNON.SAPBroadphase.checkBounds;
-            if (this.dirty) { this.sortList(); this.dirty = false; }
+            const bodies = this.axisList, N = bodies.length, ax = this.axisIndex, STATIC = CANNON.Body.STATIC;
+            const lower = ax === 0 ? b => b.aabb.lowerBound.x : ax === 1 ? b => b.aabb.lowerBound.y : b => b.aabb.lowerBound.z;
+            const upper = ax === 0 ? b => b.aabb.upperBound.x : ax === 1 ? b => b.aabb.upperBound.y : b => b.aabb.upperBound.z;
+            if (this.dirty) {
+                for (let i = 0; i < N; i++) if (bodies[i].aabbNeedsUpdate) bodies[i].computeAABB();
+                this.sortList(); this.dirty = false;
+                let ext = 0;
+                for (let i = 0; i < N; i++) { const b = bodies[i]; if (b.type !== STATIC || b.isTerrain) continue; ext = Math.max(ext, upper(b) - lower(b)); }
+                this.maxExtent = ext + 1;
+            }
             for (let i = 0; i < N; i++) {
                 const bi = bodies[i];
+                if (bi.type === STATIC) continue;
+                if (bi.aabbNeedsUpdate) bi.computeAABB();
+                const lo = lower(bi), hi = upper(bi);
                 for (let j = i + 1; j < N; j++) {
-                    const bj = bodies[j];
-                    if (!check(bi, bj, ax)) break;
+                    const bj = bodies[j]; if (bj.aabbNeedsUpdate) bj.computeAABB();
+                    if (lower(bj) > hi) break;
+                    if (bj.isTerrain || !this.needBroadphaseCollision(bi, bj)) continue;
+                    this.intersectionTest(bi, bj, p1, p2);
+                }
+                for (let j = i - 1; j >= 0; j--) {
+                    const bj = bodies[j]; if (bj.aabbNeedsUpdate) bj.computeAABB();
+                    if (lower(bj) < lo - this.maxExtent) break;
+                    if (bj.type !== STATIC || bj.isTerrain || upper(bj) < lo) continue;      // moving pairs were found from the earlier one
                     if (!this.needBroadphaseCollision(bi, bj)) continue;
                     this.intersectionTest(bi, bj, p1, p2);
                 }
             }
         };
+        // Cannon recomputes every body's solve-mass properties each step, static ones included;
+        // with thousands of road boxes that is a third of the step. A static body's never change.
+        if (!CANNON.Body.prototype._solveMassPatched) {
+            const orig = CANNON.Body.prototype.updateSolveMassProperties;
+            CANNON.Body.prototype.updateSolveMassProperties = function () {
+                if (this.type === CANNON.Body.STATIC && this._solveMassDone) return;
+                orig.call(this); this._solveMassDone = true;
+            };
+            CANNON.Body.prototype._solveMassPatched = true;
+        }
         world.solver.iterations = 10;
         world.defaultContactMaterial.friction = 0.4;
         world.groundMaterial = new CANNON.Material('ground');
@@ -108,8 +140,10 @@
         if (q === quality) return; quality = q;
         renderer.shadowMap.enabled = q >= 2;
         scene.traverse(o => { if (o.material) { const ms = Array.isArray(o.material) ? o.material : [o.material]; ms.forEach(m => m.needsUpdate = true); } });
-        camera.far = q === 0 ? 650 : 1200; camera.updateProjectionMatrix();
-        Sky.fogBoost = q === 0 ? 1.6 : 1;
+        // low quality: shadows off and a shorter view; the fog only thickens a little (1.6 used
+        // to white the whole city out)
+        camera.far = q === 0 ? 900 : 1200; camera.updateProjectionMatrix();
+        Sky.fogBoost = q === 0 ? 1.15 : 1;
     }
     function adaptResolution(dt) {
         fpsSamples.push(1 / Math.max(dt, 1e-3));

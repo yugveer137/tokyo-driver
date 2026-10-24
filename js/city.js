@@ -67,6 +67,9 @@ window.City = (function () {
         const city = Object.assign({ rows: 5, cols: 5, block: 60, street: 18, heading: 0, palette: [0x9a9a9a], landmarks: [] }, spec);
         city.pitch = city.block + city.street;
         city.W = city.cols * city.pitch; city.D = city.rows * city.pitch;   // grid extents (local x, z)
+        // where landmarks go: the centre of the middle block (with an even street count the
+        // middle of the grid is an intersection, so step back half a block)
+        city.lmX = city.cols % 2 === 0 ? -city.pitch / 2 : 0; city.lmZ = city.rows % 2 === 0 ? -city.pitch / 2 : 0;
         city.radius = Math.hypot(city.W, city.D) / 2;
         city.loaded = false; city.meshes = []; city.bodies = []; city.roads = []; city.signs = []; city.mats = [];
         const cosH = Math.cos(city.heading), sinH = Math.sin(city.heading);
