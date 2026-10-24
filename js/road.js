@@ -34,9 +34,16 @@ window.Road = (function () {
         const ctx = c.getContext('2d');
         // Asphalt the way it really looks: a mid-grey base, large soft tonal patches, fine
         // aggregate speckle, tar-filled cracks, and darker worn tracks where the wheels run.
-        const img = ctx.createImageData(w, h), d = img.data;
-        for (let i = 0; i < d.length; i += 4) { const v = 70 + (Math.random() - 0.5) * 26; d[i] = v; d[i + 1] = v; d[i + 2] = v + 2; d[i + 3] = 255; }
-        ctx.putImageData(img, 0, 0);
+        if (window.Tex && Tex.photo && Tex.photo.asphalt) {
+            // real asphalt photo (CC0) tiled at about 8 units per tile, darkened a little
+            const pat = ctx.createPattern(Tex.photo.asphalt, 'repeat');
+            ctx.save(); ctx.scale(8 * pxPerUnit / 1024, 8 * pxPerUnit / 1024); ctx.fillStyle = pat; ctx.fillRect(0, 0, w / (8 * pxPerUnit / 1024), h / (8 * pxPerUnit / 1024)); ctx.restore();
+            ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(0, 0, w, h);
+        } else {
+            const img = ctx.createImageData(w, h), d = img.data;
+            for (let i = 0; i < d.length; i += 4) { const v = 70 + (Math.random() - 0.5) * 26; d[i] = v; d[i + 1] = v; d[i + 2] = v + 2; d[i + 3] = 255; }
+            ctx.putImageData(img, 0, 0);
+        }
         for (let i = 0; i < 40; i++) {                                   // big soft patches (old repairs, damp spots)
             const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
             const dark = Math.random() > 0.45;
@@ -458,9 +465,11 @@ window.Road = (function () {
 
     // A draped square patch (intersections, plazas): size x size centred at (cx, cz), rotated
     // by `heading`, laid on the terrain, textured with `tex`. Returns the mesh.
-    R.drapedQuad = function (cx, cz, size, heading, mat, lift, n) {
+    // A flat patch draped on the terrain: `size` across (local x), `sizeZ` along (defaults to
+    // square). World positions are baked into the vertices, so never scale the result.
+    R.drapedQuad = function (cx, cz, size, heading, mat, lift, n, sizeZ) {
         n = n || 4;
-        const g = new THREE.PlaneGeometry(size, size, n, n);
+        const g = new THREE.PlaneGeometry(size, sizeZ || size, n, n);
         g.rotateX(-Math.PI / 2); g.rotateY(heading);
         const p = g.attributes.position;
         for (let i = 0; i < p.count; i++) {

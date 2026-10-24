@@ -23,24 +23,35 @@ window.Traffic = (function () {
     T.unlinkRoad = function (rec) { T.links = T.links.filter(l => l.from !== rec && l.to !== rec); T.cars.filter(c => c.road === rec).forEach(remove); };
 
     // ---------- visuals ----------
+    // real car shapes from the Kenney kit when the loader is there; a van or a truck now and then
+    const KINDS = ['sedan', 'sedan', 'sedan', 'sedan-sports', 'hatchback-sports', 'suv', 'suv', 'suv-luxury', 'taxi', 'van', 'police', 'truck', 'delivery'];
     function makeMesh(color) {
-        const g = new THREE.Group();
-        const paint = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.5 });
-        const dark = new THREE.MeshStandardMaterial({ color: 0x15181c, roughness: 0.5 });
         const kind = Math.random();
         const long = kind < 0.15 ? 5.2 : 4.2, tall = kind < 0.15 ? 1.9 : 1.35;
-        const body = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.7, long), paint); body.position.y = 0.72; g.add(body);
-        const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.7, tall - 0.7, long * 0.5), dark); cabin.position.set(0, 0.72 + 0.35 + (tall - 0.7) / 2, -0.2); g.add(cabin);
-        const wheelGeom = new THREE.CylinderGeometry(0.36, 0.36, 0.3, 10); wheelGeom.rotateZ(Math.PI / 2);
-        const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
-        [[0.85, 1.35], [-0.85, 1.35], [0.85, -1.35], [-0.85, -1.35]].forEach(([x, z]) => { const w = new THREE.Mesh(wheelGeom, wheelMat); w.position.set(x, 0.36, z); g.add(w); });
+        let g;
+        if (window.Models && Models.ready) {
+            const name = kind < 0.15 ? (Math.random() < 0.5 ? 'truck' : 'delivery') : KINDS[Math.floor(Math.random() * KINDS.length)];
+            g = Models.car(name, color, long, { keepColors: name === 'taxi' || name === 'police' || name === 'delivery' });
+            // the model's own wheels are hidden; traffic cars get simple spinning-free wheels
+            const wheelGeom = new THREE.CylinderGeometry(0.36, 0.36, 0.3, 10); wheelGeom.rotateZ(Math.PI / 2);
+            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
+            [[0.85, long * 0.32], [-0.85, long * 0.32], [0.85, -long * 0.32], [-0.85, -long * 0.32]].forEach(([x, z]) => { const w = new THREE.Mesh(wheelGeom, wheelMat); w.position.set(x, 0.36, z); g.add(w); });
+        } else {
+            g = new THREE.Group();
+            const paint = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.5 });
+            const dark = new THREE.MeshStandardMaterial({ color: 0x15181c, roughness: 0.5 });
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.7, long), paint); body.position.y = 0.72; body.castShadow = true; g.add(body);
+            const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.7, tall - 0.7, long * 0.5), dark); cabin.position.set(0, 0.72 + 0.35 + (tall - 0.7) / 2, -0.2); g.add(cabin);
+            const wheelGeom = new THREE.CylinderGeometry(0.36, 0.36, 0.3, 10); wheelGeom.rotateZ(Math.PI / 2);
+            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
+            [[0.85, 1.35], [-0.85, 1.35], [0.85, -1.35], [-0.85, -1.35]].forEach(([x, z]) => { const w = new THREE.Mesh(wheelGeom, wheelMat); w.position.set(x, 0.36, z); g.add(w); });
+        }
         const head = new THREE.MeshStandardMaterial({ color: 0xfff6d8, emissive: 0xfff2c0, emissiveIntensity: 0 });
         const tail = new THREE.MeshStandardMaterial({ color: 0x5a0a0a, emissive: 0xff2020, emissiveIntensity: 0.15 });
         [-0.65, 0.65].forEach(x => {
             const h = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.1), head); h.position.set(x, 0.85, long / 2 + 0.02); g.add(h);
             const t = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.1), tail); t.position.set(x, 0.85, -long / 2 - 0.02); g.add(t);
         });
-        body.castShadow = true;          // only the body: wheels and lamps are not worth a shadow pass each
         g.userData.lights = { head, tail };
         g.userData.size = [1.9, tall, long];
         return g;

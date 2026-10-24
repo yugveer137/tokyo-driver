@@ -138,6 +138,28 @@ window.Tex = (function () {
         T.steel = finishTex(noiseCanvas(128, 165, 40, (ctx, s) => { for (let y = 0; y < s; y += 2) { ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.12})`; ctx.fillRect(0, y, s, 1); } }));
     };
 
+    // Photo textures (assets/textures, CC0). Loaded before the world is built; if a file is
+    // missing or slow the painted textures above stay in use.
+    T.photo = {};
+    T.loadPhotos = function () {
+        const want = { asphalt: 'assets/textures/asphalt.png' };
+        return Promise.all(Object.keys(want).map(k => new Promise(res => {
+            const img = new Image();
+            const done = () => res();
+            img.onload = () => { T.photo[k] = img; done(); };
+            img.onerror = done;
+            setTimeout(done, 4000);
+            img.src = want[k];
+        }))).then(() => {
+            if (T.photo.asphalt) {                                        // the photo becomes the base of the asphalt tile too
+                const c = document.createElement('canvas'); c.width = c.height = 512;
+                const x = c.getContext('2d'); x.drawImage(T.photo.asphalt, 0, 0, 512, 512);
+                x.fillStyle = 'rgba(0,0,0,0.25)'; x.fillRect(0, 0, 512, 512);
+                T.asphalt = finishTex(c);
+            }
+        });
+    };
+
     T.asphaltMaterial = function (tint) {
         return new THREE.MeshStandardMaterial({
             color: tint, map: T.asphalt, roughnessMap: T.asphaltRough, roughness: 1, metalness: 0.25

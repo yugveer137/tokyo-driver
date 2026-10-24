@@ -219,9 +219,29 @@ window.World = (function () {
         road.underFreeway = d === 1;
         if (road.underFreeway) Road.removePiersNear(fw, road);
         city.roads.push(road);
-        // the parking lot by the platform, and a sign at the turn-off
+        // the station car park: painted bays along the rails side, a P sign, a few cars parked
         const lot = Road.at(fw, sR, lotLat);
-        city.meshes.push(Road.drapedQuad(lot.p.x, lot.p.z, 14, Road.yawOf(lot.tan), new THREE.MeshStandardMaterial({ color: 0x55585c, map: Tex.asphalt, roughness: 0.95 }), Road.DRAPE + 0.02, 2));
+        const LOT_L = 30, LOT_W = 16;                                       // along the freeway x across it
+        if (!W.lotTex) W.lotTex = Tex.textCanvas(600, 320, (ctx, Wd, H) => {
+            ctx.drawImage(Tex.asphalt.image, 0, 0, Wd, H); ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(0, 0, Wd, H);
+            ctx.strokeStyle = 'rgba(240,240,235,0.85)'; ctx.lineWidth = 4;
+            for (let x = 60; x <= Wd - 60; x += 56) { ctx.beginPath(); ctx.moveTo(x, 10); ctx.lineTo(x, 110); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x, H - 10); ctx.lineTo(x, H - 110); ctx.stroke(); }
+            ctx.font = 'bold 54px Helvetica, Arial, sans-serif'; ctx.fillStyle = 'rgba(240,240,235,0.85)'; ctx.textAlign = 'center'; ctx.fillText('P', Wd / 2, H / 2 + 18);
+        });
+        city.meshes.push(Road.drapedQuad(lot.p.x, lot.p.z, LOT_W, Road.yawOf(lot.tan), new THREE.MeshStandardMaterial({ map: W.lotTex, roughness: 0.95 }), Road.DRAPE + 0.02, 3, LOT_L));
+        const ps = Road.at(fw, sR - LOT_L / 2 - 2, lotLat - LOT_W / 2 + 1); ps.p.y = Terrain.height(ps.p.x, ps.p.z) + 0.3;
+        city.signs.push(Signs.plain(ps.p, Signs.facingFrom(ps.tan) + Math.PI / 2, 'P', 'STATION PARKING', 3, 2));
+        if (window.Models && Models.ready) {
+            const kinds = ['sedan', 'suv', 'hatchback-sports', 'van'], tints = [0xc8c8c8, 0x2a2a2e, 0x7a1f1f, 0x1f3f7a, 0xd9c36b];
+            [-11, -4, 4, 11].forEach((k, i) => {
+                if (Math.random() < 0.3) return;                                // some bays stay free
+                const bay = Road.at(fw, sR + k, lotLat + (i % 2 ? 1 : -1) * (LOT_W / 2 - 3.2));
+                const car = Models.car(kinds[i % kinds.length], tints[Math.floor(Math.random() * tints.length)], 4.4, {});
+                car.position.set(bay.p.x, Terrain.height(bay.p.x, bay.p.z) + Road.DRAPE + 0.02, bay.p.z);
+                car.rotation.y = Road.yawOf(bay.tan) + Math.PI / 2;
+                game.scene.add(car); city.meshes.push(car);
+            });
+        }
         const sg = Road.at(fw, sR - 8, d * (COLLECTOR_LAT + 7)); sg.p.y = Terrain.height(sg.p.x, sg.p.z) + 0.3;
         city.signs.push(Signs.plain(sg.p, Signs.facingFrom(sg.tan.clone().multiplyScalar(d)), 'TRAIN', 'STATION ' + (d === 1 ? '\u2190' : '\u2192'), 3.6, 2));
     }

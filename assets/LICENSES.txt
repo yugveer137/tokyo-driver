@@ -1,0 +1,5 @@
+assets/cars/*.glb, assets/cars/Textures/colormap.png
+  Kenney "Car Kit" 3.1 — https://kenney.nl/assets/car-kit — Creative Commons Zero (CC0)
+
+assets/textures/asphalt.png
+  "Asphalt Road Texture Free" by ForKotLow — https://opengameart.org/node/137544 — CC0

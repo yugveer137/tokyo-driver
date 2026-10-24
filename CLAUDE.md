@@ -29,15 +29,29 @@ Serve the repo root (e.g. `python3 -m http.server 8731`, also `.claude/launch.js
 | `world.js` | the route: one elevated freeway (I-80) streamed in 400-unit chunks, cities every 2600 units with exit + collector + on-ramp + signs, `World.travelTo`, `areaAt`, `speedLimitAt` |
 | `carmodels.js` | the 32 cars (`CARS`) and their body/wheel/interior builders (`CarModels`) ported from the old game |
 | `audio.js` | engine, screech, wind, horns (`GameAudio`) |
-| `car.js` | player RaycastVehicle, auto/manual gears, drift, anti-flip, chase + cockpit camera, headlights, dash canvas |
+| `models.js` | Kenney CC0 car models (`assets/cars/*.glb`) via GLTFLoader for the player car, traffic and parked cars; shader swaps the kit's palette paint for the car colour |
+| `car.js` | player RaycastVehicle, auto/manual gears, drift, anti-flip, chase + GV60 cockpit (twin screens, HUD, digital mirrors, crystal sphere), BOOST (B), headlights, dash canvas |
 | `game.js` | coins/cars state through `Save`, coin pickups |
-| `features.js` | deliveries, cruise (K), rain (V), drift rewards |
+| `features.js` | deliveries, cruise (K), rain (V), drift rewards, tires + 200 mph kinematic tow, workshops (FIX CAR), TA-DA banner |
+| `peds.js` | low-poly people on city sidewalks and station platforms; `Peds.person()` is also the walking avatar |
+| `walk.js` | on foot (G): walk/run, deck + stairs + platform surfaces, guide text to the nearest train stop |
+| `music.js` | MUSIC button: four instrumental rap beats synthesised with WebAudio |
 | `ui.js` | HUD, start menu, settings, garage, fast travel, keyboard + touch |
 | `minimap.js` | heading-up minimap canvas |
 | `debug.js` | `Debug.goto(road, s, lateral)`, `Debug.drive(roads, ticks, mph)` test driver |
 | `main.js` | boot (`Save.boot().then(init)`), physics world, `game.tick(dt)` / `game.render()` for console tests |
 
+`assets/` holds the only downloaded files: Kenney Car Kit models + `textures/asphalt.png`
+(both CC0, see `assets/LICENSES.txt`). `Tex.loadPhotos()` runs before `init`; everything else
+is procedural.
+
 ## Conventions that bite
+
+- **Cannon perf**: `main.js` swaps in `ObjectCollisionMatrix` and a patched SAP `collisionPairs`;
+  without them a step costs 170 ms once a few thousand road boxes are streamed in.
+- **Draped quads bake world positions** (`Road.drapedQuad`): never scale them, pass `sizeZ`.
+- **Cockpit draw order**: interior meshes have `depthTest: false`; three.js sorts by the nearest
+  Group's `renderOrder` first, so every sub-group must carry 999 and meshes 999 + tier.
 
 - **Driver's right**: `frame.right = tan x up` (negative x when heading +z). Rotations built from a
   frame must use `makeBasis(-right, up, tan)`. Lane offsets > 0 are the forward (dir +1) side.

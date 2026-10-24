@@ -164,6 +164,6 @@
     }
 
     window.addEventListener('load', () => {
-        Save.boot().then(init).catch(e => { console.error(e); init(); });
+        Save.boot().then(() => Tex.loadPhotos()).then(init).catch(e => { console.error(e); init(); });
     });
 })();

@@ -103,7 +103,13 @@ window.Car = (function () {
         if (data.isDrift) { vehicle.wheelInfos[0].frictionSlip = vehicle.wheelInfos[1].frictionSlip = 4; vehicle.wheelInfos[2].frictionSlip = vehicle.wheelInfos[3].frictionSlip = 1.2; }
         vehicle.addToWorld(world);
 
-        const group = (window.CarModels && CarModels.buildBody) ? CarModels.buildBody(data.id) : placeholderBody(data);
+        // the body: a real car shape (Kenney model) when the loader is there, else the built-in one
+        let group;
+        if (window.Models && Models.ready) {
+            const ch = CarModels.chassis(data.id);
+            const lift = t.points[0][1] - t.suspensionRestLength - t.radius + 0.05;      // wheel contact line
+            group = Models.car(Models.nameFor(data), data.bodyColor || data.color, ch.half[2] * 2 + 0.5, { lift });
+        } else group = (window.CarModels && CarModels.buildBody) ? CarModels.buildBody(data.id) : placeholderBody(data);
         scene.add(group);
         const wheels = t.points.map(() => {
             const m = (window.CarModels && CarModels.buildWheel) ? CarModels.buildWheel(data.id) : placeholderWheel(t.radius);

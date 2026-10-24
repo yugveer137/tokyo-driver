@@ -137,10 +137,9 @@ window.Train = (function () {
         stair.position.copy(top).add(bot).multiplyScalar(0.5); stair.position.y -= 0.12; stair.lookAt(bot.x, bot.y - 0.12, bot.z); stair.castShadow = stair.receiveShadow = true;
         group.push(stair);
         [-1.4, 1.4].forEach(x => { const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.0, len), new THREE.MeshStandardMaterial({ color: 0x6f7780, metalness: 0.6 })); rail.position.copy(stair.position); rail.position.y += 0.6; rail.lookAt(bot.x, bot.y + 0.6 - 0.12, bot.z); rail.translateX(x); group.push(rail); });
-        const mid = Road.at(fw, city.s - 30, -(hw + 24 + (T.LAT - 6 - (-(hw + 24))) / 2 * -1)).p;
         const pathLen = Math.abs((T.LAT - 6) - (-(hw + 24))) ;
         const pathMid = Road.at(fw, city.s - 30, (-(hw + 24) + (T.LAT - 6)) / 2);
-        const path = Road.drapedQuad(pathMid.p.x, pathMid.p.z, 2.4, Road.yawOf(pathMid.tan) + Math.PI / 2, stairMat, Road.DRAPE + 0.03, 2); path.scale.z = pathLen / 2.4; group.push(path);
+        group.push(Road.drapedQuad(pathMid.p.x, pathMid.p.z, pathLen, Road.yawOf(pathMid.tan), stairMat, Road.DRAPE + 0.03, 2, 2.4));
         if (window.Walk) { const sf = Walk.addSurface(top, bot, 1.5, city); const ps = Walk.addSurface(bot, Road.at(fw, city.s - 30, T.LAT - 6).p, 1.5, city); }
         if (window.Peds) Peds.spawnPlatform(city, f.p, f.tan);
         // a tall blue beacon so the stop can be seen from the freeway when you are on foot
