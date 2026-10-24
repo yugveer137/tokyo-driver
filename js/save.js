@@ -470,7 +470,8 @@
         });
     }
 
-    function isPaid() { return readRaw(nsKey('paid'), null) === 'yes'; }
+    // 'paid2': the money gate was re-armed on 2026-10-24, so old 'paid' flags no longer count
+    function isPaid() { return readRaw(nsKey('paid2'), null) === 'yes'; }
 
     // $1 pay gate. Payment happens on the payment company's own secure site --
     // this page never asks for card details.
@@ -487,7 +488,7 @@
             const gate = makeGate('pay-gate', PAY_HTML);
             const noteEl = gate.querySelector('#pay-note');
             function unlock() {
-                writeRaw(nsKey('paid'), 'yes');
+                writeRaw(nsKey('paid2'), 'yes');
                 gate.remove();
                 resolve();
             }
