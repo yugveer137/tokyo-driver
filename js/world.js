@@ -136,6 +136,7 @@ window.World = (function () {
         city.roads.push(ramp);
         Traffic.linkRamp(exit); Traffic.linkRamp(ramp);
         if (window.Train && !city.station && fw === W.freeway) { city.station = true; Train.station(city).forEach(m => city.meshes.push(m)); }
+        if (fw === W.freeway) loadStationRoad(city, collector);
         if (city.extraRoads) city.extraRoads(city).forEach(r => city.roads.push(r));
         // connect the collector to the grid: short stubs from the collector to the nearest street column
         // (the freeway side is local +x: city.toWorld(+W/2, ...) is the column nearest the collector)
@@ -200,6 +201,29 @@ window.World = (function () {
         }
         if (window.Peds) Peds.spawnCity(city);
         loadJunctions(city);
+    }
+
+    // Station Rd: from the frontage road to a small lot beside the train stop. The stop is on
+    // the left of the freeway, so for a right-side city the street passes under the deck.
+    function loadStationRoad(city, collector) {
+        const fw = city.fw, d = city.side, sR = city.s + 40;
+        const lotLat = Train.LAT + 10;                                   // just this side of the rails
+        const from = d * COLLECTOR_LAT, to = lotLat, n = Math.max(2, Math.round(Math.abs(to - from) / 12));
+        const pts = [];
+        for (let i = 0; i <= n; i++) {
+            const lat = from + (to - from) * i / n;
+            const f = Road.at(fw, sR, lat);
+            pts.push([f.p.x, 0, f.p.z]);
+        }
+        const road = Road.build({ type: 'street', name: city.name + ' Station Rd', conform: true, points: pts });
+        road.underFreeway = d === 1;
+        if (road.underFreeway) Road.removePiersNear(fw, road);
+        city.roads.push(road);
+        // the parking lot by the platform, and a sign at the turn-off
+        const lot = Road.at(fw, sR, lotLat);
+        city.meshes.push(Road.drapedQuad(lot.p.x, lot.p.z, 14, Road.yawOf(lot.tan), new THREE.MeshStandardMaterial({ color: 0x55585c, map: Tex.asphalt, roughness: 0.95 }), Road.DRAPE + 0.02, 2));
+        const sg = Road.at(fw, sR - 8, d * (COLLECTOR_LAT + 7)); sg.p.y = Terrain.height(sg.p.x, sg.p.z) + 0.3;
+        city.signs.push(Signs.plain(sg.p, Signs.facingFrom(sg.tan.clone().multiplyScalar(d)), 'TRAIN', 'STATION ' + (d === 1 ? '\u2190' : '\u2192'), 3.6, 2));
     }
 
     // The freeway the player is closest to (and the arc length there)
