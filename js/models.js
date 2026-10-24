@@ -7,11 +7,14 @@ window.Models = (function () {
     const loader = M.ready ? new THREE.GLTFLoader() : null;
 
     // which Kenney model stands in for each of the game's cars
+    // chosen to match the real car's body style (a Mach-E is a crossover, a Cybertruck a pickup)
     const BY_ID = {
-        electric: 'race-future', hyper: 'race-future', gv60: 'suv-luxury', genesisveet: 'suv-luxury', modelx: 'suv-luxury',
-        modely: 'suv', gv70veet: 'suv', wrangler: 'suv', raptor: 'truck-flat', cybertruck: 'delivery-flat', f550: 'truck-flat',
-        tesla: 'sedan', model3: 'sedan', sonata: 'sedan', genesisi5: 'sedan', lec: 'sedan', starter: 'sedan',
-        trailer: 'truck', gtbh: 'truck'
+        starter: 'sedan', sport: 'sedan-sports', muscle: 'sedan-sports', super: 'race', hyper: 'race-future', legend: 'race-future', electric: 'sedan-sports',
+        trailer: 'truck', gtbh: 'truck',
+        supra: 'hatchback-sports', ferrari: 'race', mclaren: 'race', m4supra: 'sedan-sports', lec: 'race-future', f550: 'truck-flat', wrangler: 'suv',
+        porsche: 'sedan-sports', gv60: 'suv-luxury', sonata: 'sedan', mustangev: 'suv', genesisveet: 'sedan', gv70veet: 'suv-luxury', nes2451: 'race-future',
+        gr4: 'race', genesisi5: 'sedan', aventador: 'race', raptor: 'truck-flat',
+        tesla: 'sedan-sports', model3: 'sedan', modely: 'suv', modelx: 'suv-luxury', cybertruck: 'truck-flat', waymo: 'suv-luxury'
     };
     M.nameFor = function (d) {
         if (BY_ID[d.id]) return BY_ID[d.id];

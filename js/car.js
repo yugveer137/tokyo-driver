@@ -72,7 +72,12 @@ window.Car = (function () {
 
         // collisionFilterMask ~2: the chassis never collides with terrain (group 2); see terrain.js
         const body = new CANNON.Body({ mass: t.mass, material: world.wheelMaterial, linearDamping: t.linDamp, angularDamping: t.angDamp, allowSleep: false, collisionFilterMask: ~2 });
-        body.addShape(new CANNON.Box(t.half), new CANNON.Vec3(0, t.offsetY, 0));
+        // the chassis box must sit above where the wheels touch the road, or the car rests on
+        // the box with its wheels in the air (several ported cars had it too low)
+        const contact = t.points[0][1] - t.suspensionRestLength - t.radius;
+        let offsetY = t.offsetY;
+        if (offsetY - t.half.y < contact + 0.15) offsetY = contact + 0.15 + t.half.y;
+        body.addShape(new CANNON.Box(t.half), new CANNON.Vec3(0, offsetY, 0));
         body.position.set(pos.x, pos.y, pos.z);
         body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), yaw || 0);
         // hard hits (walls, buildings, traffic) are reported to Features for tire damage
@@ -110,6 +115,13 @@ window.Car = (function () {
             const lift = t.points[0][1] - t.suspensionRestLength - t.radius + 0.05;      // wheel contact line
             group = Models.car(Models.nameFor(data), data.bodyColor || data.color, ch.half[2] * 2 + 0.5, { lift });
         } else group = (window.CarModels && CarModels.buildBody) ? CarModels.buildBody(data.id) : placeholderBody(data);
+        if (data.isWaymo) {                                                  // the roof dome with the spinning lidar, and the fender sensors
+            const black = new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.5 });
+            const dome = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.38, 0.32, 20), black); dome.position.set(0, 1.95, 0.1); group.add(dome);
+            const lidar = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.16, 16), new THREE.MeshStandardMaterial({ color: 0x2b2f36, metalness: 0.6, roughness: 0.3 })); lidar.position.set(0, 2.2, 0.1); group.add(lidar); group.userData.lidar = lidar;
+            [-1, 1].forEach(sd => { const sens = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.22, 12), black); sens.position.set(sd * 0.98, 1.0, 1.4); group.add(sens); });
+            const badge = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.18, 0.6), new THREE.MeshStandardMaterial({ color: 0x3aa655 })); [-1, 1].forEach(sd => { const b = badge.clone(); b.position.set(sd * 1.02, 1.1, -1.0); group.add(b); });
+        }
         scene.add(group);
         const wheels = t.points.map(() => {
             const m = (window.CarModels && CarModels.buildWheel) ? CarModels.buildWheel(data.id) : placeholderWheel(t.radius);
@@ -193,6 +205,7 @@ window.Car = (function () {
         if (u.crystal) { const want = (C.mph < 1 && !keys.fwd && !keys.back) ? 0 : Math.PI; u.crystal.rotation.x += (want - u.crystal.rotation.x) * Math.min(1, dt * 4); }
         if (u.boostBtn) u.boostBtn.material.color.setHex(C.boost.active > 0 ? (Math.floor(performance.now() / 150) % 2 ? 0xff5566 : 0x7a0010) : C.boost.cooldown > 0 ? 0x5a1a20 : 0xd11a2a);
         if (u.steeringWheelSpin) u.steeringWheelSpin.rotation.z = steer * 2.5;
+        if (C.group.userData.lidar) C.group.userData.lidar.rotation.y += dt * 8;
         if (u.ambient && window.Sky) u.ambient.material.color.setHex(Sky.night > 0.5 ? 0x9fd8ff : (C.data && C.data.color) || 0x00d9ff);
         if (mirrorRT && window.game && mirrorFrame++ % 4 === 0) {
             const r = game.renderer;
@@ -307,7 +320,9 @@ window.Car = (function () {
         }
         const gear = CFG.GEARS[C.gear];
         let cap = d.maxSpeed * gear.speedFrac;
-        let maxForce = d.acceleration * 100;
+        // engine force, held to what the car's weight can put down: more than ~1.4 g lifts the
+        // front wheels and the car somersaults off the line (Supercar, Legend X, LEC did)
+        let maxForce = Math.min(d.acceleration * 100, b.mass * 14);
         if (C.boost.active > 0) { cap *= 1.25; maxForce *= 1.7; }      // GV60 boost button: 10 s of extra power
 
         // Forward is the body's local +z
@@ -330,6 +345,8 @@ window.Car = (function () {
             brake = C.mph < 3 ? 12 : 0.6 + Math.min(C.mph, 150) / 150 * 2.5;   // coast / engine braking
         }
         if (C.drifting) engine *= 0.6;
+        // front wheels in the air (a wheelie or a crest): ease off so it settles instead of flipping
+        if (engine !== 0 && !(v.wheelInfos[0].raycastResult.hasHit || v.wheelInfos[1].raycastResult.hasHit)) engine *= 0.25;
         if (C.autoBrake && C.mph > 2) { engine = 0; brake = Math.max(brake, 35); C.throttle = 0; }
         // worn tires: less power and a lower cap (Features.tires)
         const grip = C.tireGrip === undefined ? 1 : C.tireGrip;

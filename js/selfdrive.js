@@ -100,7 +100,7 @@ window.SelfDrive = (function () {
             const city = World.cities.find(c => Math.hypot(c.center.x - point.x, c.center.z - point.z) < c.radius + 60);
             if (city) { S.destCity = city; S.dest = point.clone(); S.destRoad = null; S.target = point.clone(); }
         }
-        S.active = true; S.cross = null; S.opts = opts; S.lastTow = null; S.kinRoad = null;
+        S.active = true; S.cross = null; S.opts = opts; S.lastTow = null; S.kinRoad = null; S.roaming = false;
         const cur = nearestRoad(Car.body.position);
         S.road = cur.r; S.dir = headingDir(cur.r, cur.n);
         S.laneIndex = S.road.lanes.filter(l => l.dir === S.dir).length - 1;
@@ -160,17 +160,38 @@ window.SelfDrive = (function () {
         opts.sort((a, b) => a.far.distanceTo(S.dest) - b.far.distanceTo(S.dest));
         return opts[0];
     }
+    // Waymo mode: with no destination picked it just drives the road it is on at the limit, taking
+    // the next road at the end, like the real ones cruising for a fare. Touch the wheel and it
+    // hands over; let go for two seconds and it takes back.
+    S.roam = function () {
+        const cur = nearestRoad(Car.body.position); if (!cur) return;
+        S.road = cur.r; S.dir = headingDir(cur.r, cur.n); S.destRoad = cur.r; S.roaming = true;
+        S.dest = Road.at(cur.r, S.dir === 1 ? cur.r.length : 0, 0).p.clone();
+        S.active = true; S.cross = null; S.opts = { quiet: true }; S.lastTow = null; S.kinRoad = null; S.destCity = null;
+        S.laneIndex = S.road.lanes.filter(l => l.dir === S.dir).length - 1;
+    };
+    let idle = 0;
     S.update = function (dt) {
+        const hands = Car.keys.fwd || Car.keys.back || Car.keys.left || Car.keys.right;
+        if (Car.body && Car.data && Car.data.isWaymo && Game.started && !Car.parked && !Car.frozen && !Car.towed) {
+            idle = hands ? 0 : idle + dt;
+            if (!S.active && idle > 2) { S.roam(); UI.toast('Waymo: self-driving. Pick a place on the MAP, or just ride along.', 2500); }
+        }
         if (!S.active || !Car.body) return;
-        if (Car.keys.fwd || Car.keys.back || Car.keys.left || Car.keys.right) { S.cancel(); return; }
+        if (hands) { S.cancel(S.roaming); S.roaming = false; return; }
         const pos = Car.body.position;
+        if (S.roaming) {                                                   // keep the target at the end of whatever road we are on
+            const end = Road.at(S.road, S.dir === 1 ? S.road.length : 0, 0).p;
+            if (end.distanceTo(S.dest) > 1) { S.dest = end.clone(); S.destRoad = S.road; }
+            if (pos.distanceTo(S.dest) < 40 && S.road.type === 'freeway') { S.dir = -S.dir; S.laneIndex = S.road.lanes.filter(l => l.dir === S.dir).length - 1; }   // end of the line: turn back (the loops are for exits)
+        }
         if (S.destCity && S.destCity.loaded && !S.destRoad) {
             // the city's streets are built now: aim at the street nearest the original point
             let best = null, bd = Infinity;
             S.destCity.roads.forEach(r => { if (!Object.keys(r.chunks).length) return; const n = Road.nearest(r, S.target); if (n.dist < bd) { bd = n.dist; best = { r, n }; } });
             if (best) { S.dest = best.n.frame.p.clone(); S.destRoad = best.r; }
         }
-        if (pos.distanceTo(S.dest) < 14) {
+        if (pos.distanceTo(S.dest) < 14 && !S.roaming) {
             const o = S.opts || {};
             S.cancel(true); Car.cruise = null;
             if (o.tow) S.lastTow = 'arrived';
