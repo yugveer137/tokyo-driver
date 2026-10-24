@@ -25,7 +25,7 @@ window.UI = (function () {
             if (e.code === 'KeyV') Features.toggleRain();
             if (e.code === 'KeyK') Features.toggleCruise();
             if (e.code === 'KeyQ') Features.setSignal('left');
-            if (e.code === 'KeyE') Features.setSignal('right');
+            if (e.code === 'KeyE') { if (window.Walk && Walk.active) Robbery.rob(); else Features.setSignal('right'); }
             if (e.code === 'KeyH') Features.setSignal('hazard');
             if (e.code === 'KeyT') Train.toggle();
             if (e.code === 'KeyR') Car.reset();
@@ -41,6 +41,7 @@ window.UI = (function () {
         $('settings-back').onclick = () => { $('menu-main').style.display = 'block'; $('settings-panel').style.display = 'none'; };
         $('multiplayer-btn').onclick = () => Multiplayer.showMenu();
         $('sound-toggle').onclick = () => { if (window.GameAudio) { GameAudio.setEnabled(!GameAudio.isEnabled()); refreshSettings(); } };
+        $('mode-toggle').onclick = () => { Robbery.setEnabled(!Robbery.isOn()); refreshSettings(); };
         $('switch-player-btn').onclick = () => Save.signOut();
         $('paylink-save').onclick = () => {
             const v = $('paylink-input').value.trim();
@@ -92,6 +93,7 @@ window.UI = (function () {
 
     function refreshSettings() {
         $('sound-toggle').textContent = (window.GameAudio && !GameAudio.isEnabled()) ? 'OFF' : 'ON';
+        $('mode-toggle').textContent = (window.Robbery && Robbery.isOn()) ? 'ROBBERY' : 'DRIVE';
         $('who-label').textContent = Save.isCreator() ? 'creator' : Save.account();
         $('paylink-row').style.display = Save.isCreator() ? 'block' : 'none';
         $('paylink-input').value = Save.getGlobal('td_pay_link', '') || '';

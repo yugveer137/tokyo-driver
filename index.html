@@ -123,7 +123,7 @@
         <div class="box row"><span>Coins: <b id="hud-coins">0</b></span><span>Car: <b id="hud-car">—</b></span><span>Area: <b id="hud-area">—</b></span><span>Time: <b id="hud-clock">—</b></span></div>
     </div>
     <div id="gear"><small>GEAR</small><div id="hud-gear">1</div></div>
-    <div id="hint"><kbd>W</kbd>/<kbd>S</kbd> drive &nbsp; <kbd>A</kbd>/<kbd>D</kbd> steer &nbsp; <kbd>Space</kbd> drift &nbsp; <kbd>F</kbd> horn<br><kbd>Z</kbd>/<kbd>X</kbd> gears &nbsp; <kbd>C</kbd> view &nbsp; <kbd>Q</kbd>/<kbd>E</kbd>/<kbd>H</kbd> signals &nbsp; <kbd>K</kbd> cruise &nbsp; <kbd>V</kbd> rain &nbsp; <kbd>R</kbd> reset &nbsp; <kbd>B</kbd> boost &nbsp; <kbd>G</kbd> walk &nbsp; <kbd>T</kbd> train</div>
+    <div id="hint"><kbd>W</kbd>/<kbd>S</kbd> drive &nbsp; <kbd>A</kbd>/<kbd>D</kbd> steer &nbsp; <kbd>Space</kbd> drift &nbsp; <kbd>F</kbd> horn<br><kbd>Z</kbd>/<kbd>X</kbd> gears &nbsp; <kbd>C</kbd> view &nbsp; <kbd>Q</kbd>/<kbd>E</kbd>/<kbd>H</kbd> signals &nbsp; <kbd>K</kbd> cruise &nbsp; <kbd>V</kbd> rain &nbsp; <kbd>R</kbd> reset &nbsp; <kbd>B</kbd> boost &nbsp; <kbd>G</kbd> walk &nbsp; <kbd>T</kbd> train &nbsp; <kbd>E</kbd> rob (on foot)</div>
     <div id="hud-fps"></div>
     <div id="side-btns">
         <button class="side-btn" id="garage-btn">GARAGE</button>
@@ -151,6 +151,8 @@
     </div>
     <div id="hud-delivery"></div>
     <div id="hud-tires"></div>
+    <div id="rob-hud" style="position:fixed;left:50%;top:86px;transform:translateX(-50%);background:#3a0a0acc;border:1px solid #ff5a3c66;border-radius:10px;padding:6px 14px;font-weight:800;color:#ffb3a3;pointer-events:none;letter-spacing:0.5px"></div>
+    <style>#rob-hud:empty { display: none; }</style>
     <div id="hud-walk" style="position:fixed;left:50%;top:22%;transform:translateX(-50%);color:#8ad0ff;font-weight:700;text-shadow:0 1px 4px #000;pointer-events:none"></div>
     <div id="tada"></div>
     <div id="race-hud"></div>
@@ -174,6 +176,8 @@
             </div>
             <div id="settings-panel">
                 <div class="setting-row"><span>Sound</span><button id="sound-toggle" class="toggle-btn">ON</button></div>
+                <div class="setting-row"><span>Game mode</span><button id="mode-toggle" class="toggle-btn">DRIVE</button></div>
+                <div style="opacity:0.7;font-size:0.78rem;margin:-4px 0 10px">ROBBERY: each level is a city with glowing houses to rob. Park, get out (G), walk to the door and hold E. Lose the police to keep the loot.</div>
                 <div class="setting-row"><span>Player</span><span id="who-label">—</span></div>
                 <div id="paylink-row">
                     <label for="paylink-input">Payment link (creator only)</label>
@@ -233,7 +237,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script>
     // Load the game files with a cache-busting stamp so Safari never runs a stale mix of old and new files
-    (function () { const v = Date.now(); ['config','save','textures','sky','terrain','road','signs','train','peds','walk','music','police','city','cities','traffic','world','carmodels','models','audio','car','game','features','races','selfdrive','multiplayer','osm','ui','minimap','debug','main'].forEach(function (f) { document.write('<script src="js/' + f + '.js?v=' + v + '"><\/script>'); }); })();
+    (function () { const v = Date.now(); ['config','save','textures','sky','terrain','road','signs','train','peds','walk','music','police','robbery','city','cities','traffic','world','carmodels','models','audio','car','game','features','races','selfdrive','multiplayer','osm','ui','minimap','debug','main'].forEach(function (f) { document.write('<script src="js/' + f + '.js?v=' + v + '"><\/script>'); }); })();
     </script>
 </body>
 </html>

@@ -36,6 +36,7 @@ Serve the repo root (e.g. `python3 -m http.server 8731`, also `.claude/launch.js
 | `peds.js` | low-poly people on city sidewalks and station platforms; `Peds.person()` is also the walking avatar |
 | `walk.js` | on foot (G): walk/run, deck + stairs + platform surfaces, guide text to the nearest train stop |
 | `music.js` | MUSIC button: four instrumental rap beats synthesised with WebAudio |
+| `robbery.js` | ROBBERY game mode (Settings > Game mode): one level per city, glowing house markers, hold E on foot to rob, police alert via `Police.alert()`, loot kept on escape; progress in `Save` key `robbery`, mode in `mode` |
 | `police.js` | a patrol car shadows you on freeways/avenues; 15+ over the limit starts a chase (siren, lights); stop = fine, 500 m clear = escape |
 | `ui.js` | HUD, start menu, settings, garage, fast travel, keyboard + touch |
 | `minimap.js` | heading-up minimap canvas |

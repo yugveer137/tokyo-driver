@@ -19,14 +19,27 @@ window.Police = (function () {
         scene.add(g);
         P.car = { mesh: g, road, s, dir, speed: 0 };
     }
-    function remove() { if (P.car) scene.remove(P.car.mesh); P.car = null; P.state = 'off'; if (window.GameAudio && GameAudio.siren) GameAudio.siren(false); }
+    function remove() { if (P.car) scene.remove(P.car.mesh); P.car = null; P.state = 'off'; P.wanted = false; if (window.GameAudio && GameAudio.siren) GameAudio.siren(false); }
 
-    // the road the player is on (freeways and avenues only: no patrols on ramps and side streets)
+    // the road the player is on (freeways and avenues only for patrols; any road once wanted)
     function playerRoad() {
         let best = null, bd = Infinity;
-        Road.all.forEach(r => { if (!Object.keys(r.chunks).length || (r.type !== 'freeway' && r.type !== 'avenue')) return; const n = Road.nearest(r, Car.body.position); if (n.dist < bd) { bd = n.dist; best = { r, n }; } });
-        return best && bd < best.r.width ? best : null;
+        Road.all.forEach(r => { if (!Object.keys(r.chunks).length || (!P.wanted && r.type !== 'freeway' && r.type !== 'avenue')) return; const n = Road.nearest(r, Car.body.position); if (n.dist < bd) { bd = n.dist; best = { r, n }; } });
+        return best && bd < best.r.width * (P.wanted ? 3 : 1) ? best : null;
     }
+    // Robbery mode: a car comes for you right now, wherever you are, and keeps coming
+    P.alert = function () {
+        P.wanted = true;
+        if (!P.car) {
+            let best = null, bd = Infinity;
+            Road.all.forEach(r => { if (!Object.keys(r.chunks).length) return; const n = Road.nearest(r, Car.body.position); if (n.dist < bd) { bd = n.dist; best = { r, n }; } });
+            if (!best) return;
+            const d = best.r.typeDef.twoWay ? (Math.random() < 0.5 ? 1 : -1) : 1;
+            spawn(best.r, Math.max(0, Math.min(best.r.length, best.n.s - d * 140)), d);
+        }
+        P.state = 'chase'; P.car.t = 0;
+        if (window.GameAudio && GameAudio.siren) GameAudio.siren(true);
+    };
     function dirOnRoad(road, n) {
         const yaw = Car.yaw(), fwd = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
         return fwd.dot(n.frame.tan) >= 0 || !road.typeDef.twoWay ? 1 : -1;
@@ -34,7 +47,12 @@ window.Police = (function () {
     function laneOffset(road, dir) { const ls = road.lanes.filter(l => l.dir === dir); return ls.length ? ls[ls.length - 1].offset : 0; }
 
     P.update = function (dt) {
-        if (!Car.body || !Game.started || Car.towed || Car.parked || (window.Train && Train.riding)) { if (P.car && P.state !== 'off') remove(); return; }
+        if (!Car.body || !Game.started || Car.towed || (window.Train && Train.riding) || (Car.parked && !P.wanted)) { if (P.car && P.state !== 'off') remove(); return; }
+        if (Car.parked && P.wanted && P.car) {                               // on foot while wanted: the car waits by yours, the clock runs
+            P.car.wait = (P.car.wait || 0) + dt;
+            if (P.car.wait > 25) { UI.toast('The police found you on foot. Busted!', 3500); if (window.Robbery) Robbery.onCaught(); remove(); }
+            return;
+        }
         const pr = playerRoad();
         const limit = UI.limit || 65;
         // put a patrol car on the road 160 m behind you now and then
@@ -43,7 +61,7 @@ window.Police = (function () {
             return;
         }
         const c = P.car;
-        if (!pr) { if (P.state === 'patrol') { remove(); } else { c.lost = (c.lost || 0) + dt; if (c.lost > 6) { UI.toast('You lost the police.', 2500); remove(); } return; } }
+        if (!pr) { if (P.state === 'patrol') { remove(); } else { c.lost = (c.lost || 0) + dt; if (c.lost > (P.wanted ? 12 : 6)) { UI.toast('You lost the police.', 2500); if (window.Robbery) Robbery.onEscaped(); remove(); } return; } }
         else if (pr.r !== c.road) { c.road = pr.r; c.dir = dirOnRoad(pr.r, pr.n); c.s = Math.max(0, Math.min(pr.r.length, pr.n.s - c.dir * Math.min(120, c.mesh.position.distanceTo(Car.body.position)))); }
         const n = pr ? pr.n : Road.nearest(c.road, Car.body.position);
         const gap = (n.s - c.s) * c.dir;                                        // how far ahead of the cop you are along the road
@@ -60,8 +78,8 @@ window.Police = (function () {
             want = Math.max(-6, Math.min(140 / CFG.MPH, want));
             c.speed += (want - c.speed) * Math.min(1, dt * 2.5);
             const near = Math.abs(gap) < CATCH_DIST;
-            if (near && Car.mph < 12) { c.t += dt; if (c.t > 2) { const fine = Math.min(P.fine, Math.max(0, Game.state.coins)); Game.addCoins(-fine); UI.toast('Pulled over. Fine: ' + fine + ' coins. Keep it under the limit.', 4000); remove(); return; } } else c.t = 0;
-            if (gap > LOSE_DIST) { UI.toast('You outran the police!', 2500); Game.addCoins(50); remove(); return; }
+            if (near && Car.mph < 12) { c.t += dt; if (c.t > 2) { if (P.wanted && window.Robbery) Robbery.onCaught(); else { const fine = Math.min(P.fine, Math.max(0, Game.state.coins)); Game.addCoins(-fine); UI.toast('Pulled over. Fine: ' + fine + ' coins. Keep it under the limit.', 4000); } remove(); return; } } else c.t = 0;
+            if (gap > LOSE_DIST) { if (P.wanted && window.Robbery) Robbery.onEscaped(); else { UI.toast('You outran the police!', 2500); Game.addCoins(50); } remove(); return; }
         }
         if (!P.car) return;
         c.s = Math.max(0, Math.min(c.road.length, c.s + c.dir * c.speed * dt));
