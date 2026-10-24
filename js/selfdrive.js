@@ -93,7 +93,14 @@ window.SelfDrive = (function () {
         Road.all.forEach(r => { if (!Object.keys(r.chunks).length) return; const n = Road.nearest(r, point); if (n.dist < bd) { bd = n.dist; best = { r, n }; } });
         S.dest = best ? best.n.frame.p.clone() : point.clone();
         S.destRoad = best ? best.r : null;
-        S.active = true; S.cross = null; S.opts = opts; S.lastTow = null;
+        // a point inside a city whose streets are not built yet would snap onto the freeway;
+        // keep the city as the goal and snap again once its streets exist
+        S.destCity = null;
+        if (!best || best.r.type === 'freeway') {
+            const city = World.cities.find(c => Math.hypot(c.center.x - point.x, c.center.z - point.z) < c.radius + 60);
+            if (city) { S.destCity = city; S.dest = point.clone(); S.destRoad = null; S.target = point.clone(); }
+        }
+        S.active = true; S.cross = null; S.opts = opts; S.lastTow = null; S.kinRoad = null;
         const cur = nearestRoad(Car.body.position);
         S.road = cur.r; S.dir = headingDir(cur.r, cur.n);
         S.laneIndex = S.road.lanes.filter(l => l.dir === S.dir).length - 1;
@@ -113,17 +120,41 @@ window.SelfDrive = (function () {
         const yaw = Car.yaw(), fwd = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
         return fwd.dot(n.frame.tan) >= 0 || !road.typeDef.twoWay ? 1 : -1;
     }
+    // the city the destination is in (or nearest to, within its plateau)
+    function destCity() {
+        let best = null, bd = Infinity;
+        World.cities.forEach(c => { const d = Math.hypot(c.center.x - S.dest.x, c.center.z - S.dest.z); if (d < c.radius + 150 && d < bd) { bd = d; best = c; } });
+        return best;
+    }
+    // The U-turn loops sit at city.s + 1500 (leaving the forward carriageway) and city.s + 2400
+    // (leaving the other one). Pick the first one ahead of us that leaves the exit ahead of us
+    // afterwards; if we are heading the right way but have passed the exit, any loop will do
+    // (the next call plans the second one).
+    function chooseUturn(fw, s, dir, want) {
+        const cands = [];
+        fw.cities.forEach((c, k) => { if (k < fw.cities.length - 1) { cands.push({ s: c.s + 1500, fromDir: 1 }); cands.push({ s: c.s + 2400, fromDir: -1 }); } });
+        const ahead = cands.filter(u => u.fromDir === dir && (dir === 1 ? u.s > s + 80 : u.s < s - 80)).sort((a, b) => dir === 1 ? a.s - b.s : b.s - a.s);
+        if (dir !== want.dir) return ahead.find(u => want.dir === -1 ? u.s > want.s + 100 : u.s < want.s - 100) || null;
+        return ahead[0] || null;
+    }
     function laneOf(road, dir, idx) { const ls = road.lanes.filter(l => l.dir === dir); return ls[Math.min(idx, ls.length - 1)] || road.lanes[0]; }
     // at the end of the road: choose the connected road whose far end is closest to the destination
     function chooseNext() {
         const r = S.road, atEnd = S.dir === 1;
         const endP = Road.at(r, atEnd ? r.length : 0, 0).p;
+        // ramps and U-turn loops merge onto a freeway: the traffic link says where and which way
+        const merge = Traffic.links.find(l => l.from === r && l.to.type === 'freeway');
+        if (merge) return { road: merge.to, dir: merge.toDir, far: Road.at(merge.to, merge.toDir === 1 ? merge.to.length : 0, 0).p };
         const opts = [];
         Road.all.forEach(o => {
             if (o === r || !Object.keys(o.chunks).length) return;
             const ps = Road.at(o, 0, 0).p, pe = Road.at(o, o.length, 0).p;
             if (ps.distanceTo(endP) < 36) opts.push({ road: o, dir: 1, far: pe });
-            if (pe.distanceTo(endP) < 36 && o.typeDef.twoWay) opts.push({ road: o, dir: -1, far: ps });
+            else if (pe.distanceTo(endP) < 36 && o.typeDef.twoWay) opts.push({ road: o, dir: -1, far: ps });
+            else if (o.type !== 'freeway' && Road.nearest(o, endP).dist < 20) {            // we land part-way along it (ramp onto a frontage road)
+                opts.push({ road: o, dir: 1, far: pe });
+                if (o.typeDef.twoWay) opts.push({ road: o, dir: -1, far: ps });
+            }
         });
         if (!opts.length) return null;
         opts.sort((a, b) => a.far.distanceTo(S.dest) - b.far.distanceTo(S.dest));
@@ -133,6 +164,12 @@ window.SelfDrive = (function () {
         if (!S.active || !Car.body) return;
         if (Car.keys.fwd || Car.keys.back || Car.keys.left || Car.keys.right) { S.cancel(); return; }
         const pos = Car.body.position;
+        if (S.destCity && S.destCity.loaded && !S.destRoad) {
+            // the city's streets are built now: aim at the street nearest the original point
+            let best = null, bd = Infinity;
+            S.destCity.roads.forEach(r => { if (!Object.keys(r.chunks).length) return; const n = Road.nearest(r, S.target); if (n.dist < bd) { bd = n.dist; best = { r, n }; } });
+            if (best) { S.dest = best.n.frame.p.clone(); S.destRoad = best.r; }
+        }
         if (pos.distanceTo(S.dest) < 14) {
             const o = S.opts || {};
             S.cancel(true); Car.cruise = null;
@@ -145,14 +182,24 @@ window.SelfDrive = (function () {
         const cur = nearestRoad(pos);
         if (cur && cur.r !== S.road && cur.n.dist < cur.r.width * 0.6 && Road.nearest(S.road, pos).dist > S.road.width * 0.7) { S.road = cur.r; S.dir = headingDir(cur.r, cur.n); S.laneIndex = Math.min(S.laneIndex, S.road.lanes.filter(l => l.dir === S.dir).length - 1); }
         const n = Road.nearest(S.road, pos);
-        // take an exit when the destination is not on this freeway and the exit leads toward it
+        // On the freeway: work out which carriageway the destination's exit is on. If we are on
+        // the wrong one (or already past it), plan a U-turn loop; otherwise take the exit when it
+        // comes. Each city's exit is on the carriageway of its side, 1200 before the city.
         const onFreeway = S.road.type === 'freeway';
+        S.wantUturn = null;
         if (onFreeway && S.destRoad !== S.road) {
-            const link = Traffic.links.find(l => l.from === S.road && l.to.isExit && l.fromDir === S.dir && (S.dir === 1 ? (l.sFrom > n.s && l.sFrom < n.s + 400) : (l.sFrom < n.s && l.sFrom > n.s - 400)) && Object.keys(l.to.chunks).length);
-            if (link) {
-                const exitEnd = Road.at(link.to, link.to.length, 0).p;
-                if (exitEnd.distanceTo(S.dest) < pos.distanceTo(S.dest)) { S.laneIndex = S.road.typeDef.lanes - 1; if (Math.abs(n.s - link.sFrom) < 60) { S.road = link.to; S.dir = 1; S.laneIndex = 0; } }
+            const city = destCity();
+            if (city && city.fw === S.road) {
+                const want = { dir: city.side, s: city.s - city.side * 1200 };
+                const exitAhead = S.dir === want.dir && (S.dir === 1 ? n.s < want.s - 60 : n.s > want.s + 60);
+                if (!exitAhead) S.wantUturn = chooseUturn(S.road, n.s, S.dir, want);
             }
+            const ahead = (l) => S.dir === 1 ? (l.sFrom > n.s && l.sFrom < n.s + 400) : (l.sFrom < n.s && l.sFrom > n.s - 400);
+            const links = Traffic.links.filter(l => l.from === S.road && l.to.isExit && l.fromDir === S.dir && ahead(l) && Object.keys(l.to.chunks).length);
+            let link = null;
+            if (S.wantUturn) link = links.find(l => l.to.isUturn && Math.abs(l.sFrom - (S.wantUturn.s - S.dir * 40)) < 120) || null;
+            else link = links.find(l => !l.to.isUturn && Road.at(l.to, l.to.length, 0).p.distanceTo(S.dest) < pos.distanceTo(S.dest)) || null;
+            if (link) { S.laneIndex = S.road.typeDef.lanes - 1; if (Math.abs(n.s - link.sFrom) < 60) { S.road = link.to; S.dir = 1; S.laneIndex = 0; } }
         }
         const toEnd = S.dir === 1 ? S.road.length - n.s : n.s;
         if (toEnd < 10 && !onFreeway) {
@@ -199,7 +246,11 @@ window.SelfDrive = (function () {
             // 400 mph is fine and nothing can fling the car off the road
             const want = target / CFG.MPH;
             S.kin = Math.min(want, (S.kin || 0) + 70 * dt);
-            const s2 = Math.max(0, Math.min(S.road.length, n.s + S.dir * S.kin * dt));
+            // keep our own arc length: Road.nearest only knows the 8 m sample points, so
+            // stepping from it would never get past the first one
+            if (S.kinRoad !== S.road) { S.kinRoad = S.road; S.kinS = Road.nearest(S.road, pos).s; }   // (n is for the road we just left)
+            S.kinS = Math.max(0, Math.min(S.road.length, S.kinS + S.dir * S.kin * dt));
+            const s2 = S.kinS;
             const f = Road.at(S.road, s2, lane.offset);
             const tan = f.tan.clone().multiplyScalar(S.dir);
             const b = Car.body;

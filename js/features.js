@@ -312,7 +312,7 @@ window.Features = (function () {
         T.beacon.material.emissiveIntensity = Math.floor(performance.now() / 300) % 2 ? 2.5 : 0.2;
         if (T.phase === 'approach') {
             const dx = p.x - m.position.x, dz = p.z - m.position.z, d = Math.hypot(dx, dz);
-            if (d > 9) {
+            if (d > 9.5) {                                               // (not 9: the step shrinks to nothing right at 9 and it never arrives)
                 const step = Math.min(d - 9, 14 * dt);
                 m.position.x += dx / d * step; m.position.z += dz / d * step;
                 m.position.y = Math.max(Terrain.height(m.position.x, m.position.z), p.y - 0.8) ;

@@ -25,7 +25,9 @@
     const ACCT_KEY = 'td_accounts';     // localStorage: { email: code } made on this browser
     const PAY_LINK_KEY = 'td_pay_link'; // localStorage: payment link, set by the creator
     // Keep in sync with the old game: the hash is the SHA-256 of the normalised unlock code.
-    const CREATOR_GITHUB = 'yugveer137';  // typing this in the creator box plays free
+    // The creator signs in with the owner email plus the money code. Only the SHA-256 of the
+    // email is kept here (the code's hash is UNLOCK_HASH below), so the page shows no secrets.
+    const CREATOR_EMAIL_HASH = '40ae3a159522376a6cbe9153ca3cb8b826fa99605b91e8c9242d32c14062fa10';
     const OWNER_EMAIL = 'yugveer.18@gmail.com';  // "Contact Owner" emails this address
     const UNLOCK_HASH = '4f84719d0fa3c300fe55c8b1bc6a8b0732310093030ce0d90d370101464fdf56';
 
@@ -285,11 +287,14 @@
             <h2>tokyo-driver1</h2>
             <div class="pay-price">YOU NEED MONEY</div>
             <p class="pay-sub">You can't play yet — you need money from the owner.<br>
-               Email <b style="color:#fff">${OWNER_EMAIL}</b> and ask for your money ($1, once).<br>
+               Open your Gmail and send an email to<br>
+               <b style="color:#fff;font-size:1.1em">${OWNER_EMAIL}</b><br>
+               Say you want to play tokyo-driver1, pay the $1, and write your game login:<br>
+               <b id="pay-login" style="color:#7fa"></b><br>
                The owner emails you back a money code. Type it below and you can play.</p>
             <button id="pay-btn">PAY $1</button>
             <div id="pay-note"></div>
-            <a id="contact-owner" href="#" style="display:block">EMAIL ${OWNER_EMAIL} FOR MONEY</a>
+            <button id="copy-owner" class="toggle-btn" style="margin-top:8px">COPY THE OWNER'S EMAIL ADDRESS</button>
             <div id="unlock-row">
                 <label for="unlock-input">Got your money code?</label>
                 <div class="unlock-line">
@@ -302,8 +307,10 @@
         <div id="creator-side">
             <button id="creator-btn">I AM CREATOR</button>
             <div id="creator-box">
-                <label for="creator-input">GitHub account</label>
-                <input id="creator-input" type="text" placeholder="your GitHub username" autocomplete="off" />
+                <label for="creator-input">Owner email</label>
+                <input id="creator-input" type="email" placeholder="owner email" autocomplete="off" />
+                <label for="creator-code" style="margin-top:8px">Money code</label>
+                <input id="creator-code" type="password" placeholder="the money code" autocomplete="off" />
                 <button id="creator-go">ENTER</button>
                 <div id="creator-err"></div>
             </div>
@@ -400,9 +407,11 @@
             } catch (e) {}
             try { history.replaceState(null, '', location.pathname); } catch (e) {}
         }
-        // #creator / ?creator (bookmark it): sign in as creator, skipping both gates.
-        if (!session.get() && /[#?&]creator\b/i.test(where)) {
-            session.set({ type: 'creator', ts: Date.now() });
+        // #creator / ?creator (bookmark it): sign in as creator, skipping both gates — even if
+        // someone else is signed in on this device.
+        if (/[#?&]creator\b/i.test(where)) {
+            const cur = session.get();
+            if (!cur || cur.type !== 'creator') session.set({ type: 'creator', ts: Date.now() });
         }
     }
 
@@ -493,19 +502,19 @@
                 resolve();
             }
 
-            // The contact link always carries the player's login so the owner knows who paid
-            const subject = 'tokyo-driver1 - I need money to play';
-            const body = 'Hi! I need money to play tokyo-driver1. I will pay the $1.\n\nMy game login: ' +
-                (account() || '(not signed in)') + '\n';
-            const contact = gate.querySelector('#contact-owner');
-            contact.href = 'mailto:' + OWNER_EMAIL + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+            // The player writes the email themselves in their own Gmail; we show their login so
+            // they can put it in the message, and a button to copy the owner's address.
+            gate.querySelector('#pay-login').textContent = account() || '(not signed in)';
+            gate.querySelector('#copy-owner').addEventListener('click', function () {
+                const done = () => { noteEl.textContent = 'Copied. Now open Gmail and send the email to ' + OWNER_EMAIL + '.'; };
+                if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(OWNER_EMAIL).then(done, done); else done();
+            });
 
             gate.querySelector('#pay-btn').addEventListener('click', function () {
                 const link = String(getGlobal(PAY_LINK_KEY, '') || '').trim();
                 if (!link) {
                     // No payment link set by the owner yet: the email is the way to pay
-                    noteEl.textContent = 'Email ' + OWNER_EMAIL + ' with your login and the $1; you get your money code back.';
-                    window.location.href = contact.href;
+                    noteEl.textContent = 'Email ' + OWNER_EMAIL + ' from your Gmail with your login and the $1; you get your money code back.';
                     return;
                 }
                 window.open(link, '_blank', 'noopener');
@@ -536,29 +545,33 @@
             gate.querySelector('#unlock-btn').addEventListener('click', tryUnlockCode);
             unlockInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') tryUnlockCode(); });
 
-            // Creator sign: type the GitHub account to play without paying.
+            // Creator sign-in: the owner email plus the money code, both checked by hash.
             const box = gate.querySelector('#creator-box');
             const input = gate.querySelector('#creator-input');
+            const codeInput = gate.querySelector('#creator-code');
             const err = gate.querySelector('#creator-err');
             gate.querySelector('#creator-btn').addEventListener('click', function () {
                 box.style.display = (box.style.display === 'block') ? 'none' : 'block';
                 if (box.style.display === 'block') input.focus();
             });
-            // Be forgiving: ignore spaces, a leading @, and capitals. Phone keyboards and
-            // autocorrect love to slip a space into "yugveer 137".
-            function norm(s) { return String(s).replace(/\s+/g, '').replace(/^@+/, '').toLowerCase(); }
-            function tryCreator() {
-                if (norm(input.value) === norm(CREATOR_GITHUB)) {
+            // Be forgiving: ignore spaces and capitals (phone keyboards slip them in).
+            function norm(s) { return String(s).replace(/\s+/g, '').toLowerCase(); }
+            async function tryCreator() {
+                if (!window.crypto || !crypto.subtle) { err.textContent = 'This browser can\'t check the sign-in.'; return; }
+                const emailOk = await sha256Hex(norm(input.value)) === CREATOR_EMAIL_HASH;
+                const codeOk = await sha256Hex(codeInput.value.toUpperCase().replace(/[\s-]+/g, '')) === UNLOCK_HASH;
+                if (emailOk && codeOk) {
                     session.set({ type: 'creator', ts: Date.now() });
                     gate.remove();
                     resolve();
                 } else {
-                    err.textContent = 'That is not the creator account.';
-                    input.select();
+                    err.textContent = emailOk ? 'That money code isn\'t right.' : 'That is not the owner email.';
+                    (emailOk ? codeInput : input).select();
                 }
             }
             gate.querySelector('#creator-go').addEventListener('click', tryCreator);
-            input.addEventListener('keydown', function (e) { if (e.key === 'Enter') tryCreator(); });
+            input.addEventListener('keydown', function (e) { if (e.key === 'Enter') codeInput.focus(); });
+            codeInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') tryCreator(); });
         });
     }
 
