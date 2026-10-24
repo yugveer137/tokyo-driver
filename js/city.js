@@ -276,6 +276,8 @@ window.City = (function () {
         if (!city.loaded) return; city.loaded = false;
         if (window.Peds) Peds.unloadCity(city);
         city.workshop = null;
+        city.station = false;                                             // the stop is rebuilt with the city
+        if (window.Train) Train.stations = Train.stations.filter(st => st.city !== city);
         city.meshes.forEach(m => { scene.remove(m); m.traverse && m.traverse(o => { if (o.geometry) o.geometry.dispose(); }); });
         city.bodies.forEach(b => world.removeBody(b));
         city.roads.forEach(r => { if (window.Traffic) Traffic.unlinkRoad(r); Road.remove(r); });

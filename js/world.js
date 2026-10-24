@@ -233,7 +233,7 @@ window.World = (function () {
         city.signs.push(Signs.plain(ps.p, Signs.facingFrom(ps.tan) + Math.PI / 2, 'P', 'STATION PARKING', 3, 2));
         if (window.Models && Models.ready) {
             const kinds = ['sedan', 'suv', 'hatchback-sports', 'van'], tints = [0xc8c8c8, 0x2a2a2e, 0x7a1f1f, 0x1f3f7a, 0xd9c36b];
-            [-11, -4, 4, 11].forEach((k, i) => {
+            [-12, -5, 5, 12].forEach((k, i) => {                            // the middle bay on the rails side stays free for you
                 if (Math.random() < 0.3) return;                                // some bays stay free
                 const bay = Road.at(fw, sR + k, lotLat + (i % 2 ? 1 : -1) * (LOT_W / 2 - 3.2));
                 const car = Models.car(kinds[i % kinds.length], tints[Math.floor(Math.random() * tints.length)], 4.4, {});

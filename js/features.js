@@ -363,6 +363,7 @@ window.Features = (function () {
     // "TA-DA!" banner each time you blow past a new speed milestone
     const Tada = { next: 65, el: null };
     function updateTada() {
+        if (window.Train && Train.riding) return;                        // the train's speed is not your doing
         if (Car.mph >= Tada.next) {
             const el = Tada.el || (Tada.el = document.getElementById('tada'));
             if (el) { el.textContent = 'TA-DA! ' + Tada.next + ' MPH'; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show'); }

@@ -2,7 +2,9 @@
 // left of the freeway, with a station at every city. Press T (or the TRAIN button) near the
 // train (stopped at a station) to board: it runs to a timetable, T again gets off beside the track.
 window.Train = (function () {
-    const T = { LAT: -64, chunks: {}, riding: false, speed: 0, s: 0, stations: [] };   // between the left collector and the left cities
+    // Two tracks on the left of the freeway with an island platform between them: forward (dir +1)
+    // trains run on LAT, the ones coming back on LAT2; the platform centre is PLAT.
+    const T = { LAT: -60, LAT2: -74, PLAT: -67, chunks: {}, riding: false, speed: 0, s: 0, stations: [] };
     let scene, railTex, railMat;
 
     T.init = function (sc) {
@@ -60,50 +62,52 @@ window.Train = (function () {
         if (T.chunks[key]) return;
         const fr = fw.frames.filter(f => { const s = f.t * fw.length; return s >= s0 - fw.segLen && s <= s1 + fw.segLen; });
         if (fr.length < 2) return;
-        const geom = Road.strip(fr, { x: T.LAT - 2.2, y: 0 }, { x: T.LAT + 2.2, y: 0 }, 6, fw.length, 0, 1, Road.DRAPE + 0.05);
-        const m = new THREE.Mesh(geom, railMat); m.receiveShadow = true; scene.add(m);
-        T.chunks[key] = m;
+        const g = new THREE.Group();
+        [T.LAT, T.LAT2].forEach(lat => { const m = new THREE.Mesh(Road.strip(fr, { x: lat - 2.2, y: 0 }, { x: lat + 2.2, y: 0 }, 6, fw.length, 0, 1, Road.DRAPE + 0.05), railMat); m.receiveShadow = true; g.add(m); });
+        scene.add(g); T.chunks[key] = g;
     };
-    T.dropRange = function (key) { const m = T.chunks[key]; if (!m) return; scene.remove(m); m.geometry.dispose(); delete T.chunks[key]; };
+    T.dropRange = function (key) { const g = T.chunks[key]; if (!g) return; scene.remove(g); g.children.forEach(m => m.geometry.dispose()); delete T.chunks[key]; };
 
     // station: platform + sign beside the track at a city
     T.station = function (city) {
         const fw = World.freeway, group = [];
-        const f = Road.at(fw, city.s, T.LAT - 6);
+        const f = Road.at(fw, city.s, T.PLAT);
         const g0 = Terrain.height(f.p.x, f.p.z), yaw = Road.yawOf(f.tan);
         const add = (m) => { m.castShadow = m.receiveShadow = true; group.push(m); return m; };
         const stn = new THREE.Group(); stn.position.set(f.p.x, g0, f.p.z); stn.rotation.y = yaw; group.push(stn);
         const place = (geom, mat, x, y, z, ry) => { const m = new THREE.Mesh(geom, mat); m.position.set(x, y, z); if (ry) m.rotation.y = ry; m.castShadow = m.receiveShadow = true; stn.add(m); return m; };
-        // local frame: z along the track, -x toward the rails (the platform edge is at x = -5)
+        // local frame: z along the tracks; rails on both sides (x = -5 and x = +5), so edges on both
         const concrete = new THREE.MeshStandardMaterial({ color: 0xbdbdb6, map: Tex.concrete, roughness: 0.95 });
         const steel = new THREE.MeshStandardMaterial({ color: 0x9aa0a6, map: Tex.steel, metalness: 0.75, roughness: 0.35 });
         const roofMat = new THREE.MeshStandardMaterial({ color: 0x3b4046, roughness: 0.7, metalness: 0.3 });
         const LEN = 64;
         // platform slab with a white safety line and the yellow tactile strip along the edge
         place(Tex.scaleBoxUVs(new THREE.BoxGeometry(10, 0.9, LEN), 10, 0.9, LEN, 4), concrete, 0, 0.45, 0);
-        place(new THREE.BoxGeometry(0.12, 0.02, LEN), new THREE.MeshStandardMaterial({ color: 0xf2f2ee }), -4.3, 0.91, 0);
-        const tact = Tex.scalePlaneUVs(new THREE.PlaneGeometry(0.6, LEN), 0.6, LEN, 0.6);
-        const tactile = place(tact, new THREE.MeshStandardMaterial({ map: Tex.tactile, roughness: 0.9 }), -3.6, 0.915, 0); tactile.rotation.x = -Math.PI / 2;
+        const tactMat = new THREE.MeshStandardMaterial({ map: Tex.tactile, roughness: 0.9 }), lineMat = new THREE.MeshStandardMaterial({ color: 0xf2f2ee });
+        [-1, 1].forEach(sd => {
+            place(new THREE.BoxGeometry(0.12, 0.02, LEN), lineMat, sd * 4.3, 0.91, 0);
+            const tactile = place(Tex.scalePlaneUVs(new THREE.PlaneGeometry(0.6, LEN), 0.6, LEN, 0.6), tactMat, sd * 3.6, 0.915, 0); tactile.rotation.x = -Math.PI / 2;
+        });
         // canopy on steel columns, with lamps underneath that glow at night
-        place(new THREE.BoxGeometry(7.5, 0.22, LEN - 8), roofMat, 0.5, 4.3, 0);
-        place(new THREE.BoxGeometry(7.9, 0.5, LEN - 7.6), new THREE.MeshStandardMaterial({ color: 0x2b3036, roughness: 0.8 }), 0.5, 4.55, 0);
+        place(new THREE.BoxGeometry(8, 0.22, LEN - 8), roofMat, 0, 4.3, 0);
+        place(new THREE.BoxGeometry(8.4, 0.5, LEN - 7.6), new THREE.MeshStandardMaterial({ color: 0x2b3036, roughness: 0.8 }), 0, 4.55, 0);
         const lampMat = new THREE.MeshStandardMaterial({ color: 0xfff6e0, emissive: 0xffe6b0, emissiveIntensity: 0 }); City.nightMats.push(lampMat); city.mats.push(lampMat);
         for (let z = -LEN / 2 + 6; z <= LEN / 2 - 6; z += 8) {
-            place(new THREE.CylinderGeometry(0.16, 0.18, 3.4, 10), steel, 2.2, 2.6, z);
-            place(new THREE.BoxGeometry(0.1, 0.1, 2.4), lampMat, -0.4, 4.15, z + 4);
+            place(new THREE.CylinderGeometry(0.16, 0.18, 3.4, 10), steel, 0, 2.6, z);
+            [-2.2, 2.2].forEach(x => place(new THREE.BoxGeometry(0.1, 0.1, 2.4), lampMat, x, 4.15, z + 4));
         }
         // benches, bins, a vending machine, and a fence along the back edge
         const benchMat = new THREE.MeshStandardMaterial({ color: 0x5a3f2a, roughness: 0.8 });
         for (let z = -20; z <= 20; z += 20) {
-            place(new THREE.BoxGeometry(0.5, 0.06, 2.2), benchMat, 3.6, 1.35, z);
-            place(new THREE.BoxGeometry(0.06, 0.5, 2.2), benchMat, 3.85, 1.65, z);
-            [-0.9, 0.9].forEach(dz => place(new THREE.BoxGeometry(0.4, 0.45, 0.06), steel, 3.6, 1.12, z + dz));
+            [-1, 1].forEach(sd => {
+                place(new THREE.BoxGeometry(0.5, 0.06, 2.2), benchMat, sd * 0.45, 1.35, z);
+                place(new THREE.BoxGeometry(0.06, 0.5, 2.2), benchMat, sd * 0.12, 1.65, z);
+                [-0.9, 0.9].forEach(dz => place(new THREE.BoxGeometry(0.4, 0.45, 0.06), steel, sd * 0.45, 1.12, z + dz));
+            });
         }
-        place(new THREE.CylinderGeometry(0.28, 0.25, 0.9, 10), new THREE.MeshStandardMaterial({ color: 0x2d6e3a, roughness: 0.6 }), 3.8, 1.35, 10);
-        const vend = place(new THREE.BoxGeometry(1.0, 1.9, 0.8), new THREE.MeshStandardMaterial({ color: 0xd8dde3, roughness: 0.5 }), 4.2, 1.85, -10);
-        const vendFront = place(new THREE.BoxGeometry(0.02, 1.2, 0.7), new THREE.MeshStandardMaterial({ color: 0x1b3e8a, emissive: 0x2a60d0, emissiveIntensity: 0.5 }), 3.68, 2.1, -10);
-        for (let z = -LEN / 2; z <= LEN / 2; z += 4) place(new THREE.BoxGeometry(0.06, 1.1, 0.06), steel, 4.9, 1.45, z);
-        place(new THREE.BoxGeometry(0.04, 0.05, LEN), steel, 4.9, 1.95, 0); place(new THREE.BoxGeometry(0.04, 0.05, LEN), steel, 4.9, 1.45, 0);
+        place(new THREE.CylinderGeometry(0.28, 0.25, 0.9, 10), new THREE.MeshStandardMaterial({ color: 0x2d6e3a, roughness: 0.6 }), 0, 1.35, 10);
+        const vend = place(new THREE.BoxGeometry(1.0, 1.9, 0.8), new THREE.MeshStandardMaterial({ color: 0xd8dde3, roughness: 0.5 }), 0, 1.85, -10);
+        const vendFront = place(new THREE.BoxGeometry(0.02, 1.2, 0.7), new THREE.MeshStandardMaterial({ color: 0x1b3e8a, emissive: 0x2a60d0, emissiveIntensity: 0.5 }), -0.52, 2.1, -10);
         // hanging name boards (city name, with the stops either side) — the real-station look
         const idx = fw.cities.indexOf(city), prev = fw.cities[idx - 1], next = fw.cities[idx + 1];
         const boardTex = Tex.textCanvas(1024, 256, (ctx, W, H) => {
@@ -118,14 +122,14 @@ window.Train = (function () {
         });
         const boardMat = new THREE.MeshStandardMaterial({ map: boardTex, roughness: 0.6, side: THREE.DoubleSide });
         [-16, 16].forEach(z => {
-            const b = place(new THREE.PlaneGeometry(4, 1), boardMat, -1.2, 3.5, z, Math.PI / 2);
-            [-1.6, 1.6].forEach(dz => place(new THREE.BoxGeometry(0.04, 0.6, 0.04), steel, -1.2, 4.0, z + dz));
+            place(new THREE.PlaneGeometry(4, 1), boardMat, 0, 3.5, z, Math.PI / 2);
+            [-1.6, 1.6].forEach(dz => place(new THREE.BoxGeometry(0.04, 0.6, 0.04), steel, 0, 4.0, z + dz));
         });
         // ticket office at the far end
-        place(new THREE.BoxGeometry(6, 3.2, 5), new THREE.MeshStandardMaterial({ color: 0xe8e2d6, map: Tex.facade, roughness: 0.8 }), 1.5, 2.5, LEN / 2 - 3);
-        place(new THREE.BoxGeometry(6.4, 0.3, 5.4), roofMat, 1.5, 4.2, LEN / 2 - 3);
-        place(new THREE.BoxGeometry(1.4, 2.2, 0.1), new THREE.MeshStandardMaterial({ color: 0x2a3a4a }), 1.5, 2.0, LEN / 2 - 5.56);
-        const sp = Road.at(fw, city.s + 20, T.LAT - 9); sp.p.y = g0 + 0.9;
+        place(new THREE.BoxGeometry(6, 3.2, 5), new THREE.MeshStandardMaterial({ color: 0xe8e2d6, map: Tex.facade, roughness: 0.8 }), 0, 2.5, LEN / 2 - 3);
+        place(new THREE.BoxGeometry(6.4, 0.3, 5.4), roofMat, 0, 4.2, LEN / 2 - 3);
+        place(new THREE.BoxGeometry(1.4, 2.2, 0.1), new THREE.MeshStandardMaterial({ color: 0x2a3a4a }), 0, 2.0, LEN / 2 - 5.56);
+        const sp = Road.at(fw, city.s + 20, T.PLAT); sp.p.y = g0 + 0.9;
         group.push(Signs.plain(sp.p, Signs.facingFrom(f.tan) + Math.PI / 2, 'STATION', city.name.toUpperCase(), 5, 2.2));
         // stairs down from the freeway's left shoulder, then a footpath over to the platform
         const hw = fw.width / 2;
@@ -137,10 +141,10 @@ window.Train = (function () {
         stair.position.copy(top).add(bot).multiplyScalar(0.5); stair.position.y -= 0.12; stair.lookAt(bot.x, bot.y - 0.12, bot.z); stair.castShadow = stair.receiveShadow = true;
         group.push(stair);
         [-1.4, 1.4].forEach(x => { const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.0, len), new THREE.MeshStandardMaterial({ color: 0x6f7780, metalness: 0.6 })); rail.position.copy(stair.position); rail.position.y += 0.6; rail.lookAt(bot.x, bot.y + 0.6 - 0.12, bot.z); rail.translateX(x); group.push(rail); });
-        const pathLen = Math.abs((T.LAT - 6) - (-(hw + 24))) ;
-        const pathMid = Road.at(fw, city.s - 30, (-(hw + 24) + (T.LAT - 6)) / 2);
+        const pathLen = Math.abs(T.PLAT - (-(hw + 24)));
+        const pathMid = Road.at(fw, city.s - 30, (-(hw + 24) + T.PLAT) / 2);
         group.push(Road.drapedQuad(pathMid.p.x, pathMid.p.z, pathLen, Road.yawOf(pathMid.tan), stairMat, Road.DRAPE + 0.03, 2, 2.4));
-        if (window.Walk) { const sf = Walk.addSurface(top, bot, 1.5, city); const ps = Walk.addSurface(bot, Road.at(fw, city.s - 30, T.LAT - 6).p, 1.5, city); }
+        if (window.Walk) { Walk.addSurface(top, bot, 1.5, city); Walk.addSurface(bot, Road.at(fw, city.s - 30, T.PLAT).p, 1.5, city); }
         if (window.Peds) Peds.spawnPlatform(city, f.p, f.tan);
         // a tall blue beacon so the stop can be seen from the freeway when you are on foot
         const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 40, 8), new THREE.MeshBasicMaterial({ color: 0x3fa9ff, transparent: true, opacity: 0.55 }));
@@ -153,8 +157,8 @@ window.Train = (function () {
         return group;
     };
 
-    T.pose = function (s) { return Road.at(World.freeway, s, T.LAT); };
-    T.groundAt = function (s) { const f = T.pose(s); f.p.y = Terrain.height(f.p.x, f.p.z) + Road.DRAPE + 0.05; return f; };
+    T.pose = function (s, lat) { return Road.at(World.freeway, s, lat === undefined ? T.LAT : lat); };
+    T.groundAt = function (s, lat) { const f = T.pose(s, lat); f.p.y = Terrain.height(f.p.x, f.p.z) + Road.DRAPE + 0.05; return f; };
 
     // ---- timetable ----
     // Stations are the I-80 cities. Trains run out and back along the line as one big loop of
@@ -179,7 +183,7 @@ window.Train = (function () {
             const f = (phase - DWELL) / (SLOT - DWELL), ease = f * f * (3 - 2 * f);          // smooth start and stop
             tr.s = s0 + (s1 - s0) * ease; tr.speed = Math.abs(s1 - s0) * 6 * f * (1 - f) / (SLOT - DWELL); tr.atStation = false; tr.arrivesIn = (1 - f) * (SLOT - DWELL);
         }
-        const fr = T.groundAt(tr.s);
+        const fr = T.groundAt(tr.s, tr.dir === 1 ? T.LAT : T.LAT2);    // each direction on its own track
         tr.mesh.position.copy(fr.p);
         tr.mesh.rotation.set(0, Road.yawOf(fr.tan) + (tr.dir === 1 ? 0 : Math.PI), 0);
         tr.mesh.visible = tr.mesh.position.distanceTo(playerPos) < 1500;
@@ -198,13 +202,26 @@ window.Train = (function () {
         if (T.riding) {
             const tr = T.ride; T.riding = false; T.ride = null;
             tr.mesh.userData.inside.visible = false;
-            const f = T.groundAt(tr.s);
-            const side = f.p.clone().addScaledVector(f.right, -8);
-            Car.teleport(side.x, Terrain.height(side.x, side.z) + 1.2, side.z, Road.yawOf(f.tan));
+            const f = tr.frame || T.groundAt(tr.s);
+            const station = tr.atStation ? T.stations.find(st => Math.abs(st.s - tr.s) < 1) : null;
+            if (station) {
+                // at a stop: the car goes in the station car park, you step onto the platform
+                const bay = Road.at(World.freeway, station.s + 40, T.LAT + 10 - 4.8);     // the rails-side row, middle bay (kept free)
+                Car.teleport(bay.p.x, Terrain.height(bay.p.x, bay.p.z) + 1.2, bay.p.z, Road.yawOf(bay.tan) + Math.PI / 2);
+            } else {
+                const side = f.p.clone().addScaledVector(f.right, -8);
+                Car.teleport(side.x, Terrain.height(side.x, side.z) + 1.2, side.z, Road.yawOf(f.tan));
+            }
             Car.group.visible = true; Car.wheels.forEach(w => w.visible = true);
             Car.frozen = false;
-            if (T.onFoot && window.Walk) { T.onFoot = false; Walk.getOut(); UI.toast('Off the train — your car is right here. G gets in.', 3000); }
-            else UI.toast('Off the train');
+            if (T.onFoot && window.Walk) {
+                T.onFoot = false; Walk.getOut();
+                if (station) {
+                    Walk.pos.copy(station.platform).addScaledVector(f.tan, 6); Walk.pos.y = station.platform.y;
+                    Walk.yaw = Road.yawOf(f.tan) + Math.PI / 2; Walk.vy = 0;
+                    UI.toast('Off the train at ' + station.city.name + '. Your car is in the station car park.', 3500);
+                } else UI.toast('Off the train — your car is right here. G gets in.', 3000);
+            } else UI.toast(station ? 'Off the train — your car is parked in the station car park' : 'Off the train');
             return;
         }
         const onFoot = window.Walk && Walk.active;
