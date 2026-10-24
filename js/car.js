@@ -333,7 +333,7 @@ window.Car = (function () {
         if (C.autoBrake && C.mph > 2) { engine = 0; brake = Math.max(brake, 35); C.throttle = 0; }
         // worn tires: less power and a lower cap (Features.tires)
         const grip = C.tireGrip === undefined ? 1 : C.tireGrip;
-        if (grip < 1) { engine *= grip; if (C.mph > 25 + 60 * grip) engine = 0; }
+        if (grip < 1) { engine *= grip; if (C.mph > 45 + 60 * grip) engine = 0; }   // low tires: a softer car and a lower top speed, never a dead one
         v.applyEngineForce(engine, 2); v.applyEngineForce(engine, 3);
         for (let i = 0; i < 4; i++) v.setBrake(brake, i);
 

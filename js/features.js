@@ -199,16 +199,18 @@ window.Features = (function () {
         el.textContent = Tires.stranded ? (Tires.tow ? 'STRANDED — tow truck on its way' : 'STRANDED — limp to a WORKSHOP (any city) or press TOW TRUCK') : min < 14 ? 'LOW TIRE PRESSURE (' + Math.round(min) + ' psi) — any city WORKSHOP fixes it' : '';
         el.style.color = Tires.stranded ? '#ff5d6c' : '#ffb000';
     }
-    // Only a real crash costs air: over ~30 mph straight into something. A scrape or a tap does
-    // nothing; a big hit (60+ mph) can blow a tire outright.
+    // Crashes are part of the fun, so they are cheap: only a really hard hit (45+ mph straight
+    // into something, or head-on with traffic) costs one tire a little air, and no crash can
+    // take a tire below 10 psi. Tires only go flat from wear at very high speed for a long time.
     F.onImpact = function (speedAlongNormal) {
         const now = performance.now();
-        if (speedAlongNormal < 14 || now - Tires.lastImpact < 1500) return;
+        if (speedAlongNormal < 20 || now - Tires.lastImpact < 3000) return;
         Tires.lastImpact = now;
         const i = Math.floor(Math.random() * 4);
-        const loss = speedAlongNormal > 27 ? 20 + Math.random() * 14 : 5 + Math.random() * 7;
-        Tires.psi[i] = Math.max(0, Tires.psi[i] - loss);
-        UI.toast('Crash! Tire ' + (i + 1) + ' lost ' + Math.round(loss) + ' psi' + (Tires.psi[i] <= 6 ? ' — blown out' : ''));
+        const loss = Math.min(6 + Math.random() * 4, Math.max(0, Tires.psi[i] - 10));
+        if (loss < 1) return;
+        Tires.psi[i] -= loss;
+        UI.toast('Big crash! Tire ' + (i + 1) + ' lost ' + Math.round(loss) + ' psi');
         if (window.GameAudio) GameAudio.npcHorn();
         tireHud();
     };
@@ -235,9 +237,9 @@ window.Features = (function () {
             const wear = Car.mph > 100 ? 0.08 : Car.mph > 60 ? 0.02 : 0.005;
             for (let i = 0; i < 4; i++) Tires.psi[i] = Math.max(0, Tires.psi[i] - wear * dt);
             const min = Math.min(...Tires.psi);
-            Car.tireGrip = min < 14 ? 0.55 + (min / 14) * 0.45 : 1;
+            Car.tireGrip = min < 14 ? 0.7 + (min / 14) * 0.3 : 1;
             if (min <= 6) {
-                Tires.stranded = true; Car.tireGrip = 0.3;
+                Tires.stranded = true; Car.tireGrip = 0.5;
                 UI.toast('Tire blown out! Limp to a city WORKSHOP, or press TOW TRUCK.', 4000);
             }
             if (Math.floor(performance.now() / 500) % 2 === 0) tireHud();
