@@ -52,52 +52,81 @@ window.CITIES = (function () {
         const p = city.toWorld(lx, lz);
         h.addBox(20, 170, 20, p.x, Terrain.height(p.x, p.z) + 85, p.z, 0);
     }
-    function goldenGate(city, h) {
-        // two towers and a suspended deck ribbon running along the city's far edge
-        const orange = std(0xc0471b);
-        const lz = city.D / 2 + 160;
-        [-70, 70].forEach(lx => {
-            const p = city.toWorld(lx, lz); const g = Terrain.height(p.x, p.z);
-            [-5, 5].forEach(off => {
-                const t = new THREE.Mesh(new THREE.BoxGeometry(3, 90, 3), orange);
-                const q = city.toWorld(lx, lz + off); t.position.set(q.x, g + 45, q.z); t.rotation.y = city.heading; h.addMesh(t, true);
-            });
-            [30, 60, 85].forEach(y => { const b = new THREE.Mesh(new THREE.BoxGeometry(3, 4, 13), orange); b.position.set(p.x, g + y, p.z); b.rotation.y = city.heading; h.addMesh(b, true); });
-        });
-        // the deck itself is a drivable road (goldenGateRoad below); only the cables are here
-        const a = city.toWorld(-200, lz);
-        const deckY = 12;
-        [-7, 7].forEach(side => {
-            const pts = [];
-            for (let x = -130; x <= 130; x += 10) {
-                const sag = Math.abs(x) > 70 ? deckY + 60 - (Math.abs(x) - 70) * 0.7 : deckY + 60 - (1 - Math.pow(x / 70, 2)) * 50;
-                const q = city.toWorld(x, lz + side); pts.push(new THREE.Vector3(q.x, Terrain.height(a.x, a.z) + sag, q.z));
-            }
-            const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, 0.4, 5, false), orange);
-            h.addMesh(tube, false);
+    // The bay north of the city: terrain drops to the sea bed, a water sheet sits at sea level.
+    // Registered at define time so the land is shaped before anything is built on it.
+    const BAY = { from: 60, to: 640, depth: 10 };            // local lz past the grid edge
+    function sfBay(city) {
+        Terrain.shapers.push((x, z, h) => {
+            const l = city.toLocal(x, z);
+            const z0 = city.D / 2 + BAY.from, z1 = city.D / 2 + BAY.to;
+            if (l.lz < z0 - 60 || l.lz > z1 + 60 || Math.abs(l.lx) > 900) return h;
+            const edge = Math.min(l.lz - z0, z1 - l.lz, 900 - Math.abs(l.lx));     // distance in from the shore
+            const k = Math.max(0, Math.min(1, (edge + 60) / 120));                // 0 on land, 1 well into the bay
+            return h * (1 - k) + (city.base - BAY.depth) * k;
         });
     }
-    // The bridge as a road: up a ramp from the end of one street, along the deck 14 m above the
-    // water, and back down onto another street, so it joins the grid at both ends.
+    function goldenGate(city, h) {
+        const orange = std(0xc0471b);
+        const sea = city.base - 2.5, deckY = city.base + 12;
+        // water
+        const z0 = city.D / 2 + BAY.from, z1 = city.D / 2 + BAY.to;
+        const water = new THREE.Mesh(new THREE.PlaneGeometry(1800, z1 - z0 + 40), new THREE.MeshStandardMaterial({ color: 0x2b6f9c, roughness: 0.12, metalness: 0.35, transparent: true, opacity: 0.92 }));
+        const wc = city.toWorld(0, (z0 + z1) / 2); water.position.set(wc.x, sea, wc.z); water.rotation.set(-Math.PI / 2, 0, 0); water.rotateZ(-city.heading);
+        water.receiveShadow = true; h.addMesh(water, false);
+        // two towers astride the deck, cross braces, and the main cables
+        [230, 450].forEach(lz => {
+            [-6, 6].forEach(off => {
+                const t = new THREE.Mesh(new THREE.BoxGeometry(3, 95, 3), orange);
+                const q = city.toWorld(off, city.D / 2 + lz); t.position.set(q.x, sea + 47.5, q.z); t.rotation.y = city.heading; h.addMesh(t, true);
+            });
+            [25, 55, 85].forEach(y => { const b = new THREE.Mesh(new THREE.BoxGeometry(15, 4, 3), orange); const q = city.toWorld(0, city.D / 2 + lz); b.position.set(q.x, sea + y, q.z); b.rotation.y = city.heading; h.addMesh(b, true); });
+        });
+        [-7, 7].forEach(side => {
+            const pts = [];
+            for (let lz = 110; lz <= 580; lz += 10) {
+                const top = sea + 92, mid = (230 + 450) / 2;
+                let y;
+                if (lz < 230) y = deckY + 2 + (top - deckY - 2) * Math.pow((lz - 110) / 120, 1.6);
+                else if (lz > 450) y = deckY + 2 + (top - deckY - 2) * Math.pow((580 - lz) / 130, 1.6);
+                else y = top - (1 - Math.pow((lz - mid) / 110, 2)) * 60;
+                const q = city.toWorld(side, city.D / 2 + lz); pts.push(new THREE.Vector3(q.x, y, q.z));
+            }
+            h.addMesh(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 60, 0.45, 6, false), orange), false);
+            // hangers every 20 m from the cable down to the deck
+            for (let lz = 130; lz <= 560; lz += 20) {
+                const i = Math.round((lz - 110) / 10); const top = pts[i]; if (!top) continue;
+                const hgr = new THREE.Mesh(new THREE.BoxGeometry(0.15, Math.max(0.5, top.y - deckY - 1), 0.15), orange);
+                hgr.position.set(top.x, (top.y + deckY + 1) / 2, top.z); h.addMesh(hgr, false);
+            }
+        });
+    }
+    // US-101 over the bridge: climbs from the end of the city's middle street, crosses the water
+    // 14 m up, and comes down into Sausalito's middle street on the far shore.
     function goldenGateRoad(city) {
-        const lz = city.D / 2 + 160, R = 60;
-        const left = city.streetX(1), right = city.streetX(city.cols - 1);
+        const cx = city.streetX(3), deckY = city.base + 12;
         const pts = [];
-        const ground = (lx, lzz) => { const p = city.toWorld(lx, lzz); return Terrain.height(p.x, p.z); };
-        const base = ground(0, lz) + 12;                                    // deck height above the water
-        const add = (lx, lzz, y) => { const p = city.toWorld(lx, lzz); pts.push([p.x, y === undefined ? base : ground(lx, lzz) + Road.DRAPE + y, p.z]); };
-        // climb from the street end, sweep round a quarter circle onto the deck, cross, and mirror
-        add(left, city.D / 2 + 10, 0); add(left, city.D / 2 + 40, 2);
-        add(left, lz - R - 10); add(left, lz - R);
-        // quarter circle curving inward (toward the other end of the bridge), centre (left+R, lz-R)
-        [30, 60].forEach(a => { const r = a * Math.PI / 180; add(left + R - R * Math.cos(r), lz - R + R * Math.sin(r)); });
-        add(left + R, lz);
-        for (let x = left + R + 30; x <= right - R - 30; x += 30) add(x, lz);
-        add(right - R, lz);
-        [60, 30].forEach(a => { const r = a * Math.PI / 180; add(right - R + R * Math.cos(r), lz - R + R * Math.sin(r)); });
-        add(right, lz - R); add(right, lz - R - 10);
-        add(right, city.D / 2 + 40, 2); add(right, city.D / 2 + 10, 0);
-        return [Road.build({ type: 'avenue', name: 'Golden Gate Bridge', points: pts, segLen: 8, hugTerrain: true })];
+        const g = (lz) => { const p = city.toWorld(cx, lz); return Terrain.height(p.x, p.z); };
+        const add = (lz, y) => { const p = city.toWorld(cx, lz); pts.push([p.x, y === undefined ? deckY : y, p.z]); };
+        add(city.D / 2 + 10, g(city.D / 2 + 10) + Road.DRAPE); add(city.D / 2 + 40, g(city.D / 2 + 40) + 1.5);
+        add(city.D / 2 + 75, deckY - 4); add(city.D / 2 + 110);
+        for (let lz = 150; lz <= 580; lz += 40) add(city.D / 2 + lz);
+        add(city.D / 2 + 625); add(city.D / 2 + 660, deckY - 4);
+        add(city.D / 2 + 690, g(city.D / 2 + 690) + 1.5); add(city.D / 2 + 720, g(city.D / 2 + 720) + Road.DRAPE);
+        const road = Road.build({ type: 'avenue', name: 'US-101 Golden Gate Bridge', points: pts, segLen: 8, hugTerrain: true });
+        // a US 101 shield at each end
+        const sg = Road.at(road, 20, road.halfW + 2.5); city.signs.push(Signs.plain(sg.p, Signs.facingFrom(sg.tan), 'US 101', 'NORTH · GOLDEN GATE', 3.6, 2));
+        const sg2 = Road.at(road, road.length - 20, -(road.halfW + 2.5)); city.signs.push(Signs.plain(sg2.p, Signs.facingFrom(sg2.tan.clone().negate()), 'US 101', 'SOUTH · SAN FRANCISCO', 3.6, 2));
+        return [road];
+    }
+    // Sausalito: the small town across the water, laid out so its middle street meets the bridge
+    function sausalito(city) {
+        const c = city.toWorld(0, city.D / 2 + 720 + 132 + 10);
+        return {
+            id: 'sausalito', name: 'Sausalito', sub: 'Marin County', rows: 4, cols: 4, block: 50, street: 16,
+            center: { x: c.x, z: c.z }, heading: city.heading, base: city.base, fw: city.fw, s: city.s, side: city.side,
+            streets: { ns: ['Bridgeway', 'Caledonia St', 'Spring St', 'Nevada St', 'Tomales St'], ew: ['Princess St', 'Napa St', 'Johnson St', 'Bay St', 'Harbor Dr'] },
+            skyline: () => [5, 12], palette: [0xf4ead8, 0xe8d9c0, 0xd6c3a8, 0xcad6df, 0xf7f3ea], landmarks: [], parks: [[1, 1]]
+        };
     }
     function empireState(city, h) {
         const stone = std(0xb9b2a4);
@@ -204,7 +233,7 @@ window.CITIES = (function () {
                        ew: ['Market St', 'Mission St', 'Geary St', 'Lombard St', 'Bush St', 'California St', 'Broadway'] },
             skyline: (d) => d < 0.3 ? [60, 150] : d < 0.6 ? [15, 40] : [8, 16],
             palette: [0xf2ead9, 0xe6d9c4, 0xd9c8b4, 0xbfc9d6, 0xf7f3ea],
-            landmarks: [transamerica, goldenGate], extraRoads: goldenGateRoad, exitNumber: 12, parks: [[1, 4], [4, 1]]
+            landmarks: [transamerica, goldenGate], extraRoads: goldenGateRoad, shape: sfBay, satellite: sausalito, exitNumber: 12, parks: [[1, 4], [4, 1]]
         },
         {
             id: 'oakland', name: 'Oakland', sub: 'Jack London Square', rows: 5, cols: 5, block: 60, street: 18,

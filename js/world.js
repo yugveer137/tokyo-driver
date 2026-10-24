@@ -31,6 +31,10 @@ window.World = (function () {
             const city = City.define(Object.assign({}, spec, { center: { x: center.x, z: center.z }, heading, base, s: sC, side }));
             city.freewayFrame = f;
             cities.push(city); W.cities.push(city);
+            if (spec.shape) spec.shape(city);                                   // e.g. San Francisco's bay
+            if (spec.satellite) {                                               // a town reached only through the city (Sausalito)
+                const sat = City.define(spec.satellite(city)); sat.parentCity = city; city.satellite = sat; W.cities.push(sat);
+            }
         });
         const lifted = pts.map((p, i) => {
             let g = -1e9;
@@ -51,7 +55,7 @@ window.World = (function () {
         });
         const fw = Road.define({ type: 'freeway', name, points: lifted, gapsRight, gapsLeft, segLen: 8 });
         fw.cities = cities; fw.chunks = {}; fw.streamChunks = {}; fw.index = W.freeways.length;
-        cities.forEach(c => c.fw = fw);
+        cities.forEach(c => { c.fw = fw; if (c.satellite) c.satellite.fw = fw; });
         W.freeways.push(fw);
         return fw;
     }
@@ -200,6 +204,7 @@ window.World = (function () {
             });
         }
         if (window.Peds) Peds.spawnCity(city);
+        if (city.satellite) { City.load(city.satellite); if (window.Peds) Peds.spawnCity(city.satellite); }
         loadJunctions(city);
     }
 
@@ -274,7 +279,7 @@ window.World = (function () {
             fw.cities.forEach(city => {
                 const d = Math.abs(city.s - fw.lastS), pad = city.loadPad || 0;
                 if (!city.loaded && active && d < LOAD_DIST + 1500 + pad) { City.load(city); loadCityRoads(city); }
-                else if (city.loaded && (!active || d > DROP_DIST + 1700 + pad)) City.unload(city);
+                else if (city.loaded && (!active || d > DROP_DIST + 1700 + pad)) { City.unload(city); if (city.satellite) City.unload(city.satellite); }
             });
         });
     };

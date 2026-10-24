@@ -24,7 +24,7 @@ Serve the repo root (e.g. `python3 -m http.server 8731`, also `.claude/launch.js
 | `road.js` | spline roads: `Road.define/buildRange/build`, lane offsets, `Road.at(rec,s,lateral)`, `Road.nearest`, `Road.exit`, `Road.onramp`, `Road.drapedQuad` |
 | `signs.js` | exit boards, gore signs, plain signs, street blades (`Signs.facingFrom(tan)`) |
 | `city.js` | city generator: draped street grid, intersections + traffic lights, blocks, buildings with window maps, lamps; `City.define/load/unload/update` |
-| `cities.js` | the 7 cities (Tokyo, San Francisco, Oakland, Sacramento, Reno, Las Vegas, New York): street names, skylines, landmark builders |
+| `cities.js` | the 10 cities (7 on I-80, 3 on the I-15 loop) + Sausalito across San Francisco's bay (`satellite`), street names, skylines, landmark builders, the bay shaper and the US-101 Golden Gate Bridge road (`shape`, `extraRoads`) |
 | `traffic.js` | AI cars on lanes: following, red lights, turns at road ends, exits/merges via `Traffic.link`, kinematic boxes |
 | `world.js` | the route: one elevated freeway (I-80) streamed in 400-unit chunks, cities every 2600 units with exit + collector + on-ramp + signs, `World.travelTo`, `areaAt`, `speedLimitAt` |
 | `carmodels.js` | the 32 cars (`CARS`) and their body/wheel/interior builders (`CarModels`) ported from the old game |
@@ -36,6 +36,7 @@ Serve the repo root (e.g. `python3 -m http.server 8731`, also `.claude/launch.js
 | `peds.js` | low-poly people on city sidewalks and station platforms; `Peds.person()` is also the walking avatar |
 | `walk.js` | on foot (G): walk/run, deck + stairs + platform surfaces, guide text to the nearest train stop |
 | `music.js` | MUSIC button: four instrumental rap beats synthesised with WebAudio |
+| `police.js` | a patrol car shadows you on freeways/avenues; 15+ over the limit starts a chase (siren, lights); stop = fine, 500 m clear = escape |
 | `ui.js` | HUD, start menu, settings, garage, fast travel, keyboard + touch |
 | `minimap.js` | heading-up minimap canvas |
 | `debug.js` | `Debug.goto(road, s, lateral)`, `Debug.drive(roads, ticks, mph)` test driver |

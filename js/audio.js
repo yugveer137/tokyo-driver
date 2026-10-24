@@ -277,5 +277,26 @@
         src.start(now); src.stop(now + 0.3);
     }
 
-    window.GameAudio = { init, setCar, update, honk, npcHorn, clank, setEnabled, isEnabled, stop };
+    // Police siren: a two-tone wail (saw wave sweeping between 600 and 1000 Hz) while on
+    let sirenOsc = null, sirenGain = null, sirenLfo = null;
+    function siren(on) {
+        if (!audioCtx) return;
+        if (on && !sirenOsc) {
+            sirenOsc = audioCtx.createOscillator(); sirenOsc.type = 'sawtooth'; sirenOsc.frequency.value = 800;
+            sirenLfo = audioCtx.createOscillator(); sirenLfo.type = 'triangle'; sirenLfo.frequency.value = 0.8;
+            const lfoGain = audioCtx.createGain(); lfoGain.gain.value = 200;
+            sirenLfo.connect(lfoGain); lfoGain.connect(sirenOsc.frequency);
+            const lp = audioCtx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2200;
+            sirenGain = audioCtx.createGain(); sirenGain.gain.value = 0.0;
+            sirenOsc.connect(lp); lp.connect(sirenGain); sirenGain.connect(audioCtx.destination);
+            sirenOsc.start(); sirenLfo.start();
+            sirenGain.gain.linearRampToValueAtTime(0.08, audioCtx.currentTime + 0.3);
+        } else if (!on && sirenOsc) {
+            const o = sirenOsc, l = sirenLfo, g = sirenGain; sirenOsc = sirenLfo = sirenGain = null;
+            g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.4);
+            setTimeout(() => { try { o.stop(); l.stop(); } catch (e) {} }, 500);
+        }
+    }
+
+    window.GameAudio = { init, setCar, update, honk, npcHorn, clank, siren, setEnabled, isEnabled, stop };
 })();
