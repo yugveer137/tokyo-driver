@@ -68,18 +68,24 @@ window.Tex = (function () {
             }
         }));
 
-        // Sidewalk concrete: speckled slabs with a seam grid. One tile = 4 world units (2x2 slabs).
-        T.concrete = finishTex(noiseCanvas(256, 150, 34, (ctx, s) => {
-            for (let i = 0; i < 2500; i++) {
-                ctx.fillStyle = `rgba(0,0,0,${0.1 + Math.random() * 0.2})`;
+        // Sidewalk concrete: a mottled slab with a seam grid, a few stains. One tile = 4 world units (2x2 slabs).
+        T.concrete = finishTex(noiseCanvas(256, 158, 26, (ctx, s) => {
+            for (let i = 0; i < 24; i++) {                                 // soft tonal variation across the slab
+                const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+                g.addColorStop(0, Math.random() > 0.5 ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.save(); ctx.translate(Math.random() * s, Math.random() * s); ctx.scale(20 + Math.random() * 60, 20 + Math.random() * 60);
+                ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 1, 0, 6.3); ctx.fill(); ctx.restore();
+            }
+            for (let i = 0; i < 6000; i++) {
+                ctx.fillStyle = Math.random() > 0.6 ? `rgba(255,255,255,${0.06 + Math.random() * 0.1})` : `rgba(0,0,0,${0.08 + Math.random() * 0.18})`;
                 ctx.fillRect(Math.random() * s, Math.random() * s, 1, 1);
             }
-            ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 3;
+            ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 3;
             [1, s / 2].forEach(p => {
                 ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, s); ctx.stroke();
                 ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(s, p); ctx.stroke();
             });
-            ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1;
+            ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
             [4, s / 2 + 3].forEach(p => {
                 ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, s); ctx.stroke();
                 ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(s, p); ctx.stroke();
@@ -105,19 +111,31 @@ window.Tex = (function () {
             }
         }));
 
-        // Grass: grain plus darker blotches and a few light blades, tinted green by the material.
-        T.grass = finishTex(noiseCanvas(256, 190, 70, (ctx, s) => {
-            for (let i = 0; i < 90; i++) {
-                ctx.fillStyle = `rgba(0,0,0,${0.03 + Math.random() * 0.05})`;
-                ctx.beginPath();
-                ctx.ellipse(Math.random() * s, Math.random() * s, 4 + Math.random() * 12, 3 + Math.random() * 8, Math.random() * 3, 0, 6.3);
-                ctx.fill();
+        // Grass: layered clumps, bare dirt patches and single light blades, tinted green by the
+        // material. Built at 512 so a tile covers more ground without visible repetition.
+        T.grass = finishTex(noiseCanvas(512, 185, 60, (ctx, s) => {
+            for (let i = 0; i < 60; i++) {                                 // dry / bare patches
+                const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+                g.addColorStop(0, Math.random() > 0.35 ? 'rgba(0,0,0,0.16)' : 'rgba(255,235,200,0.14)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.save(); ctx.translate(Math.random() * s, Math.random() * s); ctx.scale(15 + Math.random() * 70, 10 + Math.random() * 50);
+                ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 1, 0, 6.3); ctx.fill(); ctx.restore();
             }
-            for (let i = 0; i < 6000; i++) {
-                ctx.fillStyle = Math.random() > 0.5 ? `rgba(255,255,255,${0.05 + Math.random() * 0.12})` : `rgba(0,0,0,${0.05 + Math.random() * 0.1})`;
-                ctx.fillRect(Math.random() * s, Math.random() * s, 1, 1 + Math.random() * 3);
+            for (let i = 0; i < 900; i++) {                                // clumps
+                ctx.fillStyle = `rgba(0,0,0,${0.05 + Math.random() * 0.1})`;
+                ctx.beginPath(); ctx.ellipse(Math.random() * s, Math.random() * s, 2 + Math.random() * 6, 1 + Math.random() * 3, Math.random() * 3, 0, 6.3); ctx.fill();
+            }
+            for (let i = 0; i < 30000; i++) {                              // blades
+                ctx.fillStyle = Math.random() > 0.5 ? `rgba(255,255,255,${0.05 + Math.random() * 0.14})` : `rgba(0,0,0,${0.05 + Math.random() * 0.12})`;
+                ctx.fillRect(Math.random() * s, Math.random() * s, 1, 1 + Math.random() * 4);
             }
         }));
+        T.grass.repeat.set(1, 1);
+
+        // Yellow tactile paving for platform edges (raised dots), one tile = 0.6 units
+        T.tactile = finishTex((() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'); x.fillStyle = '#e2b400'; x.fillRect(0, 0, 64, 64); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { x.fillStyle = '#f7d44a'; x.beginPath(); x.arc(8 + i * 16, 8 + j * 16, 4.5, 0, 6.3); x.fill(); x.fillStyle = 'rgba(0,0,0,0.35)'; x.beginPath(); x.arc(9 + i * 16, 9.5 + j * 16, 4.5, 0, 6.3); x.fill(); x.fillStyle = '#f7d44a'; x.beginPath(); x.arc(8 + i * 16, 8 + j * 16, 4, 0, 6.3); x.fill(); } return c; })());
+
+        // Brushed steel for columns, poles and rails
+        T.steel = finishTex(noiseCanvas(128, 165, 40, (ctx, s) => { for (let y = 0; y < s; y += 2) { ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.12})`; ctx.fillRect(0, y, s, 1); } }));
     };
 
     T.asphaltMaterial = function (tint) {

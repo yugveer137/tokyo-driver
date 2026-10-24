@@ -32,36 +32,67 @@ window.Road = (function () {
         const w = Math.round(W * pxPerUnit), h = 12 * pxPerUnit;
         const c = document.createElement('canvas'); c.width = w; c.height = h;
         const ctx = c.getContext('2d');
+        // Asphalt the way it really looks: a mid-grey base, large soft tonal patches, fine
+        // aggregate speckle, tar-filled cracks, and darker worn tracks where the wheels run.
         const img = ctx.createImageData(w, h), d = img.data;
-        for (let i = 0; i < d.length; i += 4) { const v = 62 + (Math.random() - 0.5) * 34; d[i] = v; d[i + 1] = v; d[i + 2] = v + 3; d[i + 3] = 255; }
+        for (let i = 0; i < d.length; i += 4) { const v = 70 + (Math.random() - 0.5) * 26; d[i] = v; d[i + 1] = v; d[i + 2] = v + 2; d[i + 3] = 255; }
         ctx.putImageData(img, 0, 0);
-        for (let i = 0; i < w * h / 180; i++) {
-            const g = 120 + Math.random() * 90 | 0;
-            ctx.fillStyle = `rgba(${g},${g},${g},${0.12 + Math.random() * 0.2})`;
+        for (let i = 0; i < 40; i++) {                                   // big soft patches (old repairs, damp spots)
+            const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+            const dark = Math.random() > 0.45;
+            g.addColorStop(0, dark ? 'rgba(20,20,22,0.22)' : 'rgba(150,150,145,0.12)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.save(); ctx.translate(Math.random() * w, Math.random() * h); ctx.scale(60 + Math.random() * 160, 40 + Math.random() * 120);
+            ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 1, 0, 6.3); ctx.fill(); ctx.restore();
+        }
+        for (let i = 0; i < w * h / 70; i++) {                           // aggregate
+            const g = 95 + Math.random() * 110 | 0;
+            ctx.fillStyle = `rgba(${g},${g},${g - 4},${0.1 + Math.random() * 0.3})`;
             ctx.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 1 + Math.random() * 2);
         }
+        ctx.strokeStyle = 'rgba(12,12,12,0.7)'; ctx.lineWidth = 1.5;
+        for (let i = 0; i < Math.round(W / 4); i++) {                     // tar cracks
+            let px = Math.random() * w, py = Math.random() * h;
+            ctx.beginPath(); ctx.moveTo(px, py);
+            for (let k = 0; k < 14; k++) { px += (Math.random() - 0.5) * 26; py += (Math.random() - 0.3) * 40; ctx.lineTo(px, py); }
+            ctx.stroke();
+        }
         const X = (u) => u * pxPerUnit;
-        const line = (u, color, width, dashed) => {
-            ctx.fillStyle = color;
-            const x = X(u) - width * pxPerUnit / 2, lw = Math.max(2, width * pxPerUnit);
-            if (!dashed) ctx.fillRect(x, 0, lw, h);
-            else ctx.fillRect(x, 0, lw, 3 * pxPerUnit);      // 3-unit dash, 9-unit gap
+        const track = (uCentre) => {                                      // wheel tracks: two darker bands per lane
+            [-0.28, 0.28].forEach(off => {
+                const g = ctx.createLinearGradient(X(uCentre + off * t.laneW) - 14, 0, X(uCentre + off * t.laneW) + 14, 0);
+                g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(0.5, 'rgba(0,0,0,0.22)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = g; ctx.fillRect(X(uCentre + off * t.laneW) - 14, 0, 28, h);
+            });
         };
-        const white = '#e8e8e8', yellow = '#f2c200';
+        // paint that has seen traffic: solid colour with nicks worn out of it
+        const paint = (x, y, lw, lh, color) => {
+            ctx.fillStyle = color; ctx.fillRect(x, y, lw, lh);
+            for (let i = 0; i < lw * lh / 40; i++) { ctx.fillStyle = `rgba(60,60,60,${0.2 + Math.random() * 0.5})`; ctx.fillRect(x + Math.random() * lw, y + Math.random() * lh, 1 + Math.random() * 2, 1 + Math.random() * 3); }
+        };
+        const line = (u, color, width, dashed) => {
+            const x = X(u) - width * pxPerUnit / 2, lw = Math.max(2, width * pxPerUnit);
+            if (!dashed) paint(x, 0, lw, h, color);
+            else {
+                paint(x, 0, lw, 3 * pxPerUnit, color);                     // 3-unit dash, 9-unit gap
+                ctx.fillStyle = '#f4f4f0'; ctx.fillRect(X(u) - 4, 7.5 * pxPerUnit, 8, 5);   // reflective road stud in the gap
+            }
+        };
+        const white = '#dcdcd6', yellow = '#e6b800';
         let u = 0;
+        const lanesFwd = (count) => { for (let l = 0; l < count; l++) { track(u + t.laneW / 2); u += t.laneW; if (l < count - 1) line(u, white, 0.15, true); } };
         if (t.twoWay) {
             u += t.shoulder; line(u, white, 0.15, false);
-            for (let l = 0; l < t.lanes; l++) { u += t.laneW; if (l < t.lanes - 1) line(u, white, 0.15, true); }
+            lanesFwd(t.lanes);
             if (t.median > 0) {
                 line(u, yellow, 0.15, false);
                 ctx.fillStyle = '#9a9a96'; ctx.fillRect(X(u) + 4, 0, X(t.median) - 8, h);
                 u += t.median; line(u, yellow, 0.15, false);
             } else { line(u - 0.12, yellow, 0.13, false); line(u + 0.12, yellow, 0.13, false); }
-            for (let l = 0; l < t.lanes; l++) { u += t.laneW; if (l < t.lanes - 1) line(u, white, 0.15, true); }
+            lanesFwd(t.lanes);
             line(u, white, 0.15, false); u += t.shoulder;
         } else {
             u += t.shoulder; line(u, white, 0.15, false);
-            for (let l = 0; l < t.lanes; l++) { u += t.laneW; if (l < t.lanes - 1) line(u, white, 0.15, true); }
+            lanesFwd(t.lanes);
             line(u, white, 0.15, false); u += t.shoulder;
         }
         const tex = new THREE.CanvasTexture(c);
@@ -249,9 +280,46 @@ window.Road = (function () {
             if (!spec.openLeft) wall(-halfW + 0.35, 0.6, 1.1, spec.gapsLeft);
             if (!spec.openRight) wall(halfW - 0.35, 0.6, 1.1, spec.gapsRight);
             if (type.median > 0 && type.twoWay) wall(0, 0.6, 1.0);
+            if (rec.type === 'freeway') furniture(fr, halfW, length, spec, chunk);
         }
         return key;
     };
+
+    // What a real freeway has along it: reflectors on the barriers, and tall light poles on the
+    // median every 50 m whose heads glow at night (City.nightMats drives the glow).
+    let poleGeom, armGeom, headGeom, reflGeom;
+    function furniture(fr, halfW, length, spec, chunk) {
+        poleGeom = poleGeom || new THREE.CylinderGeometry(0.14, 0.2, 12, 8);
+        armGeom = armGeom || new THREE.BoxGeometry(0.16, 0.16, 3.2);
+        headGeom = headGeom || new THREE.BoxGeometry(0.5, 0.18, 1.1);
+        reflGeom = reflGeom || new THREE.BoxGeometry(0.1, 0.08, 0.04);
+        const poleMat = mats.pole || (mats.pole = new THREE.MeshStandardMaterial({ color: 0x8e9398, metalness: 0.7, roughness: 0.4 }));
+        if (!mats.lampHead) { mats.lampHead = new THREE.MeshStandardMaterial({ color: 0xfff1d0, emissive: 0xffd080, emissiveIntensity: 0 }); if (window.City) City.nightMats.push(mats.lampHead); }
+        const reflMat = mats.refl || (mats.refl = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffe9a0, emissiveIntensity: 0.6 }));
+        const inGap = (s, gaps) => (gaps || []).some(g => s >= g[0] && s <= g[1]);
+        fr.forEach((f, i) => {
+            const s = f.t * length;
+            if (Math.round(s) % 16 === 0) {                              // reflectors on both outer walls
+                [[-halfW + 0.35, spec.gapsLeft], [halfW - 0.35, spec.gapsRight]].forEach(([lat, gaps]) => {
+                    if (inGap(s, gaps)) return;
+                    const m = new THREE.Mesh(reflGeom, reflMat);
+                    m.position.copy(f.p).addScaledVector(f.right, lat); m.position.y += 0.95;
+                    m.rotation.y = Math.atan2(f.tan.x, f.tan.z);
+                    scene.add(m); chunk.meshes.push(m);
+                });
+            }
+            if (Math.round(s) % 48 === 0) {                               // a light pole on the median, arms over both carriageways
+                const pole = new THREE.Mesh(poleGeom, poleMat); pole.position.copy(f.p); pole.position.y += 6.5; pole.castShadow = true;
+                scene.add(pole); chunk.meshes.push(pole);
+                [-1, 1].forEach(sd => {
+                    const arm = new THREE.Mesh(armGeom, poleMat); arm.position.copy(f.p).addScaledVector(f.right, sd * 1.5); arm.position.y += 12.3;
+                    arm.rotation.y = Math.atan2(f.tan.x, f.tan.z) + Math.PI / 2; scene.add(arm); chunk.meshes.push(arm);
+                    const head = new THREE.Mesh(headGeom, mats.lampHead); head.position.copy(f.p).addScaledVector(f.right, sd * 3.0); head.position.y += 12.2;
+                    head.rotation.y = arm.rotation.y; scene.add(head); chunk.meshes.push(head);
+                });
+            }
+        });
+    }
 
     R.dropRange = function (rec, key) {
         const c = rec.chunks[key]; if (!c) return;

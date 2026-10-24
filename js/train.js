@@ -70,9 +70,62 @@ window.Train = (function () {
     T.station = function (city) {
         const fw = World.freeway, group = [];
         const f = Road.at(fw, city.s, T.LAT - 6);
-        const plat = Road.drapedQuad(f.p.x, f.p.z, 10, Road.yawOf(f.tan), new THREE.MeshStandardMaterial({ color: 0xb5b5b0, map: Tex.concrete, roughness: 0.95 }), 0.9, 2);
-        plat.scale.z = 6; group.push(plat);
-        const sp = Road.at(fw, city.s + 20, T.LAT - 9); sp.p.y = Terrain.height(sp.p.x, sp.p.z) + 0.9;
+        const g0 = Terrain.height(f.p.x, f.p.z), yaw = Road.yawOf(f.tan);
+        const add = (m) => { m.castShadow = m.receiveShadow = true; group.push(m); return m; };
+        const stn = new THREE.Group(); stn.position.set(f.p.x, g0, f.p.z); stn.rotation.y = yaw; group.push(stn);
+        const place = (geom, mat, x, y, z, ry) => { const m = new THREE.Mesh(geom, mat); m.position.set(x, y, z); if (ry) m.rotation.y = ry; m.castShadow = m.receiveShadow = true; stn.add(m); return m; };
+        // local frame: z along the track, -x toward the rails (the platform edge is at x = -5)
+        const concrete = new THREE.MeshStandardMaterial({ color: 0xbdbdb6, map: Tex.concrete, roughness: 0.95 });
+        const steel = new THREE.MeshStandardMaterial({ color: 0x9aa0a6, map: Tex.steel, metalness: 0.75, roughness: 0.35 });
+        const roofMat = new THREE.MeshStandardMaterial({ color: 0x3b4046, roughness: 0.7, metalness: 0.3 });
+        const LEN = 64;
+        // platform slab with a white safety line and the yellow tactile strip along the edge
+        place(Tex.scaleBoxUVs(new THREE.BoxGeometry(10, 0.9, LEN), 10, 0.9, LEN, 4), concrete, 0, 0.45, 0);
+        place(new THREE.BoxGeometry(0.12, 0.02, LEN), new THREE.MeshStandardMaterial({ color: 0xf2f2ee }), -4.3, 0.91, 0);
+        const tact = Tex.scalePlaneUVs(new THREE.PlaneGeometry(0.6, LEN), 0.6, LEN, 0.6);
+        const tactile = place(tact, new THREE.MeshStandardMaterial({ map: Tex.tactile, roughness: 0.9 }), -3.6, 0.915, 0); tactile.rotation.x = -Math.PI / 2;
+        // canopy on steel columns, with lamps underneath that glow at night
+        place(new THREE.BoxGeometry(7.5, 0.22, LEN - 8), roofMat, 0.5, 4.3, 0);
+        place(new THREE.BoxGeometry(7.9, 0.5, LEN - 7.6), new THREE.MeshStandardMaterial({ color: 0x2b3036, roughness: 0.8 }), 0.5, 4.55, 0);
+        const lampMat = new THREE.MeshStandardMaterial({ color: 0xfff6e0, emissive: 0xffe6b0, emissiveIntensity: 0 }); City.nightMats.push(lampMat); city.mats.push(lampMat);
+        for (let z = -LEN / 2 + 6; z <= LEN / 2 - 6; z += 8) {
+            place(new THREE.CylinderGeometry(0.16, 0.18, 3.4, 10), steel, 2.2, 2.6, z);
+            place(new THREE.BoxGeometry(0.1, 0.1, 2.4), lampMat, -0.4, 4.15, z + 4);
+        }
+        // benches, bins, a vending machine, and a fence along the back edge
+        const benchMat = new THREE.MeshStandardMaterial({ color: 0x5a3f2a, roughness: 0.8 });
+        for (let z = -20; z <= 20; z += 20) {
+            place(new THREE.BoxGeometry(0.5, 0.06, 2.2), benchMat, 3.6, 1.35, z);
+            place(new THREE.BoxGeometry(0.06, 0.5, 2.2), benchMat, 3.85, 1.65, z);
+            [-0.9, 0.9].forEach(dz => place(new THREE.BoxGeometry(0.4, 0.45, 0.06), steel, 3.6, 1.12, z + dz));
+        }
+        place(new THREE.CylinderGeometry(0.28, 0.25, 0.9, 10), new THREE.MeshStandardMaterial({ color: 0x2d6e3a, roughness: 0.6 }), 3.8, 1.35, 10);
+        const vend = place(new THREE.BoxGeometry(1.0, 1.9, 0.8), new THREE.MeshStandardMaterial({ color: 0xd8dde3, roughness: 0.5 }), 4.2, 1.85, -10);
+        const vendFront = place(new THREE.BoxGeometry(0.02, 1.2, 0.7), new THREE.MeshStandardMaterial({ color: 0x1b3e8a, emissive: 0x2a60d0, emissiveIntensity: 0.5 }), 3.68, 2.1, -10);
+        for (let z = -LEN / 2; z <= LEN / 2; z += 4) place(new THREE.BoxGeometry(0.06, 1.1, 0.06), steel, 4.9, 1.45, z);
+        place(new THREE.BoxGeometry(0.04, 0.05, LEN), steel, 4.9, 1.95, 0); place(new THREE.BoxGeometry(0.04, 0.05, LEN), steel, 4.9, 1.45, 0);
+        // hanging name boards (city name, with the stops either side) — the real-station look
+        const idx = fw.cities.indexOf(city), prev = fw.cities[idx - 1], next = fw.cities[idx + 1];
+        const boardTex = Tex.textCanvas(1024, 256, (ctx, W, H) => {
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+            ctx.fillStyle = '#17336b'; ctx.fillRect(0, 0, W, 26); ctx.fillRect(0, H - 26, W, 26);
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#111'; ctx.font = 'bold 110px Helvetica, Arial, sans-serif'; ctx.fillText(city.name, W / 2, H * 0.44);
+            ctx.font = '600 34px Helvetica, Arial, sans-serif'; ctx.fillStyle = '#444';
+            ctx.textAlign = 'left'; ctx.fillText(prev ? '◀ ' + prev.name : '', 40, H * 0.8);
+            ctx.textAlign = 'right'; ctx.fillText(next ? next.name + ' ▶' : '', W - 40, H * 0.8);
+            ctx.textAlign = 'center'; ctx.fillStyle = '#17336b'; ctx.font = 'bold 30px Helvetica, Arial, sans-serif'; ctx.fillText('I-80 LINE  ·  TRAINS EVERY MINUTE', W / 2, H * 0.95);
+        });
+        const boardMat = new THREE.MeshStandardMaterial({ map: boardTex, roughness: 0.6, side: THREE.DoubleSide });
+        [-16, 16].forEach(z => {
+            const b = place(new THREE.PlaneGeometry(4, 1), boardMat, -1.2, 3.5, z, Math.PI / 2);
+            [-1.6, 1.6].forEach(dz => place(new THREE.BoxGeometry(0.04, 0.6, 0.04), steel, -1.2, 4.0, z + dz));
+        });
+        // ticket office at the far end
+        place(new THREE.BoxGeometry(6, 3.2, 5), new THREE.MeshStandardMaterial({ color: 0xe8e2d6, map: Tex.facade, roughness: 0.8 }), 1.5, 2.5, LEN / 2 - 3);
+        place(new THREE.BoxGeometry(6.4, 0.3, 5.4), roofMat, 1.5, 4.2, LEN / 2 - 3);
+        place(new THREE.BoxGeometry(1.4, 2.2, 0.1), new THREE.MeshStandardMaterial({ color: 0x2a3a4a }), 1.5, 2.0, LEN / 2 - 5.56);
+        const sp = Road.at(fw, city.s + 20, T.LAT - 9); sp.p.y = g0 + 0.9;
         group.push(Signs.plain(sp.p, Signs.facingFrom(f.tan) + Math.PI / 2, 'STATION', city.name.toUpperCase(), 5, 2.2));
         // stairs down from the freeway's left shoulder, then a footpath over to the platform
         const hw = fw.width / 2;
@@ -94,6 +147,9 @@ window.Train = (function () {
         const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 40, 8), new THREE.MeshBasicMaterial({ color: 0x3fa9ff, transparent: true, opacity: 0.55 }));
         beacon.position.copy(f.p); beacon.position.y = Terrain.height(f.p.x, f.p.z) + 20; group.push(beacon);
         const platform = f.p.clone(); platform.y = Terrain.height(f.p.x, f.p.z) + 0.9;
+        // you can stand on the platform slab
+        if (window.Walk) Walk.addSurface(f.p.clone().addScaledVector(f.tan, -LEN / 2).setY(platform.y), f.p.clone().addScaledVector(f.tan, LEN / 2).setY(platform.y), 5, city);
+        group.forEach(m => { if (!m.parent) scene.add(m); });            // signs and draped quads add themselves; the rest go in here
         T.stations.push({ city, s: city.s, meshes: group, platform });
         return group;
     };
