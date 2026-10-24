@@ -275,26 +275,26 @@
 
     const SPLASH_HTML = `
         <h1>tokyo-driver1</h1>
-        <p>Drive from Tokyo to New York. Real exits, seven cities, traffic, day and night.<br>$1 to play, once.</p>
+        <p>Drive from Tokyo to New York. Real exits, seven cities, traffic, day and night.<br>You need money to play: email <b>${OWNER_EMAIL}</b> to get it.</p>
         <button id="splash-play">PLAY</button>
-        <small>Questions: ${OWNER_EMAIL}</small>
+        <small>Questions and money: ${OWNER_EMAIL}</small>
     `;
 
     const PAY_HTML = `
         <div class="pay-card">
             <h2>tokyo-driver1</h2>
-            <div class="pay-price">$1</div>
-            <p class="pay-sub">One-time payment to play. You only pay once.<br>
-               Pay with the button, or send $1 to <b style="color:#fff">${OWNER_EMAIL}</b> (PayPal),<br>
-               then email that address your game login to get your unlock code.</p>
+            <div class="pay-price">YOU NEED MONEY</div>
+            <p class="pay-sub">You can't play yet — you need money from the owner.<br>
+               Email <b style="color:#fff">${OWNER_EMAIL}</b> and ask for your money ($1, once).<br>
+               The owner emails you back a money code. Type it below and you can play.</p>
             <button id="pay-btn">PAY $1</button>
             <div id="pay-note"></div>
-            <a id="contact-owner" href="#" style="display:block">EMAIL ${OWNER_EMAIL}</a>
+            <a id="contact-owner" href="#" style="display:block">EMAIL ${OWNER_EMAIL} FOR MONEY</a>
             <div id="unlock-row">
-                <label for="unlock-input">Have an unlock code?</label>
+                <label for="unlock-input">Got your money code?</label>
                 <div class="unlock-line">
                     <input id="unlock-input" type="text" placeholder="e.g. DRIFT-1234" autocomplete="off" />
-                    <button id="unlock-btn">UNLOCK</button>
+                    <button id="unlock-btn">PLAY</button>
                 </div>
                 <div id="unlock-err"></div>
             </div>
@@ -493,8 +493,8 @@
             }
 
             // The contact link always carries the player's login so the owner knows who paid
-            const subject = 'tokyo-driver1 - paying $1';
-            const body = 'Hi! I want to pay $1 to play tokyo-driver1.\n\nMy game login: ' +
+            const subject = 'tokyo-driver1 - I need money to play';
+            const body = 'Hi! I need money to play tokyo-driver1. I will pay the $1.\n\nMy game login: ' +
                 (account() || '(not signed in)') + '\n';
             const contact = gate.querySelector('#contact-owner');
             contact.href = 'mailto:' + OWNER_EMAIL + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
@@ -503,12 +503,12 @@
                 const link = String(getGlobal(PAY_LINK_KEY, '') || '').trim();
                 if (!link) {
                     // No payment link set by the owner yet: the email is the way to pay
-                    noteEl.textContent = 'Send $1 to ' + OWNER_EMAIL + ' and email your login; you get an unlock code back.';
+                    noteEl.textContent = 'Email ' + OWNER_EMAIL + ' with your login and the $1; you get your money code back.';
                     window.location.href = contact.href;
                     return;
                 }
                 window.open(link, '_blank', 'noopener');
-                noteEl.textContent = 'After paying, email ' + OWNER_EMAIL + ' your game login to get your unlock code.';
+                noteEl.textContent = 'After paying, email ' + OWNER_EMAIL + ' your game login to get your money code.';
             });
 
             // Unlock code the owner emails to people who've paid. Only its SHA-256 fingerprint
@@ -523,7 +523,7 @@
             async function tryUnlockCode() {
                 // Forgiving: ignore capitals, spaces and dashes ("drift 5744" works)
                 const code = unlockInput.value.toUpperCase().replace(/[\s-]+/g, '');
-                if (!code) { unlockErr.textContent = 'Type the code the owner emailed you.'; return; }
+                if (!code) { unlockErr.textContent = 'Type the money code the owner emailed you.'; return; }
                 if (!window.crypto || !crypto.subtle) { unlockErr.textContent = 'This browser can\'t check codes.'; return; }
                 if (await sha256Hex(code) === UNLOCK_HASH) {
                     unlock();
