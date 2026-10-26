@@ -219,16 +219,17 @@ window.CITIES = (function () {
         bean.scale.set(1.6, 0.8, 1); put(h, city, bean, city.W / 2 - 60, -city.D / 2 + 60, 9);
     }
 
-    // --- city specs ---
+    // Hoover Tower at Stanford: a stone shaft with a red tile roof
+    function hooverTower(city, h) {
+        const stone = std(0xd9cfbb);
+        const shaft = new THREE.Mesh(new THREE.BoxGeometry(12, 70, 12), stone); put(h, city, shaft, 0, 0, 35);
+        const roof = new THREE.Mesh(new THREE.ConeGeometry(9, 14, 4), std(0xa33a2a)); roof.rotation.y = Math.PI / 4; put(h, city, roof, 0, 0, 77);
+        const p = lm(city, 0, 0); h.addBox(12, 70, 12, p.x, Terrain.height(p.x, p.z) + 35, p.z, city.heading);
+    }
+
+    // --- city specs: the Bay Area. Peninsula cities sit west of US-101, the bay is east of it;
+    // the east-bay cities (fw: 1) sit east of I-880 with the bay on their west. ---
     return [
-        {
-            id: 'tokyo', name: 'Tokyo', sub: 'Shibuya', rows: 6, cols: 6, block: 56, street: 18,
-            streets: { ns: ['Meiji-dori', 'Dogenzaka', 'Aoyama-dori', 'Koen-dori', 'Bunkamura-dori', 'Inokashira-dori', 'Roppongi-dori'],
-                       ew: ['Shibuya Crossing', 'Center-gai', 'Omotesando', 'Cat Street', 'Harajuku-dori', 'Takeshita-dori', 'Yamate-dori'] },
-            skyline: (d) => d < 0.3 ? [50, 130] : d < 0.65 ? [18, 50] : [8, 20],
-            palette: [0xd8d2c6, 0xc9c4ba, 0x9aa3ad, 0xe4e0d8, 0x7f8792],
-            landmarks: [tokyoTower, shibuyaScreens], exitNumber: 1
-        },
         {
             id: 'sf', name: 'San Francisco', sub: 'Downtown', rows: 6, cols: 6, block: 56, street: 18,
             hills: (lx, lz) => 4.5 * Math.sin(lx / 80) * Math.cos(lz / 65) + 2 * Math.sin((lx + lz) / 50),
@@ -236,7 +237,31 @@ window.CITIES = (function () {
                        ew: ['Market St', 'Mission St', 'Geary St', 'Lombard St', 'Bush St', 'California St', 'Broadway'] },
             skyline: (d) => d < 0.3 ? [60, 150] : d < 0.6 ? [15, 40] : [8, 16],
             palette: [0xf2ead9, 0xe6d9c4, 0xd9c8b4, 0xbfc9d6, 0xf7f3ea],
-            landmarks: [transamerica, goldenGate], extraRoads: goldenGateRoad, shape: sfBay, satellite: sausalito, exitNumber: 12, parks: [[1, 4], [4, 1]]
+            landmarks: [transamerica, goldenGate], extraRoads: goldenGateRoad, shape: sfBay, satellite: sausalito, side: -1, bridge: { to: 'oakland', name: 'I-80 Bay Bridge', style: 'suspension' }, exitNumber: 1, parks: [[1, 4], [4, 1]]
+        },
+        {
+            id: 'sanmateo', name: 'San Mateo', sub: 'Downtown', rows: 4, cols: 5, block: 56, street: 18, side: -1,
+            streets: { ns: ['El Camino Real', 'B St', 'Delaware St', 'Claremont St', 'Humboldt St', 'Railroad Ave'],
+                       ew: ['3rd Ave', '4th Ave', 'Baldwin Ave', 'Tilton Ave', 'Peninsula Ave'] },
+            skyline: (d) => d < 0.3 ? [14, 36] : [6, 14],
+            palette: [0xf0e6d2, 0xe2d5bd, 0xd0c3ac, 0xc4ced8, 0xf5f1e8],
+            landmarks: [], bridge: { to: 'hayward', name: 'CA-92 San Mateo-Hayward Bridge', style: 'trestle' }, exitNumber: 414, parks: [[1, 2]]
+        },
+        {
+            id: 'paloalto', name: 'Palo Alto', sub: 'University Ave', rows: 4, cols: 5, block: 56, street: 18, side: -1,
+            streets: { ns: ['El Camino Real', 'Alma St', 'Emerson St', 'Bryant St', 'Waverley St', 'Middlefield Rd'],
+                       ew: ['University Ave', 'Hamilton Ave', 'Lytton Ave', 'Forest Ave', 'Homer Ave'] },
+            skyline: () => [6, 16],
+            palette: [0xf4ead6, 0xe9dcc3, 0xd8cdb6, 0xc9d3dc, 0xf7f3ea],
+            landmarks: [hooverTower], bridge: { to: 'fremont', name: 'CA-84 Dumbarton Bridge', style: 'low' }, exitNumber: 402, parks: [[2, 1]]
+        },
+        {
+            id: 'sanjose', name: 'San Jose', sub: 'Downtown', rows: 6, cols: 6, block: 56, street: 18, side: -1,
+            streets: { ns: ['Market St', '1st St', '2nd St', '3rd St', '4th St', 'Almaden Blvd', 'Guadalupe Pkwy'],
+                       ew: ['Santa Clara St', 'San Fernando St', 'San Carlos St', 'Julian St', 'St James St', 'Park Ave', 'William St'] },
+            skyline: (d) => d < 0.35 ? [30, 90] : d < 0.7 ? [10, 26] : [6, 14],
+            palette: [0xe8dfd0, 0xd9ccb6, 0xbfc8d0, 0xf1ece2, 0x9aa3ad],
+            landmarks: [], exitNumber: 385, parks: [[2, 3]]
         },
         {
             id: 'oakland', name: 'Oakland', sub: 'Jack London Square', rows: 5, cols: 5, block: 60, street: 18,
@@ -244,64 +269,23 @@ window.CITIES = (function () {
                        ew: ['Grand Ave', '14th St', '12th St', 'MacArthur Blvd', 'Embarcadero West', 'Lake Merritt Blvd'] },
             skyline: (d) => d < 0.3 ? [30, 90] : d < 0.6 ? [12, 30] : [7, 14],
             palette: [0xc8b89a, 0xb0a08a, 0xa8b4bc, 0xd4c7b0, 0x8c8c8c],
-            landmarks: [oaklandCranes], exitNumber: 19, parks: [[2, 2]]
+            landmarks: [oaklandCranes], fw: 1, side: 1, exitNumber: 42, parks: [[2, 2]]
         },
         {
-            id: 'sacramento', name: 'Sacramento', sub: 'State Capital', rows: 5, cols: 6, block: 60, street: 18,
-            streets: { ns: ['Capitol Mall', '10th St', '12th St', '15th St', 'J St', 'K St', 'L St'],
-                       ew: ['Capitol Ave', 'N St', 'P St', 'Broadway', 'Front St', 'Tower Bridge Gateway'] },
-            skyline: (d) => d < 0.25 ? [25, 70] : d < 0.6 ? [10, 25] : [6, 12],
-            palette: [0xe7dcc8, 0xd8ccb4, 0xf0e8d8, 0xbcc4c8, 0xc9a97e],
-            landmarks: [capitol], exitNumber: 31, parks: [[2, 1], [3, 1]]
+            id: 'hayward', name: 'Hayward', sub: 'Downtown', rows: 4, cols: 5, block: 56, street: 18, fw: 1, side: 1,
+            streets: { ns: ['Foothill Blvd', 'Mission Blvd', 'Main St', 'Watkins St', 'Grand St', 'Jackson St'],
+                       ew: ['A St', 'B St', 'C St', 'D St', 'Tennyson Rd'] },
+            skyline: () => [6, 16],
+            palette: [0xe6dcc8, 0xd6c8ae, 0xc9bfae, 0xbcc8d2, 0xf2eee4],
+            landmarks: [], exitNumber: 31, parks: [[1, 1]]
         },
         {
-            id: 'reno', name: 'Reno', sub: 'The Biggest Little City', rows: 4, cols: 5, block: 60, street: 18,
-            streets: { ns: ['Virginia St', 'Sierra St', 'Center St', 'Lake St', 'Arlington Ave', 'Wells Ave'],
-                       ew: ['Commercial Row', '2nd St', '4th St', 'Plumb Ln', 'Mill St'] },
-            skyline: (d) => d < 0.3 ? [25, 80] : [6, 18],
-            palette: [0xd9c6a5, 0xc7b08c, 0xe8dcc0, 0x9ea8b0, 0xb08a5a],
-            landmarks: [renoArch], exitNumber: 44
-        },
-        {
-            id: 'vegas', name: 'Las Vegas', sub: 'The Strip', rows: 6, cols: 4, block: 64, street: 20,
-            streets: { ns: ['Las Vegas Blvd', 'Koval Ln', 'Paradise Rd', 'Frank Sinatra Dr', 'Industrial Rd'],
-                       ew: ['Flamingo Rd', 'Tropicana Ave', 'Sahara Ave', 'Spring Mountain Rd', 'Harmon Ave', 'Desert Inn Rd', 'Russell Rd'] },
-            skyline: (d) => d < 0.35 ? [60, 140] : [8, 24],
-            palette: [0xf3e2c0, 0xe8c99a, 0xd6b17e, 0x9bb0c4, 0xf7f0e2],
-            landmarks: [vegasStrip], exitNumber: 58
-        },
-        {
-            id: 'nyc', name: 'New York', sub: 'Midtown Manhattan', rows: 7, cols: 6, block: 54, street: 18,
-            streets: { ns: ['5th Ave', '6th Ave', '7th Ave', 'Broadway', 'Madison Ave', 'Park Ave', 'Lexington Ave'],
-                       ew: ['34th St', '38th St', '42nd St', '46th St', '50th St', '54th St', '57th St', '59th St'] },
-            skyline: (d) => d < 0.5 ? [70, 190] : [30, 70],
-            palette: [0xb7aa96, 0x9c9388, 0x7d8690, 0xc9c1b4, 0x6f7a86],
-            landmarks: [empireState, chrysler], exitNumber: 73
-        },
-        // ---- I-15 loop (branches off I-80 near Reno, rejoins before Las Vegas) ----
-        {
-            id: 'slc', name: 'Salt Lake City', sub: 'Temple Square', fw: 1, rows: 5, cols: 5, block: 64, street: 20,
-            streets: { ns: ['State St', 'Main St', 'West Temple', '200 East', '300 East', '400 East'],
-                       ew: ['South Temple', '100 South', '200 South', '300 South', '400 South', 'North Temple'] },
-            skyline: (d) => d < 0.3 ? [30, 90] : [8, 22],
-            palette: [0xe9e2d2, 0xd8cdb6, 0xc9c0b0, 0xaab4bd, 0xf2eee6],
-            landmarks: [slcTemple], exitNumber: 301, parks: [[2, 2]]
-        },
-        {
-            id: 'denver', name: 'Denver', sub: 'LoDo', fw: 1, rows: 5, cols: 6, block: 60, street: 18,
-            streets: { ns: ['Broadway', 'Lincoln St', 'Speer Blvd', 'Colfax Ave', 'Larimer St', 'Blake St', 'Wazee St'],
-                       ew: ['16th St Mall', '17th St', '18th St', '20th St', 'Market St', 'Champa St'] },
-            skyline: (d) => d < 0.3 ? [40, 120] : d < 0.6 ? [12, 36] : [7, 14],
-            palette: [0xc9b79c, 0xb59e7e, 0x9fb3c8, 0xd9d2c5, 0x8f8a80],
-            landmarks: [denverCashRegister], exitNumber: 312, parks: [[1, 3]]
-        },
-        {
-            id: 'chicago', name: 'Chicago', sub: 'The Loop', fw: 1, rows: 6, cols: 6, block: 56, street: 18,
-            streets: { ns: ['Michigan Ave', 'State St', 'Wabash Ave', 'Dearborn St', 'Clark St', 'LaSalle St', 'Wacker Dr'],
-                       ew: ['Randolph St', 'Washington St', 'Madison St', 'Monroe St', 'Adams St', 'Jackson Blvd', 'Van Buren St'] },
-            skyline: (d) => d < 0.45 ? [70, 200] : [25, 60],
-            palette: [0x8a8f96, 0x6f7681, 0xb4aa9a, 0xcfc6b8, 0x5f6670],
-            landmarks: [willisTower, cloudGate], exitNumber: 328
+            id: 'fremont', name: 'Fremont', sub: 'Centerville', rows: 4, cols: 5, block: 56, street: 18, fw: 1, side: 1,
+            streets: { ns: ['Fremont Blvd', 'Paseo Padre Pkwy', 'Mowry Ave', 'Peralta Blvd', 'Thornton Ave', 'Central Ave'],
+                       ew: ['Stevenson Blvd', 'Walnut Ave', 'Capitol Ave', 'Liberty St', 'Beacon Ave'] },
+            skyline: () => [5, 14],
+            palette: [0xefe6d4, 0xe0d4bc, 0xd2c6b0, 0xc2ccd6, 0xf6f2ea],
+            landmarks: [], exitNumber: 19, parks: [[2, 2]]
         }
     ];
 })();

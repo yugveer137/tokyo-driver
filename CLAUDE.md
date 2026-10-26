@@ -24,9 +24,9 @@ Serve the repo root (e.g. `python3 -m http.server 8731`, also `.claude/launch.js
 | `road.js` | spline roads: `Road.define/buildRange/build`, lane offsets, `Road.at(rec,s,lateral)`, `Road.nearest`, `Road.exit`, `Road.onramp`, `Road.drapedQuad` |
 | `signs.js` | exit boards, gore signs, plain signs, street blades (`Signs.facingFrom(tan)`) |
 | `city.js` | city generator: draped street grid, intersections + traffic lights, blocks, buildings with window maps, lamps; `City.define/load/unload/update` |
-| `cities.js` | the 10 cities (7 on I-80, 3 on the I-15 loop) + Sausalito across San Francisco's bay (`satellite`), street names, skylines, landmark builders, the bay shaper and the US-101 Golden Gate Bridge road (`shape`, `extraRoads`) |
+| `cities.js` | the 7 Bay Area cities (`side` picks the freeway side, `fw: 1` = I-880, `bridge` = the bay crossing to build) + Sausalito across the Golden Gate (`satellite`), street names, skylines, landmark builders, the Golden Gate bay shaper and bridge road (`shape`, `extraRoads`) |
 | `traffic.js` | AI cars on lanes: following, red lights, turns at road ends, exits/merges via `Traffic.link`, kinematic boxes |
-| `world.js` | the route: one elevated freeway (I-80) streamed in 400-unit chunks, cities every 2600 units with exit + collector + on-ramp + signs, `World.travelTo`, `areaAt`, `speedLimitAt` |
+| `world.js` | the Bay Area: US-101 down the peninsula (SF, San Mateo, Palo Alto, San Jose on its west) and I-880 up the east bay (Oakland, Hayward, Fremont on its east, merging into 101 before San Jose), the bay between them (terrain shaper + water sheet), three bridges built with their peninsula city (`loadBridge`: Bay Bridge with towers/cables, San Mateo, Dumbarton), freeway chunks streamed in 400-unit chunks, cities with exit + collector + on-ramp + signs + workshop + station road, `World.travelTo`, `areaAt`, `speedLimitAt` |
 | `carmodels.js` | the 32 cars (`CARS`) and their body/wheel/interior builders (`CarModels`) ported from the old game |
 | `audio.js` | engine, screech, wind, horns (`GameAudio`) |
 | `models.js` | Kenney CC0 car models (`assets/cars/*.glb`) via GLTFLoader for the player car, traffic and parked cars; shader swaps the kit's palette paint for the car colour |

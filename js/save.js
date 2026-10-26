@@ -277,7 +277,7 @@
 
     const SPLASH_HTML = `
         <h1>tokyo-driver1</h1>
-        <p>Drive from Tokyo to New York. Real exits, seven cities, traffic, day and night.<br>You need money to play: email <b>${OWNER_EMAIL}</b> to get it.</p>
+        <p>Drive the Bay Area: San Francisco to San Jose, Oakland to Fremont, three bridges over the water.<br>You need money to play: email <b>${OWNER_EMAIL}</b> to get it.</p>
         <button id="splash-play">PLAY</button>
         <small>Questions and money: ${OWNER_EMAIL}</small>
     `;

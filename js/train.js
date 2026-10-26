@@ -59,6 +59,7 @@ window.Train = (function () {
         // the back end
         const tailZ = -3 * (carLen + gap) - carLen / 2;
         [-0.9, 0.9].forEach(x => box(0.4, 0.25, 0.1, new THREE.MeshStandardMaterial({ color: 0x5a0a0a, emissive: 0xff2020, emissiveIntensity: 0.6 }), x, 1.7, tailZ - 0.05));
+        g.userData.wheels = []; g.traverse(o => { if (o.isMesh && o.geometry.parameters && o.geometry.parameters.radiusTop === 0.42) g.userData.wheels.push(o); });
         g.traverse(o => { if (o.isMesh && o.geometry.parameters && (o.geometry.parameters.width > 2 || o.geometry.parameters.radiusTop)) o.castShadow = true; });
         // inside the first car: floor, seats, poles, the window band is the gap between wall strips
         const inside = new THREE.Group();
@@ -90,7 +91,13 @@ window.Train = (function () {
         const fr = fw.frames.filter(f => { const s = f.t * fw.length; return s >= s0 - fw.segLen && s <= s1 + fw.segLen; });
         if (fr.length < 2) return;
         const g = new THREE.Group();
-        [T.LAT, T.LAT2].forEach(lat => { const m = new THREE.Mesh(Road.strip(fr, { x: lat - 2.2, y: 0 }, { x: lat + 2.2, y: 0 }, 6, fw.length, 0, 1, Road.DRAPE + 0.05), railMat); m.receiveShadow = true; g.add(m); });
+        [T.LAT, T.LAT2].forEach(lat => {
+            const geom = Road.strip(fr, { x: lat - 2.2, y: 0 }, { x: lat + 2.2, y: 0 }, 6, fw.length, 0, 1, Road.DRAPE + 0.05);
+            const pos = geom.attributes.position, tan = fr[Math.floor(fr.length / 2)].tan;
+            for (let i = 0; i < pos.count; i++) pos.setY(i, T.railHeight(pos.getX(i), pos.getZ(i), tan));
+            pos.needsUpdate = true; geom.computeVertexNormals();
+            const m = new THREE.Mesh(geom, railMat); m.receiveShadow = true; g.add(m);
+        });
         scene.add(g); T.chunks[key] = g;
     };
     T.dropRange = function (key) { const g = T.chunks[key]; if (!g) return; scene.remove(g); g.children.forEach(m => m.geometry.dispose()); delete T.chunks[key]; };
@@ -185,7 +192,13 @@ window.Train = (function () {
     };
 
     T.pose = function (s, lat) { return Road.at(World.freeway, s, lat === undefined ? T.LAT : lat); };
-    T.groundAt = function (s, lat) { const f = T.pose(s, lat); f.p.y = Terrain.height(f.p.x, f.p.z) + Road.DRAPE + 0.05; return f; };
+    // Rails are laid on a smoothed ground line (the land is averaged over 60 m along the track),
+    // so the train glides instead of bobbing over every bump in the terrain.
+    T.railHeight = function (x, z, tan) {
+        let sum = 0; for (let k = -30; k <= 30; k += 15) sum += Terrain.height(x + tan.x * k, z + tan.z * k);
+        return sum / 5 + Road.DRAPE + 0.05;
+    };
+    T.groundAt = function (s, lat) { const f = T.pose(s, lat); f.p.y = T.railHeight(f.p.x, f.p.z, f.tan); return f; };
 
     // ---- timetable ----
     // Stations are the I-80 cities. Trains run out and back along the line as one big loop of
@@ -214,6 +227,7 @@ window.Train = (function () {
         tr.mesh.position.copy(fr.p);
         tr.mesh.rotation.set(0, Road.yawOf(fr.tan) + (tr.dir === 1 ? 0 : Math.PI), 0);
         tr.mesh.visible = tr.mesh.position.distanceTo(playerPos) < 1500;
+        if (tr.mesh.visible) tr.mesh.userData.wheels.forEach(w => { w.rotation.x += tr.speed * tr.dir / 0.42 * (1 / 60); });
         tr.frame = fr;
     }
     // seconds until the next train stops at the station at arc length sSt (and whether one is there now)

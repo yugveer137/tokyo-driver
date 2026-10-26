@@ -46,11 +46,11 @@ window.SelfDrive = (function () {
         [Train.LAT, Train.LAT2].forEach(lat => { ctx.beginPath(); ctx.moveTo(PAD, H / 2 + lat * LAT_SCALE * (H / 2 - PAD) / 900); ctx.lineTo(W - PAD, H / 2 + lat * LAT_SCALE * (H / 2 - PAD) / 900); ctx.stroke(); });
         ctx.setLineDash([]);
         ctx.strokeStyle = '#cfd3d8'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(PAD, H / 2); ctx.lineTo(W - PAD, H / 2); ctx.stroke();
-        ctx.fillStyle = '#9ab'; ctx.font = 'bold 12px sans-serif'; ctx.fillText('I-80', PAD, H / 2 - 10);
+        ctx.fillStyle = '#9ab'; ctx.font = 'bold 12px sans-serif'; ctx.fillText(World.freeway.name, PAD, H / 2 - 10);
         // I-15 loop strip
         if (World.freeways[1]) {
             ctx.strokeStyle = '#b9bec4'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(PAD, ROW2); ctx.lineTo(W - PAD, ROW2); ctx.stroke();
-            ctx.fillStyle = '#9ab'; ctx.fillText('I-15 loop (leaves I-80 before Reno, rejoins before Las Vegas)', PAD, ROW2 - 10);
+            ctx.fillStyle = '#9ab'; ctx.fillText(World.freeways[1].name + ' (east bay, joins ' + World.freeway.name + ' before San Jose)', PAD, ROW2 - 10);
         }
         // cities: box + name + exit number
         World.cities.forEach(c => {
