@@ -62,8 +62,9 @@ window.CITIES = (function () {
         Terrain.shapers.push((x, z, h) => {
             const l = city.toLocal(x, z);
             const z0 = city.D / 2 + BAY.from, z1 = city.D / 2 + BAY.to;
-            if (l.lz < z0 - 60 || l.lz > z1 + 60 || Math.abs(l.lx) > 900) return h;
-            const edge = Math.min(l.lz - z0, z1 - l.lz, 900 - Math.abs(l.lx));     // distance in from the shore
+            const xMax = city.W / 2 + 10;                                       // the water stops short of the frontage road and US-101
+            if (l.lz < z0 - 60 || l.lz > z1 + 60 || l.lx > xMax + 60 || l.lx < -900) return h;
+            const edge = Math.min(l.lz - z0, z1 - l.lz, xMax - l.lx, l.lx + 900);     // distance in from the shore
             const k = Math.max(0, Math.min(1, (edge + 60) / 120));                // 0 on land, 1 well into the bay
             return h * (1 - k) + (city.base - BAY.depth) * k;
         });
@@ -73,8 +74,9 @@ window.CITIES = (function () {
         const sea = city.base - 2.5, deckY = city.base + 12;
         // water
         const z0 = city.D / 2 + BAY.from, z1 = city.D / 2 + BAY.to;
-        const water = new THREE.Mesh(new THREE.PlaneGeometry(1800, z1 - z0 + 40), new THREE.MeshStandardMaterial({ color: 0x2b6f9c, roughness: 0.12, metalness: 0.35, transparent: true, opacity: 0.92 }));
-        const wc = city.toWorld(0, (z0 + z1) / 2); water.position.set(wc.x, sea, wc.z); water.rotation.set(-Math.PI / 2, 0, 0); water.rotateZ(-city.heading);
+        const xMax = city.W / 2 + 10, xMin = -900;
+        const water = new THREE.Mesh(new THREE.PlaneGeometry(xMax - xMin, z1 - z0 + 40), new THREE.MeshStandardMaterial({ color: 0x2b6f9c, roughness: 0.12, metalness: 0.35, transparent: true, opacity: 0.92 }));
+        const wc = city.toWorld((xMax + xMin) / 2, (z0 + z1) / 2); water.position.set(wc.x, sea, wc.z); water.rotation.set(-Math.PI / 2, 0, 0); water.rotateZ(-city.heading);
         water.receiveShadow = true; h.addMesh(water, false);
         // two towers astride the deck, cross braces, and the main cables
         [230, 450].forEach(lz => {

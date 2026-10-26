@@ -11,6 +11,7 @@ window.World = (function () {
     const COLLECTOR_LAT = 48;         // collector avenue runs this far beside the freeway centreline
     const LANE_R = () => Road.types.freeway.median / 2 + Road.types.freeway.laneW * 2.5;   // rightmost lane
     const UP = new THREE.Vector3(0, 1, 0);
+    const bridgeTargets = new Set(CITIES.filter(c => c.bridge).map(c => c.bridge.to));   // east-bay cities a bridge lands in
 
     // Lift a flat centreline above the land (and city plateaus), define the freeway and its
     // cities. `specs` are city specs; `citySAt(k)` gives each city's arc length.
@@ -48,8 +49,8 @@ window.World = (function () {
             if (c.side === 1) { gapsRight.push([c.s - 1250, c.s - 1040]); gapsRight.push([c.s + 910, c.s + 1120]); }
             else { gapsLeft.push([c.s + 1040, c.s + 1250]); gapsLeft.push([c.s - 1120, c.s - 910]); }
             if (k < cities.length - 1) {
-                gapsRight.push([c.s + 1450, c.s + 1660]); gapsLeft.push([c.s + 1450, c.s + 1660]);   // northbound U-turn (s+1500)
-                gapsLeft.push([c.s + 2240, c.s + 2450]); gapsRight.push([c.s + 2240, c.s + 2450]);   // southbound U-turn (s+2400)
+                gapsRight.push([c.s + 1150, c.s + 1360]); gapsLeft.push([c.s + 1150, c.s + 1360]);   // forward U-turn (s+1200)
+                if (!c.bridge && !bridgeTargets.has(c.id)) { gapsLeft.push([c.s + 2240, c.s + 2450]); gapsRight.push([c.s + 2240, c.s + 2450]); }   // return U-turn (s+2400), unless a bridge interchange sits there
             }
         });
         const fw = Road.define({ type: 'freeway', name, points: lifted, gapsRight, gapsLeft, segLen: 8 });
@@ -59,40 +60,55 @@ window.World = (function () {
         return fw;
     }
 
-    const BAY_W = 2400;               // water between US-101 and I-880
+    const BAY_W = 2400;               // between US-101 and I-880; the water starts 230 m from each
+    const SHORE = 230;
     const BRIDGE_Y = 12;              // bridge decks above the water
-    const CROSS_Y = 19;               // where a bridge viaduct passes over a freeway (deck at ~7, walls to ~8.5)
+    // Each bridge interchange, measured from its peninsula city's s (the east-bay city shares it).
+    // The bridge is a straight east-west road at s+2200; its ramps do the turning:
+    //   US-101 south exit at s+1760 curves east down onto the bridge's eastbound lane;
+    //   the westbound lane feeds an on-ramp that curves south and merges onto 101 at s+2640.
+    //   On I-880 the eastbound lane feeds an on-ramp curving north onto 880 north (merge s+1760);
+    //   the 880 north exit at s+2640 curves west down onto the bridge's westbound lane.
+    //   (The return U-turn loop that used to sit at s+2400 is left out for these cities.)
+    const BR = { exit: 1760, q: 2200, merge: 2640, exitE: 2640, mergeE: 1760 };
 
     W.build = function () {
         const peninsula = CITIES.filter(c => !c.fw), eastBay = CITIES.filter(c => c.fw === 1);
         // ---- US-101 down the peninsula: straight past each city, a gentle wiggle in between ----
-        const cityS = [1700, 5200, 8700, 12700];
+        const cityS = [1700, 5900, 10100, 15500];
         const pts = [];
-        for (let z = -200; z <= 13800; z += 200) {
-            const near = cityS.some(c => Math.abs(z + 400 - c) < 1300);
+        for (let z = -200; z <= 16600; z += 200) {
+            const near = cityS.some(c => Math.abs(z + 400 - c) < 1300) || cityS.some(c => z + 400 > c + 1500 && z + 400 < c + 2900);
             const x = near ? 0 : 40 * Math.sin(z / 900) * Math.sin(z / 350);
             pts.push([x, 0, z]);
         }
         pts.unshift([0, 0, -400]);
         const sJoin = cityS[3] - 2000;                                      // I-880 merges in before San Jose
-        const fw0 = defineFreeway('US-101', pts, peninsula, k => cityS[k], { gapsRight: [[sJoin - 160, sJoin + 50]] });
+        const gapsRight = [[sJoin - 160, sJoin + 50]], gapsLeftE = [];
+        peninsula.forEach((spec, k) => { if (!spec.bridge) return; const c = cityS[k]; gapsRight.push([c + BR.exit - 50, c + BR.exit + 160], [c + BR.merge - 160, c + BR.merge + 50]); gapsLeftE.push([c + BR.exitE - 220, c + BR.exitE + 110], [c + BR.mergeE - 110, c + BR.mergeE + 220]); });
+        const fw0 = defineFreeway('US-101', pts, peninsula, k => cityS[k], { gapsRight });
         W.freeway = fw0;
 
-        // ---- the bay: everything between the two freeways drops to the sea bed ----
+        // ---- the bay: between the two shores the land drops to the sea bed; the shore strips
+        // (freeway to water) are flat so the bridge ramps sit on level ground ----
         Terrain.shapers.push((x, z, h) => {
-            if (x > -120 || x < -BAY_W + 120 || z < -600 || z > 12400) return h;
-            const edge = Math.min(-120 - x, x - (-BAY_W + 120), z + 600, 12400 - z);
-            const k = Math.max(0, Math.min(1, edge / 120));
-            return h * (1 - k) + (-8) * k;
+            if (x > -20 || x < -BAY_W + 20 || z < -600 || z > 15200) return h;
+            const inBay = x < -SHORE && x > -BAY_W + SHORE;
+            let target = 1.0;                                               // flat shore
+            if (inBay) { const edge = Math.min(-SHORE - x, x - (-BAY_W + SHORE)); const k = Math.max(0, Math.min(1, edge / 120)); target = 1.0 * (1 - k) + (-8) * k; }
+            const fromFw = Math.min(-x, x + BAY_W) - 20;                    // blend back to the natural land under each freeway
+            const kk = Math.max(0, Math.min(1, fromFw / 80));
+            const zEdge = Math.max(0, Math.min(1, Math.min(z + 600, 15200 - z) / 200));
+            return h * (1 - kk * zEdge) + target * kk * zEdge;
         });
-        W.water = { x: -BAY_W / 2, z: 5900, w: BAY_W - 100, d: 13200, y: -2 };
+        W.water = { x: -BAY_W / 2, z: 7300, w: BAY_W - 2 * SHORE + 60, d: 15800, y: -2 };
 
         // ---- I-880 up the east bay, then a long sweep in to join US-101 ----
         const b = Road.at(fw0, sJoin - 500, COLLECTOR_LAT);
         const e = [];
-        for (let z = -400; z <= 8800; z += 400) e.push([-BAY_W, 0, z]);
-        e.push([-BAY_W + 150, 0, 9150], [-BAY_W + 600, 0, 9450], [-BAY_W + 1200, 0, 9650], [-BAY_W + 1800, 0, 9750], [-250, 0, 9700], [-80, 0, 9780], [b.p.x, 0, b.p.z], [b.p.x, 0, b.p.z + 60]);
-        const fw1 = defineFreeway('I-880', e, eastBay, k => [1700, 5200, 8700][k], { groundEnds: true });
+        for (let z = -400; z <= 11200; z += 400) e.push([-BAY_W, 0, z]);
+        e.push([-BAY_W + 150, 0, 11650], [-BAY_W + 600, 0, 12050], [-BAY_W + 1200, 0, 12300], [-BAY_W + 1800, 0, 12450], [-250, 0, 12450], [-80, 0, 12550], [b.p.x, 0, b.p.z], [b.p.x, 0, b.p.z + 60]);
+        const fw1 = defineFreeway('I-880', e, eastBay, k => [1700, 5900, 10100][k], { groundEnds: true, gapsLeft: gapsLeftE });
         W.junctions = [{ from: fw0, s: sJoin, to: fw1, kind: 'join' }];
         W.junctions.forEach(j => { j.city = fw0.cities.reduce((a, c) => Math.abs(c.s - j.s) < Math.abs(a.s - j.s) ? c : a); j.city.loadPad = 900; });
 
@@ -126,56 +142,63 @@ window.World = (function () {
         });
     }
 
-    // The bay bridges: from a peninsula city's frontage road, up a viaduct, over US-101, straight
-    // across the water, and down onto the east-bay city's frontage road. Built with the peninsula
-    // city. `style`: suspension (Bay Bridge towers and cables), trestle (San Mateo: a long low
-    // deck with a high-rise hump), low (Dumbarton).
+    // A bay bridge with its own interchanges at both ends (see BR above). Built with the
+    // peninsula city. `style`: suspension (Bay Bridge towers and cables), trestle (San Mateo: a
+    // long low deck with a high-rise hump), low (Dumbarton).
     function loadBridge(city) {
         const spec = city.bridge; if (!spec) return;
         const other = W.cities.find(c => c.id === spec.to); if (!other) return;
-        const fwA = city.fw, fwB = other.fw;
-        const zc = Road.at(fwA, city.s, 0).p.z;                              // both cities sit at the same s
-        const a = Road.at(fwA, city.s - 420, -COLLECTOR_LAT).p;              // on the peninsula frontage road (west side)
-        const bEnd = Road.at(fwB, other.s + 520, COLLECTOR_LAT).p;           // on the east-bay frontage road
-        const xA = a.x, xB = bEnd.x;
+        const fwA = city.fw, fwB = other.fw, s = city.s;
+        const addRoad = (r) => { city.roads.push(r); return r; };
+        const link = (r) => { Traffic.linkRamp(r); return r; };
+
+        // ---- the bridge itself: straight along zc from 200 m east of 101 to 200 m west of 880 ----
+        const zc = Road.at(fwA, s + BR.q, 0).p.z;
+        const xW = -200, xE = -BAY_W + 200;
         const hump = spec.style === 'trestle' ? 10 : spec.style === 'low' ? 6 : 0;
         const pts = [];
-        const add = (x, y, z) => pts.push([x, y, z]);
-        // a long viaduct along the frontage road climbs to CROSS_Y, turns and clears the freeway
-        // high above it, then drops to the bridge deck over the water (and the mirror on the east)
-        add(xA, Terrain.height(xA, a.z) + Road.DRAPE, a.z); add(xA, 4, a.z + 90); add(xA, 10, a.z + 200); add(xA, 15, a.z + 300); add(xA - 8, CROSS_Y - 1, a.z + 380);
-        add(xA - 50, CROSS_Y, zc + 10); add(0, CROSS_Y, zc); add(-150, CROSS_Y, zc); add(-350, BRIDGE_Y + 3, zc);
-        for (let x = -550; x >= xB + 550; x -= 200) {
-            const t = (x - (-550)) / (xB + 550 - (-550));
-            add(x, BRIDGE_Y + hump * Math.sin(Math.PI * t) * (spec.style === 'trestle' ? (t > 0.55 && t < 0.85 ? 1 : 0.25) : 1), zc);
+        pts.push([xW, Terrain.height(xW, zc) + Road.DRAPE, zc], [xW - 60, Terrain.height(xW - 60, zc) + 1.5, zc], [xW - 120, 6, zc], [xW - 190, BRIDGE_Y, zc]);
+        for (let x = -550; x >= -BAY_W + 550; x -= 200) {
+            const t = (x + 550) / (-BAY_W + 550 + 550);
+            pts.push([x, BRIDGE_Y + hump * Math.sin(Math.PI * t) * (spec.style === 'trestle' ? (t > 0.55 && t < 0.85 ? 1 : 0.25) : 1), zc]);
         }
-        add(xB + 350, BRIDGE_Y + 3, zc); add(xB + 150, CROSS_Y, zc); add(xB + 48, CROSS_Y, zc); add(xB + 8, CROSS_Y - 1, zc + 60); add(xB, 15, zc + 140); add(xB, 10, zc + 240); add(xB, 4, zc + 350); add(xB, Terrain.height(xB, bEnd.z) + Road.DRAPE, bEnd.z);
-        const road = Road.build({ type: 'freeway', name: spec.name, points: pts, segLen: 8, hugTerrain: true, openStart: 60, openEnd: 60 });
-        city.roads.push(road); road.isBridge = true;
+        pts.push([xE + 190, BRIDGE_Y, zc], [xE + 120, 6, zc], [xE + 60, Terrain.height(xE + 60, zc) + 1.5, zc], [xE, Terrain.height(xE, zc) + Road.DRAPE, zc]);
+        const bridge = addRoad(Road.build({ type: 'freeway', name: spec.name, points: pts, segLen: 8, hugTerrain: true, openStart: 40, openEnd: 40 }));
+        bridge.isBridge = true;
+        // the ramps meet the bridge's outer lanes (the ones you exit and enter from), never its median
+        const lr = LANE_R();
+        const inW = Road.at(bridge, 0, lr), outW = Road.at(bridge, 0, -lr), inE = Road.at(bridge, bridge.length, lr), outE = Road.at(bridge, bridge.length, -lr);
+
+        // ---- west end on US-101 ----
+        addRoad(link(Road.exit(fwA, s + BR.exit, 1, inW.p.clone(), inW.tan, spec.name)));
+        addRoad(link(Road.onramp(fwA, s + BR.merge, 1, outW.p.clone(), outW.tan.clone().negate(), fwA.name + ' South')));
+
+        // ---- east end on I-880 (its northbound side has the bay on its right) ----
+        const sE = Road.nearest(fwB, new THREE.Vector3(xE, 0, zc)).s;
+        addRoad(link(Road.onramp(fwB, sE - 440, -1, inE.p.clone(), inE.tan, fwB.name + ' North')));
+        addRoad(link(Road.exit(fwB, sE + 440, -1, outE.p.clone(), outE.tan.clone().negate(), spec.name)));
+
         // towers and cables for the suspension spans
         if (spec.style === 'suspension') {
             const grey = new THREE.MeshStandardMaterial({ color: 0xb9bcc2, roughness: 0.5, metalness: 0.4 });
             const addTower = (x, h) => {
                 [-9, 9].forEach(dz => { const t = new THREE.Mesh(new THREE.BoxGeometry(3.5, h, 3.5), grey); t.position.set(x, -8 + h / 2, zc + dz); t.castShadow = true; game.scene.add(t); city.meshes.push(t); });
-                [BRIDGE_Y + 10, BRIDGE_Y + 35, BRIDGE_Y + h - 12].forEach(y => { const b = new THREE.Mesh(new THREE.BoxGeometry(3.5, 4, 22), grey); b.position.set(x, y, zc); game.scene.add(b); city.meshes.push(b); });
+                [BRIDGE_Y + 10, BRIDGE_Y + 35, BRIDGE_Y + h - 12].forEach(y => { const bx = new THREE.Mesh(new THREE.BoxGeometry(3.5, 4, 22), grey); bx.position.set(x, y, zc); game.scene.add(bx); city.meshes.push(bx); });
             };
             const cable = (x0, x1, top, side) => {
                 const cp = []; for (let x = x0; x >= x1; x -= 20) { const t = (x - x0) / (x1 - x0); cp.push(new THREE.Vector3(x, top - (1 - Math.pow(2 * t - 1, 2)) * (top - BRIDGE_Y - 3), zc + side)); }
                 const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(cp), 40, 0.5, 6, false), grey); game.scene.add(m); city.meshes.push(m);
                 for (let x = x0 - 40; x > x1 + 20; x -= 40) { const t = (x - x0) / (x1 - x0); const y = top - (1 - Math.pow(2 * t - 1, 2)) * (top - BRIDGE_Y - 3); const hg = new THREE.Mesh(new THREE.BoxGeometry(0.2, Math.max(0.5, y - BRIDGE_Y - 1), 0.2), grey); hg.position.set(x, (y + BRIDGE_Y + 1) / 2, zc + side); game.scene.add(hg); city.meshes.push(hg); }
             };
-            // west span: two towers; east span: the single tall tower
-            [-600, -1100].forEach(x => addTower(x, 90));
-            addTower(-1900, 110);
-            [-9, 9].forEach(side => { cable(-250, -600, 70, side); cable(-600, -1100, 70, side); cable(-1100, -1450, 70, side); cable(-1550, -1900, 90, side); cable(-1900, -2250, 90, side); });
+            [-700, -1200].forEach(x => addTower(x, 90));
+            addTower(-1950, 110);
+            [-9, 9].forEach(side => { cable(-380, -700, 70, side); cable(-700, -1200, 70, side); cable(-1200, -1520, 70, side); cable(-1620, -1950, 90, side); cable(-1950, -2280, 90, side); });
         }
-        const sg = Road.at(road, 40, road.halfW + 2.5); city.signs.push(Signs.plain(sg.p, Signs.facingFrom(sg.tan), spec.name.split(' ')[0], spec.name.split(' ').slice(1).join(' ').toUpperCase() + ' → ' + other.name.toUpperCase(), 4, 2));
-        // on the freeway, both ways: the city's exit is the way onto the bridge
-        const hw = fwA.width / 2, d = city.side, sExit = city.s - d * 1200;
-        [[sExit - d * 600, d], [city.s + 1300, -d]].forEach(([sAt, dir]) => {
-            const f = Road.at(fwA, sAt, dir * (hw + 3.2));
-            city.signs.push(Signs.exitBoard(f.p, Signs.facingFrom(f.tan.clone().multiplyScalar(dir)), 'EXIT ' + city.exitNumber, [{ text: spec.name.replace(/^[A-Z0-9-]+ /, '') }, { text: 'to ' + other.name + ' · via ' + city.name + ' Frontage Rd', size: 40 }], dir === d ? '1 MILE' : 'USE ' + fwA.name + (d === 1 ? ' SOUTH' : ' NORTH')));
-        });
+        // boards: on 101 before the exit, on 880 before its exit, and a name plate on the deck
+        const hwA = fwA.width / 2, hwB = fwB.width / 2;
+        [[s + BR.exit - 800, '1 MILE'], [s + BR.exit - 300, 'EXIT ONLY']].forEach(([sAt, sub]) => { const f = Road.at(fwA, sAt, hwA + 3.2); city.signs.push(Signs.exitBoard(f.p, Signs.facingFrom(f.tan), 'EXIT ' + (city.exitNumber + 1) + 'B', [{ text: spec.name.replace(/^[A-Z0-9-]+ /, '') }, { text: other.name, size: 44 }], sub)); });
+        [[sE + 440 + 800, '1 MILE'], [sE + 440 + 300, 'EXIT ONLY']].forEach(([sAt, sub]) => { const f = Road.at(fwB, sAt, -(hwB + 3.2)); city.signs.push(Signs.exitBoard(f.p, Signs.facingFrom(f.tan.clone().negate()), 'EXIT ' + (other.exitNumber + 1) + 'B', [{ text: spec.name.replace(/^[A-Z0-9-]+ /, '') }, { text: city.name, size: 44 }], sub)); });
+        const sg = Road.at(bridge, 420, bridge.halfW + 2.5); city.signs.push(Signs.plain(sg.p, Signs.facingFrom(sg.tan), spec.name.split(' ')[0], spec.name.split(' ').slice(1).join(' ').toUpperCase(), 4, 2));
     }
 
     // City-specific roads: collector avenue, exit ramp in, on-ramp out, signs, service station,
@@ -248,7 +271,8 @@ window.World = (function () {
         // U-turns toward the next city on this freeway: forward one at +1500, the other at +2400
         const k = fw.cities.indexOf(city);
         if (k < fw.cities.length - 1) {
-            [[1500, 1], [2400, -1]].forEach(([off, dir]) => {
+            const loops = (city.bridge || bridgeTargets.has(city.id)) ? [[1200, 1]] : [[1200, 1], [2400, -1]];
+            loops.forEach(([off, dir]) => {
                 const sU = city.s + off;
                 const u = Road.uturn(fw, sU, dir, 'U-turn');
                 city.roads.push(u); Traffic.linkRamp(u);
