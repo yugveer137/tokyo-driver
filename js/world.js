@@ -61,6 +61,7 @@ window.World = (function () {
 
     const BAY_W = 2400;               // water between US-101 and I-880
     const BRIDGE_Y = 12;              // bridge decks above the water
+    const CROSS_Y = 19;               // where a bridge viaduct passes over a freeway (deck at ~7, walls to ~8.5)
 
     W.build = function () {
         const peninsula = CITIES.filter(c => !c.fw), eastBay = CITIES.filter(c => c.fw === 1);
@@ -134,20 +135,21 @@ window.World = (function () {
         const other = W.cities.find(c => c.id === spec.to); if (!other) return;
         const fwA = city.fw, fwB = other.fw;
         const zc = Road.at(fwA, city.s, 0).p.z;                              // both cities sit at the same s
-        const a = Road.at(fwA, city.s - 220, -COLLECTOR_LAT).p;              // on the peninsula frontage road (west side)
-        const bEnd = Road.at(fwB, other.s + 340, COLLECTOR_LAT).p;           // on the east-bay frontage road
+        const a = Road.at(fwA, city.s - 420, -COLLECTOR_LAT).p;              // on the peninsula frontage road (west side)
+        const bEnd = Road.at(fwB, other.s + 520, COLLECTOR_LAT).p;           // on the east-bay frontage road
         const xA = a.x, xB = bEnd.x;
         const hump = spec.style === 'trestle' ? 10 : spec.style === 'low' ? 6 : 0;
         const pts = [];
         const add = (x, y, z) => pts.push([x, y, z]);
-        // viaduct along the frontage road, climbing, then the turn east over the freeway
-        add(xA, Terrain.height(xA, a.z) + Road.DRAPE, a.z); add(xA, 3, a.z + 70); add(xA, 8, a.z + 140); add(xA - 10, 11.5, a.z + 200);
-        add(xA - 60, BRIDGE_Y, zc + 20); add(-60, BRIDGE_Y, zc); add(-200, BRIDGE_Y, zc);
-        for (let x = -400; x >= xB + 400; x -= 200) {
-            const t = (x - (-400)) / (xB + 400 - (-400));
+        // a long viaduct along the frontage road climbs to CROSS_Y, turns and clears the freeway
+        // high above it, then drops to the bridge deck over the water (and the mirror on the east)
+        add(xA, Terrain.height(xA, a.z) + Road.DRAPE, a.z); add(xA, 4, a.z + 90); add(xA, 10, a.z + 200); add(xA, 15, a.z + 300); add(xA - 8, CROSS_Y - 1, a.z + 380);
+        add(xA - 50, CROSS_Y, zc + 10); add(0, CROSS_Y, zc); add(-150, CROSS_Y, zc); add(-350, BRIDGE_Y + 3, zc);
+        for (let x = -550; x >= xB + 550; x -= 200) {
+            const t = (x - (-550)) / (xB + 550 - (-550));
             add(x, BRIDGE_Y + hump * Math.sin(Math.PI * t) * (spec.style === 'trestle' ? (t > 0.55 && t < 0.85 ? 1 : 0.25) : 1), zc);
         }
-        add(xB + 200, BRIDGE_Y, zc); add(xB + 60, BRIDGE_Y, zc + 20); add(xB + 10, 11.5, zc + 80); add(xB, 8, zc + 150); add(xB, 3, zc + 230); add(xB, Terrain.height(xB, bEnd.z) + Road.DRAPE, bEnd.z);
+        add(xB + 350, BRIDGE_Y + 3, zc); add(xB + 150, CROSS_Y, zc); add(xB + 48, CROSS_Y, zc); add(xB + 8, CROSS_Y - 1, zc + 60); add(xB, 15, zc + 140); add(xB, 10, zc + 240); add(xB, 4, zc + 350); add(xB, Terrain.height(xB, bEnd.z) + Road.DRAPE, bEnd.z);
         const road = Road.build({ type: 'freeway', name: spec.name, points: pts, segLen: 8, hugTerrain: true, openStart: 60, openEnd: 60 });
         city.roads.push(road); road.isBridge = true;
         // towers and cables for the suspension spans
@@ -168,6 +170,12 @@ window.World = (function () {
             [-9, 9].forEach(side => { cable(-250, -600, 70, side); cable(-600, -1100, 70, side); cable(-1100, -1450, 70, side); cable(-1550, -1900, 90, side); cable(-1900, -2250, 90, side); });
         }
         const sg = Road.at(road, 40, road.halfW + 2.5); city.signs.push(Signs.plain(sg.p, Signs.facingFrom(sg.tan), spec.name.split(' ')[0], spec.name.split(' ').slice(1).join(' ').toUpperCase() + ' → ' + other.name.toUpperCase(), 4, 2));
+        // on the freeway, both ways: the city's exit is the way onto the bridge
+        const hw = fwA.width / 2, d = city.side, sExit = city.s - d * 1200;
+        [[sExit - d * 600, d], [city.s + 1300, -d]].forEach(([sAt, dir]) => {
+            const f = Road.at(fwA, sAt, dir * (hw + 3.2));
+            city.signs.push(Signs.exitBoard(f.p, Signs.facingFrom(f.tan.clone().multiplyScalar(dir)), 'EXIT ' + city.exitNumber, [{ text: spec.name.replace(/^[A-Z0-9-]+ /, '') }, { text: 'to ' + other.name + ' · via ' + city.name + ' Frontage Rd', size: 40 }], dir === d ? '1 MILE' : 'USE ' + fwA.name + (d === 1 ? ' SOUTH' : ' NORTH')));
+        });
     }
 
     // City-specific roads: collector avenue, exit ramp in, on-ramp out, signs, service station,

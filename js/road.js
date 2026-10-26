@@ -255,6 +255,7 @@ window.Road = (function () {
                     const g2 = Terrain.height(px, pz), h2 = f.p.y - 1.3 - g2 + 0.5;
                     if (h2 < 1.2) return;
                     if (pierBlocked(px, pz)) return;               // a U-turn loop passes under here
+                    if (overAnotherDeck(px, pz, rec)) return;      // a bridge crossing a freeway: no pier on the road below
                     const pier = new THREE.Mesh(pierGeom, pierMat());
                     pier.scale.y = h2; pier.position.set(px, g2 - 0.5 + h2 / 2, pz);
                     pier.castShadow = true; pier.receiveShadow = true;
@@ -370,6 +371,14 @@ window.Road = (function () {
     // Yaw that makes a car (forward = local +z) face along `tan`
     R.yawOf = (tan) => Math.atan2(tan.x, tan.z);
 
+    // A pier must not land on another elevated road (a bridge viaduct crossing a freeway)
+    function overAnotherDeck(px, pz, rec) {
+        for (let k = 0; k < R.all.length; k++) {
+            const o = R.all[k]; if (o === rec || o.conform || o.type !== 'freeway' || !o.frames) continue;
+            for (let i = 0; i < o.frames.length; i += 2) { const p = o.frames[i].p; const dx = p.x - px, dz = p.z - pz; if (dx * dx + dz * dz < (o.halfW + 5) * (o.halfW + 5)) return true; }
+        }
+        return false;
+    }
     // Piers must not stand in a U-turn loop (or anything else flagged underFreeway) that passes under the freeway
     function pierBlocked(px, pz) {
         for (let k = 0; k < R.all.length; k++) {
