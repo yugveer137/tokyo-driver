@@ -132,7 +132,7 @@ window.SelfDrive = (function () {
     // (the next call plans the second one).
     function chooseUturn(fw, s, dir, want) {
         const cands = [];
-        fw.cities.forEach((c, k) => { if (k < fw.cities.length - 1) { cands.push({ s: c.s + 1500, fromDir: 1 }); cands.push({ s: c.s + 2400, fromDir: -1 }); } });
+        fw.cities.forEach((c, k) => { if (k < fw.cities.length - 1) { cands.push({ s: c.s + 1200, fromDir: 1 }); cands.push({ s: c.s + 2400, fromDir: -1 }); } });
         const ahead = cands.filter(u => u.fromDir === dir && (dir === 1 ? u.s > s + 80 : u.s < s - 80)).sort((a, b) => dir === 1 ? a.s - b.s : b.s - a.s);
         if (dir !== want.dir) return ahead.find(u => want.dir === -1 ? u.s > want.s + 100 : u.s < want.s - 100) || null;
         return ahead[0] || null;
@@ -203,17 +203,18 @@ window.SelfDrive = (function () {
         const cur = nearestRoad(pos);
         if (cur && cur.r !== S.road && cur.n.dist < cur.r.width * 0.6 && Road.nearest(S.road, pos).dist > S.road.width * 0.7) { S.road = cur.r; S.dir = headingDir(cur.r, cur.n); S.laneIndex = Math.min(S.laneIndex, S.road.lanes.filter(l => l.dir === S.dir).length - 1); }
         const n = Road.nearest(S.road, pos);
-        // On the freeway: work out which carriageway the destination's exit is on. If we are on
-        // the wrong one (or already past it), plan a U-turn loop; otherwise take the exit when it
-        // comes. Each city's exit is on the carriageway of its side, 1200 before the city.
+        // On the freeway: every city has an exit on both carriageways (1200 before it on its own
+        // side, 1000 before it on the other, see World.loadFarRamps). If ours is already behind
+        // us, plan a U-turn loop and take the other one; otherwise take the exit when it comes.
         const onFreeway = S.road.type === 'freeway';
         S.wantUturn = null;
         if (onFreeway && S.destRoad !== S.road) {
             const city = destCity();
             if (city && city.fw === S.road) {
-                const want = { dir: city.side, s: city.s - city.side * 1200 };
-                const exitAhead = S.dir === want.dir && (S.dir === 1 ? n.s < want.s - 60 : n.s > want.s + 60);
-                if (!exitAhead) S.wantUturn = chooseUturn(S.road, n.s, S.dir, want);
+                const exitS = (dir) => dir === city.side ? city.s - city.side * 1200 : city.s + city.side * 1000;
+                const want = { dir: S.dir, s: exitS(S.dir) };
+                const exitAhead = S.dir === 1 ? n.s < want.s - 60 : n.s > want.s + 60;
+                if (!exitAhead) S.wantUturn = chooseUturn(S.road, n.s, S.dir, { dir: -S.dir, s: exitS(-S.dir) });
             }
             const ahead = (l) => S.dir === 1 ? (l.sFrom > n.s && l.sFrom < n.s + 400) : (l.sFrom < n.s && l.sFrom > n.s - 400);
             const links = Traffic.links.filter(l => l.from === S.road && l.to.isExit && l.fromDir === S.dir && ahead(l) && Object.keys(l.to.chunks).length);

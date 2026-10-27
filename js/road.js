@@ -418,14 +418,18 @@ window.Road = (function () {
     }
 
     // An exit at arc-length s0, descending to `toPoint` (street level), continuing along `toDir`.
-    R.exit = function (fw, s0, dir, toPoint, toDir, name) {
+    // opts.keepY: the end point keeps its own height (landing on an elevated road instead of the
+    // ground); opts.via: extra points the ramp passes through on its way (an underpass, say).
+    R.exit = function (fw, s0, dir, toPoint, toDir, name, opts) {
+        opts = opts || {};
         const pts = PEEL.map(([k, lat, dy]) => peelPoint(fw, s0, dir, k, lat, dy));
         const end = toPoint.clone(), d = toDir.clone().normalize();
-        end.y = Terrain.height(end.x, end.z) + R.DRAPE;
-        const tail = end.clone().addScaledVector(d, 30); tail.y = Terrain.height(tail.x, tail.z) + R.DRAPE;
+        if (!opts.keepY) end.y = Terrain.height(end.x, end.z) + R.DRAPE;
+        const tail = end.clone().addScaledVector(d, 30); if (!opts.keepY) tail.y = Terrain.height(tail.x, tail.z) + R.DRAPE;
+        (opts.via || []).forEach(v => pts.push(v.clone()));
         pts.push(end.clone().addScaledVector(d, -40).setY((pts[pts.length - 1].y + end.y) / 2));
         pts.push(end); pts.push(tail);
-        clearTerrain(pts, 3, pts.length - 2);
+        if (!opts.keepY) clearTerrain(pts, 3, pts.length - 2);
         const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5);
         const rec = R.build({ type: 'ramp', curve, name: name || 'exit', segLen: 6, hugTerrain: true, gapsLeft: [[0, 170]], openEnd: 45 });
         rec.isExit = true; rec.from = fw; rec.s0 = s0; rec.dir = dir;
@@ -433,15 +437,21 @@ window.Road = (function () {
     };
 
     // An on-ramp: from a street point (heading fromDir) climbing to merge with `fw` at s1.
-    R.onramp = function (fw, s1, dir, fromPoint, fromDir, name) {
+    R.onramp = function (fw, s1, dir, fromPoint, fromDir, name, opts) {
+        opts = opts || {};
         const pts = [], d = fromDir.clone().normalize();
-        const start = fromPoint.clone(); start.y = Terrain.height(start.x, start.z) + R.DRAPE;
-        const head = start.clone().addScaledVector(d, -30); head.y = Terrain.height(head.x, head.z) + R.DRAPE;
+        const start = fromPoint.clone(); if (!opts.keepY) start.y = Terrain.height(start.x, start.z) + R.DRAPE;
+        const head = start.clone().addScaledVector(d, -30); if (!opts.keepY) head.y = Terrain.height(head.x, head.z) + R.DRAPE;
         pts.push(head); pts.push(start);
         const climb = PEEL.slice().reverse().map(([k, lat, dy]) => peelPoint(fw, s1, dir, -k, lat, dy));   // merge is reached last
-        pts.push(start.clone().addScaledVector(d, 40).setY(start.y + (climb[0].y - start.y) * 0.3));
+        // 40 m in the ramp is already climbing, unless via points come first (an underpass):
+        // then the climb starts after them and this point stays on the ground
+        const lead = start.clone().addScaledVector(d, 40);
+        lead.y = opts.via ? Terrain.height(lead.x, lead.z) + R.DRAPE : start.y + (climb[0].y - start.y) * 0.3;
+        pts.push(lead);
+        (opts.via || []).forEach(v => pts.push(v.clone()));
         climb.forEach(p => pts.push(p));
-        clearTerrain(pts, 2, pts.length - 5);
+        if (!opts.keepY) clearTerrain(pts, 2, pts.length - 5);
         const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal', 0.5);
         const len = curve.getLength();
         const rec = R.build({ type: 'ramp', curve, name: name || 'onramp', segLen: 6, hugTerrain: true, gapsLeft: [[len - 170, len]], openStart: 45 });
