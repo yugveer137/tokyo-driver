@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bay Area Driver: the ad</title>
+<style>
+    /* The ad for Bay Area Driver: 30 seconds of real driving from the game (six 5-second clips
+       in assets/ad), then the end card every game ad finishes on: GET, DOWNLOAD, the price. */
+    :root { --cyan: #00e5ff; --gold: #ffc233; --ink: #0b1020; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; background: #000; color: #fff; font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    body { display: flex; align-items: center; justify-content: center; }
+
+    /* the ad fills the screen but keeps the footage's 16:9 shape */
+    #stage { position: relative; width: min(100vw, 177.78vh); aspect-ratio: 16 / 9; background: #000; overflow: hidden; container-type: size; }   /* (sizes inside are in cqw/cqh: parts of the stage) */
+    #stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.35s; }
+    #stage video.on { opacity: 1; }
+    /* darker at the bottom so the caption reads over any scene */
+    #shade { position: absolute; inset: 0; background: linear-gradient(to bottom, #0006 0%, #0000 22%, #0000 55%, #000b 100%); pointer-events: none; }
+
+    #badge { position: absolute; left: 2.2%; top: 3.5%; display: flex; align-items: center; gap: 0.6em; font-size: clamp(10px, 1.5cqw, 16px); font-weight: 700; letter-spacing: 0.04em; }
+    #badge b { background: var(--gold); color: #000; border-radius: 0.3em; padding: 0.15em 0.5em; }
+    #clock { position: absolute; right: 2.2%; top: 3.5%; font-size: clamp(10px, 1.5cqw, 16px); font-weight: 700; background: #0008; border-radius: 99px; padding: 0.3em 0.9em; font-variant-numeric: tabular-nums; }
+    #bar { position: absolute; left: 0; top: 0; height: 0.6%; min-height: 3px; width: 0; background: var(--gold); }
+
+    #caption { position: absolute; left: 4%; right: 4%; bottom: 13%; text-align: center; font-size: clamp(18px, 5.2cqw, 64px); font-weight: 900; letter-spacing: 0.02em; line-height: 1.05; text-transform: uppercase; text-shadow: 0 0.06em 0.3em #000c; }
+    #caption span { display: inline-block; animation: pop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+    @keyframes pop { from { transform: translateY(0.5em) scale(0.92); opacity: 0; } to { transform: none; opacity: 1; } }
+    /* the shot from the driver's seat: the line goes to the top, clear of the hands on the wheel */
+    #stage.hands #caption { bottom: auto; top: 14%; }
+    #stage.hands #name { display: none; }
+    #stage.hands #shade { background: linear-gradient(to bottom, #0009 0%, #0000 40%); }
+    #name { position: absolute; left: 0; right: 0; bottom: 3.5%; text-align: center; font-size: clamp(10px, 1.6cqw, 18px); font-weight: 800; letter-spacing: 0.3em; color: var(--cyan); }
+
+    /* the screens over the footage: the start button, the end card and its two steps */
+    .screen { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 2.5cqh; padding: 3cqh 4cqw; text-align: center; background: radial-gradient(ellipse at 50% 30%, #1b2a55 0%, var(--ink) 70%); }
+    .screen.on { display: flex; }
+    #start { background: #000a; cursor: pointer; }
+    .icon { flex: none; height: 24cqh; width: 24cqh; border-radius: 22%; box-shadow: 0 0.5em 2em #000a; }
+    h1 { margin: 0; font-size: 10cqh; line-height: 1.1; font-weight: 900; letter-spacing: 0.02em; }
+    p { margin: 0; font-size: 4.4cqh; color: #c9d2e8; max-width: 34em; line-height: 1.35; }
+    .price { font-size: 22cqh; font-weight: 900; color: var(--gold); line-height: 1; }
+    button.big { border: 0; border-radius: 99px; padding: 0.5em 2.2em; font-size: 7cqh; font-weight: 900; letter-spacing: 0.08em; color: #000; background: var(--cyan); cursor: pointer; box-shadow: 0 0.3em 1.2em #00e5ff66; animation: nudge 1.6s ease-in-out infinite; }
+    button.big:active { transform: scale(0.96); }
+    @keyframes nudge { 50% { transform: scale(1.06); } }
+    button.small { border: 0; background: none; color: #9fb0d8; font-size: 3.6cqh; font-weight: 700; cursor: pointer; text-decoration: underline; }
+</style>
+</head>
+<body>
+<div id="stage">
+    <video src="assets/ad/clip1.mp4" muted playsinline preload="auto"></video>
+    <video src="assets/ad/clip6.mp4" muted playsinline preload="auto"></video>
+    <video src="assets/ad/clip7.mp4" muted playsinline preload="auto"></video>
+    <video src="assets/ad/clip3.mp4" muted playsinline preload="auto"></video>
+    <video src="assets/ad/clip4.mp4" muted playsinline preload="auto"></video>
+    <video src="assets/ad/clip5.mp4" muted playsinline preload="auto"></video>
+    <div id="shade"></div>
+    <div id="bar"></div>
+    <div id="badge"><b>AD</b><span>Bay Area Driver</span></div>
+    <div id="clock">0:30</div>
+    <div id="caption"></div>
+    <div id="name">BAY AREA DRIVER</div>
+
+    <div id="start" class="screen on">
+        <button class="big">&#9654; PLAY THE AD</button>
+    </div>
+
+    <!-- the end card -->
+    <div id="card" class="screen">
+        <svg class="icon" viewBox="0 0 100 100" aria-hidden="true">
+            <rect width="100" height="100" fill="#12244f"/>
+            <rect y="62" width="100" height="38" fill="#0c6fb0"/>
+            <!-- the bridge: two towers, the deck, the cables -->
+            <g fill="#e2522b"><rect x="24" y="18" width="6" height="50"/><rect x="70" y="18" width="6" height="50"/><rect x="0" y="54" width="100" height="5"/></g>
+            <path d="M0 40 Q13 54 27 20 Q50 70 73 20 Q87 54 100 40" fill="none" stroke="#e2522b" stroke-width="2.4"/>
+            <!-- the car -->
+            <g transform="translate(38 70)"><rect x="0" y="6" width="24" height="9" rx="3" fill="#b6ff2e"/><rect x="5" y="0" width="13" height="8" rx="3" fill="#b6ff2e"/><circle cx="6" cy="16" r="3.4" fill="#111"/><circle cx="18" cy="16" r="3.4" fill="#111"/></g>
+        </svg>
+        <h1>Bay Area Driver</h1>
+        <p>Drive the whole Bay Area: the bridges, the cities, the freeways.</p>
+        <button id="get" class="big">GET</button>
+        <button id="again" class="small">Watch the ad again</button>
+    </div>
+
+    <div id="download" class="screen">
+        <h1>Get Bay Area Driver</h1>
+        <p>It plays right in your browser. Nothing to install.</p>
+        <button id="dl" class="big">DOWNLOAD</button>
+    </div>
+
+    <div id="pay" class="screen">
+        <p>It costs a little bit of money:</p>
+        <div class="price">$1</div>
+        <p>Pay $1 and the game is yours. You never have to pay inside the game.</p>
+        <button id="go" class="big">PLAY NOW</button>
+    </div>
+</div>
+
+<script src="js/config.js"></script>
+<script>
+// Six clips, five seconds each: thirty seconds. Each has the line shown over it. The view
+// changes from shot to shot: behind the car, the driver's hands on the wheel, the car's nose.
+const CLIP_SECONDS = 5;
+const HANDS_CLIP = 1;            // the cockpit shot (see the .hands style)
+const LINES = [
+    'Drive the Golden Gate',
+    'Take the wheel',
+    'Cross the Bay Bridge',
+    'Turn through the city streets',
+    'Cruise the night',
+    'Floor it on the freeway',
+];
+const $ = (id) => document.getElementById(id);
+const clips = [...document.querySelectorAll('#stage video')];
+const TOTAL = CLIP_SECONDS * clips.length;
+let startedAt = 0, playing = -1, timer = 0;
+
+function show(screen) {
+    ['start', 'card', 'download', 'pay'].forEach(id => $(id).classList.toggle('on', id === screen));
+}
+
+// put clip k on screen from its first frame, with its line
+function playClip(k) {
+    playing = k;
+    clips.forEach((v, i) => { v.classList.toggle('on', i === k); if (i !== k) v.pause(); });
+    const v = clips[k];
+    v.currentTime = 0;
+    v.play().catch(() => { /* (a browser that refuses to play: the clock still runs to the end card) */ });
+    $('caption').innerHTML = '<span>' + LINES[k] + '</span>';
+    $('stage').classList.toggle('hands', k === HANDS_CLIP);
+}
+
+// one clock runs the whole ad, so it lasts thirty seconds whatever the videos do
+function tick() {
+    const t = (performance.now() - startedAt) / 1000;
+    if (t >= TOTAL) { endAd(); return; }
+    const k = Math.floor(t / CLIP_SECONDS);
+    if (k !== playing) playClip(k);
+    $('bar').style.width = (t / TOTAL * 100) + '%';
+    $('clock').textContent = '0:' + String(Math.ceil(TOTAL - t)).padStart(2, '0');
+    timer = requestAnimationFrame(tick);
+}
+
+function startAd() {
+    show(null);
+    startedAt = performance.now(); playing = -1;
+    cancelAnimationFrame(timer); tick();
+}
+function endAd() {
+    cancelAnimationFrame(timer);
+    clips.forEach(v => v.pause());
+    $('bar').style.width = '100%'; $('clock').textContent = '0:00'; $('caption').innerHTML = ''; $('stage').classList.remove('hands');
+    show('card');
+}
+
+$('start').onclick = startAd;
+$('again').onclick = startAd;
+$('get').onclick = () => show('download');
+$('dl').onclick = () => show('pay');
+$('go').onclick = () => { location.href = CFG.SITE; };
+</script>
+</body>
+</html>

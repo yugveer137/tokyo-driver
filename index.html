@@ -29,7 +29,6 @@
         .side-btn { padding: 8px 6px; border: none; border-radius: 9px; color: #fff; font-weight: 700; font-size: 0.72rem; letter-spacing: 0.5px; cursor: pointer; box-shadow: 0 3px 10px #0006; }
         #garage-btn { background: linear-gradient(135deg, #7b5cff, #5a3cd6); }
         #travel-btn { background: linear-gradient(135deg, #2f9bff, #1d6fd6); }
-        #honk-btn { background: linear-gradient(135deg, #ff9a2f, #e0701c); }
         #view-btn { background: linear-gradient(135deg, #5a6b7a, #3b4650); }
         #delivery-btn { background: linear-gradient(135deg, #ff5d7a, #d63a58); }
         #cruise-btn { background: linear-gradient(135deg, #5a6b7a, #3b4650); } #cruise-btn.on { background: linear-gradient(135deg, #38d66b, #1f9a48); }
@@ -151,7 +150,7 @@
         <div class="box row"><span>Coins: <b id="hud-coins">0</b></span><span>Car: <b id="hud-car">—</b></span><span>Area: <b id="hud-area">—</b></span><span>Time: <b id="hud-clock">—</b></span></div>
     </div>
     <div id="gear"><small>GEAR</small><div id="hud-gear">1</div></div>
-    <div id="hint"><kbd>W</kbd>/<kbd>S</kbd> drive &nbsp; <kbd>A</kbd>/<kbd>D</kbd> steer &nbsp; <kbd>Space</kbd> drift &nbsp; <kbd>F</kbd> horn<br><kbd>Z</kbd>/<kbd>X</kbd> gears &nbsp; <kbd>C</kbd> view &nbsp; <kbd>Q</kbd>/<kbd>E</kbd>/<kbd>H</kbd> signals &nbsp; <kbd>K</kbd> cruise &nbsp; <kbd>V</kbd> rain &nbsp; <kbd>R</kbd> reset &nbsp; <kbd>B</kbd> boost &nbsp; <kbd>G</kbd> walk &nbsp; <kbd>T</kbd> train &nbsp; <kbd>E</kbd> rob (on foot)</div>
+    <div id="hint"><kbd>W</kbd>/<kbd>S</kbd> drive &nbsp; <kbd>A</kbd>/<kbd>D</kbd> steer &nbsp; <kbd>Space</kbd> drift<br><kbd>Z</kbd>/<kbd>X</kbd> gears &nbsp; <kbd>C</kbd> view &nbsp; <kbd>Q</kbd>/<kbd>E</kbd>/<kbd>H</kbd> signals &nbsp; <kbd>K</kbd> cruise &nbsp; <kbd>V</kbd> rain &nbsp; <kbd>R</kbd> reset &nbsp; <kbd>B</kbd> boost &nbsp; <kbd>G</kbd> walk &nbsp; <kbd>T</kbd> train &nbsp; <kbd>E</kbd> rob (on foot)</div>
     <div id="hud-fps"></div>
     <button id="menu-toggle">MENU ▾</button>
     <div id="side-btns">
@@ -172,7 +171,6 @@
         <button class="side-btn" id="lane-btn">LANE LOCK</button>
         <button class="side-btn" id="front-btn">FRONT LOCK</button>
         <button class="side-btn" id="rain-btn">RAIN</button>
-        <button class="side-btn" id="honk-btn">HONK</button>
         <button class="side-btn" id="view-btn">VIEW</button>
         <button class="side-btn" id="reset-btn" style="background: linear-gradient(135deg, #ffb000, #d68a00); color: #1a1200">RESET CAR (R)</button>
         <button class="side-btn" id="tow-btn" style="background: linear-gradient(135deg, #ffcf4a, #e0a300); color: #1a1200">TOW TRUCK</button>
@@ -180,7 +178,6 @@
         <button class="side-btn" id="damage-btn" style="background: linear-gradient(135deg, #8a9bb0, #56677c)">DAMAGE</button>
         <button class="side-btn" id="walk-btn" style="background: linear-gradient(135deg, #52b8ff, #1f7fd0)">WALK (G)</button>
         <button class="side-btn" id="boost-btn" style="background: linear-gradient(135deg, #ff3b4a, #b80d1c)">BOOST (B)</button>
-        <button class="side-btn" id="music-btn" style="background: linear-gradient(135deg, #c04bff, #7a1fd0)">MUSIC</button>
     </div>
     <div id="hud-delivery"></div>
     <div id="hud-damage"></div>
@@ -245,7 +242,6 @@
                 <button id="mp-back" class="menu-btn menu-btn-ghost">BACK</button>
             </div>
             <div id="settings-panel">
-                <div class="setting-row"><span>Sound</span><button id="sound-toggle" class="toggle-btn">ON</button></div>
                 <div class="setting-row"><span>Game mode</span><button id="mode-toggle" class="toggle-btn">DRIVE</button></div>
                 <div style="opacity:0.7;font-size:0.78rem;margin:-4px 0 10px">ROBBERY: each level is a city with glowing houses to rob. Park, get out (G), walk to the door and hold E. Lose the police to keep the loot.</div>
                 <div class="setting-row"><span>Player</span><span id="who-label">—</span></div>
@@ -298,10 +294,6 @@
         <div class="modal-head"><h2>DAMAGE</h2><button class="toggle-btn" data-close="damage-modal">CLOSE</button></div>
         <div class="modal-body" id="damage-list"></div>
     </div></div>
-    <div class="modal" id="music-modal"><div class="modal-box" style="width:min(460px,94vw)">
-        <div class="modal-head"><h2>MUSIC</h2><button class="toggle-btn" id="music-stop">STOP</button><button class="toggle-btn" data-close="music-modal">CLOSE</button></div>
-        <div class="modal-body" id="music-list"></div>
-    </div></div>
     <div class="modal" id="travel-modal"><div class="modal-box" style="width:min(420px,94vw)">
         <div class="modal-head"><h2>FAST TRAVEL</h2><button class="toggle-btn" data-close="travel-modal">CLOSE</button></div>
         <div class="modal-body" id="travel-list"></div>
@@ -318,7 +310,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script>
     // Load the game files with a cache-busting stamp so Safari never runs a stale mix of old and new files
-    (function () { const v = Date.now(); ['config','save','textures','sky','terrain','road','signs','train','peds','walk','music','police','robbery','city','cities','traffic','world','carmodels','models','audio','car','game','features','races','selfdrive','multiplayer','osm','ui','minimap','debug','main'].forEach(function (f) { document.write('<script src="js/' + f + '.js?v=' + v + '"><\/script>'); }); })();
+    (function () { const v = Date.now(); ['config','save','textures','sky','terrain','road','signs','train','peds','walk','police','robbery','city','cities','traffic','world','carmodels','models','car','game','features','races','selfdrive','multiplayer','osm','ui','minimap','debug','main'].forEach(function (f) { document.write('<script src="js/' + f + '.js?v=' + v + '"><\/script>'); }); })();
     </script>
 </body>
 </html>

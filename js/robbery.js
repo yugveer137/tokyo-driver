@@ -109,7 +109,7 @@ window.Robbery = (function () {
         if (!quiet) {
             // step out with the money while the patrol car is right there and it has seen you
             const cop = Police.car && Police.state === 'watch' && Police.car.mesh.position.distanceTo(Walk.pos) < COP_SEES;
-            if (i.took && cop && !Police.wanted) { UI.toast('The police saw you come out with the money — big chase! Get to the car!', 4000); if (window.GameAudio) GameAudio.honk(); Police.alert(); }
+            if (i.took && cop && !Police.wanted) { UI.toast('The police saw you come out with the money — big chase! Get to the car!', 4000); Police.alert(); }
             else UI.toast(i.room.awake ? 'Out. Now lose the police!' : i.took ? 'Out with the money, nobody saw a thing.' : 'Out, nice and quiet.', 2500);
         }
         if (R.levelDone && R.on) finishLevel();                                // the last house of the level: it ends on the doorstep
@@ -130,7 +130,6 @@ window.Robbery = (function () {
         const got = Math.round(t.value / cashDrawers);
         i.took += got; R.loot += got; Game.addCoins(got);
         UI.toast('Got ' + got + ' coins!', 2500);
-        if (window.GameAudio) GameAudio.honk();
         if (i.room.drawers.every(d => !d.cash || d.taken)) robbed(t);
     }
     // a house is done: its marker goes, the level is checked
@@ -373,7 +372,7 @@ window.Robbery = (function () {
             if (f.t > CREW_INSIDE) {
                 const t = f.target; f.target = null; t.crewOf = null;
                 m.visible = true; f.state = 'back';
-                if (!t.robbed) { const got = Math.round(t.value * 0.7); R.loot += got; Game.addCoins(got); say(f, 'Done. ' + t.name + ': ' + got + ' coins.'); UI.toast(f.name + ' robbed ' + t.name + ': +' + got + ' coins', 3000); if (window.GameAudio) GameAudio.honk(); robbed(t); }
+                if (!t.robbed) { const got = Math.round(t.value * 0.7); R.loot += got; Game.addCoins(got); say(f, 'Done. ' + t.name + ': ' + got + ' coins.'); UI.toast(f.name + ' robbed ' + t.name + ': +' + got + ' coins', 3000); robbed(t); }
             }
         } else if (f.state === 'back') {
             const side = c.pos.clone().add(new THREE.Vector3(Math.cos(c.yaw) * 1.6, 0, -Math.sin(c.yaw) * 1.6));
@@ -442,7 +441,6 @@ window.Robbery = (function () {
         const i = R.inside; if (!i || i.room.awake) return;
         i.room.wake(); i.t.spooked = true; R.active = null;
         if (i.t.mesh) { scene.remove(i.t.mesh); i.t.mesh = null; }            // (a woken house is lost for the level: no glowing door)
-        if (window.GameAudio) GameAudio.honk();
         checkLevel(false);
         if (i.t.station) {
             UI.toast('"FREEZE!" The night officer has you — handcuffed on the spot.', 3500);
@@ -515,7 +513,6 @@ window.Robbery = (function () {
                 const target = a.target; R.active = null;
                 R.loot += target.value; Game.addCoins(target.value);
                 UI.toast('Got ' + target.value + ' coins from ' + target.name + '! The police are coming — get to the car and lose them.', 4000); Police.alert();
-                if (window.GameAudio) GameAudio.honk();
                 robbed(target);
             }
         } else if (walking && !R.inside && !Walk.cuffed && !Walk.ride && Police.state !== 'arrest') {   // (no door hints over the officer's lines)
@@ -557,7 +554,7 @@ window.Robbery = (function () {
                 let got = 0, n = 0;
                 room.drawers.forEach(d => { if (!d.open) { room.openDrawer(d); i.noise += NOISE_DRAWER; } if (d.cash && !d.taken) { room.takeCash(d); n++; } });
                 const cashDrawers = room.drawers.filter(d => d.cash).length;
-                if (n) { got = Math.round(i.t.value / cashDrawers) * n; i.took += got; R.loot += got; Game.addCoins(got); UI.toast('Grabbed everything: +' + got + ' coins! Now slip out (E at the door).', 3000); if (window.GameAudio) GameAudio.honk(); robbed(i.t); }
+                if (n) { got = Math.round(i.t.value / cashDrawers) * n; i.took += got; R.loot += got; Game.addCoins(got); UI.toast('Grabbed everything: +' + got + ' coins! Now slip out (E at the door).', 3000); robbed(i.t); }
                 else UI.toast('The drawers are already empty. Slip out (E at the door).', 2000);
             }
         } else {
@@ -612,7 +609,6 @@ window.Robbery = (function () {
             room.wake(); room.closeCell(); j.sneaking = false; j.noise = 0; j.wakeT = 0;
             Walk.pos.copy(room.cell); Walk.pos.y = room.floorY;
             UI.toast('"HEY!" The officer grabs you and marches you straight back into the cell. Quieter next time.', 4000);
-            if (window.GameAudio) GameAudio.honk();
         }
     }
     R.escape = function () {
@@ -627,7 +623,6 @@ window.Robbery = (function () {
             R.friends.forEach(f => { if (f === R.borrowed) return; f.order = null; if (f.target) { f.target.crewOf = null; f.target = null; } f.route = [Walk.pos.clone()]; f.state = 'come'; f.mesh.visible = false; say(f, 'Saw you slip out — on my way!'); });
             UI.toast('Out of the station! Albert and Benny are racing over — run to a black car and press G to take the wheel.', 5000);
         } else UI.toast('Out of the station! Your car is back where you left it — run.', 4000);
-        if (window.GameAudio) GameAudio.honk();
         updateHud();
     };
     // ---- driving a friend's car. G beside one of the black cars and it is yours to drive: your

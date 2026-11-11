@@ -225,7 +225,6 @@ window.Features = (function () {
         const hit = Math.min(40, (speedAlongNormal - 6) * 2);
         Damage.pct = Math.min(100, Damage.pct + hit);
         UI.toast('Crash! +' + Math.round(hit) + '% damage');
-        if (window.GameAudio) GameAudio.npcHorn();
         damageHud();
     };
     // DAMAGE panel: the bar bigger, live while it is open
@@ -282,11 +281,10 @@ window.Features = (function () {
             if (w.state === 'open') {
                 if (d < 3.2 && Car.mph < 2 && !Car.parked) { w.state = 'closing'; w.t = 0; Car.autoBrake = true; UI.toast(c.name + ' workshop: door closing…', 2500); }
             } else if (w.state === 'closing') {
-                if (Math.abs(w.door.position.y - w.closedY) < 0.15) { w.state = 'working'; w.t = 0; UI.toast('Working on your car…', 3500); if (window.GameAudio && GameAudio.clank) GameAudio.clank(); }
+                if (Math.abs(w.door.position.y - w.closedY) < 0.15) { w.state = 'working'; w.t = 0; UI.toast('Working on your car…', 3500); }
             } else if (w.state === 'working') {
                 w.t += dt;
                 w.sparks.visible = Math.random() < 0.5; w.sparks.position.x = -1.5 + Math.random() * 3; w.sparks.position.z = -1.5 + Math.random() * 3;
-                if (Math.floor(w.t * 4) !== Math.floor((w.t - dt) * 4) && window.GameAudio && GameAudio.clank) GameAudio.clank();
                 if (w.t > 5) {
                     w.sparks.visible = false; w.state = 'opening'; Car.autoBrake = false;
                     Damage.pct = 0; Damage.stranded = false; Car.damageGrip = 1; damageHud();
@@ -389,7 +387,6 @@ window.Features = (function () {
             const el = Tada.el || (Tada.el = document.getElementById('tada'));
             if (el) { el.textContent = 'TA-DA! ' + Tada.next + ' MPH'; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show'); }
             Tada.next = Tada.next < 100 ? 100 : Tada.next < 150 ? 150 : Tada.next + 100;
-            if (window.GameAudio) GameAudio.honk();
         }
     }
 

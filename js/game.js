@@ -39,14 +39,12 @@ window.Game = (function () {
             const p = Car.body.position, q = Car.body.quaternion;
             const yaw = Math.atan2(2 * (q.w * q.y + q.x * q.z), 1 - 2 * (q.y * q.y + q.z * q.z));
             Car.spawn(G.carData(id), new THREE.Vector3(p.x, p.y + 0.5, p.z), yaw);
-            if (window.GameAudio) GameAudio.setCar(G.carData(id));
         }
         return true;
     };
     G.start = function () {
         if (G.started) return;
         G.started = true;
-        if (window.GameAudio) { GameAudio.init(); GameAudio.setCar(G.carData()); }
     };
 
     // ---------- coins ----------

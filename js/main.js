@@ -108,7 +108,7 @@
         Road.init(scene, world);
         Signs.init(scene);
         Train.init(scene);
-        Peds.init(scene); Walk.init(scene, camera); Music.init(); Police.init(scene); Robbery.init(scene);
+        Peds.init(scene); Walk.init(scene, camera); Police.init(scene); Robbery.init(scene);
         City.init(scene, world);
         Traffic.init(scene, world);
         Car.init(scene, world, camera);
@@ -178,7 +178,6 @@
                 UI.area = World.areaAt(Car.body.position);
                 UI.limit = World.speedLimitAt(Car.body.position);
             }
-            if (Game.started && window.GameAudio) GameAudio.update({ mph: Car.mph, throttle: Car.throttle, lateralVel: Car.lateralVel, drifting: Car.drifting });
             Minimap.update(Car.body.position, Car.yaw());
             Features.update(dt);
             Walk.update(dt); Peds.update(dt, Walk.active ? Walk.pos : focus); Police.update(dt); Robbery.update(dt);

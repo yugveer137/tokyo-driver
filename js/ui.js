@@ -20,7 +20,6 @@ window.UI = (function () {
             if (e.code === 'KeyC') { if (window.Train && Train.riding) Train.toggleView(); else Car.toggleView(); }
             if (e.code === 'KeyB') Car.boostStart();
             if (e.code === 'KeyG' && window.Walk) Walk.toggle();
-            if (e.code === 'KeyF' && window.GameAudio) GameAudio.honk();
             if (e.code === 'KeyN') Sky.speed = Sky.speed === 1 ? 12 : 1;
             if (e.code === 'KeyV') Features.toggleRain();
             if (e.code === 'KeyK') Features.toggleCruise();
@@ -40,7 +39,6 @@ window.UI = (function () {
         $('settings-btn').onclick = () => { $('menu-main').style.display = 'none'; $('settings-panel').style.display = 'block'; refreshSettings(); };
         $('settings-back').onclick = () => { $('menu-main').style.display = 'block'; $('settings-panel').style.display = 'none'; };
         $('multiplayer-btn').onclick = () => Multiplayer.showMenu();
-        $('sound-toggle').onclick = () => { if (window.GameAudio) { GameAudio.setEnabled(!GameAudio.isEnabled()); refreshSettings(); } };
         $('mode-toggle').onclick = () => { Robbery.setEnabled(!Robbery.isOn()); refreshSettings(); };
         $('switch-player-btn').onclick = () => Save.signOut();
         $('paylink-save').onclick = () => {
@@ -53,7 +51,6 @@ window.UI = (function () {
         // side buttons + modals
         $('garage-btn').onclick = () => { U.renderGarage(); $('garage-modal').classList.add('open'); };
         $('travel-btn').onclick = () => { U.renderTravel(); $('travel-modal').classList.add('open'); };
-        $('honk-btn').onclick = () => { if (window.GameAudio && Game.started) GameAudio.honk(); };
         $('delivery-btn').onclick = () => { if (Game.started) Features.startDelivery(); };
         $('cruise-btn').onclick = () => { if (Game.started) Features.toggleCruise(); };
         $('rain-btn').onclick = () => Features.toggleRain();
@@ -86,8 +83,6 @@ window.UI = (function () {
         $('lane-btn').onclick = () => { if (Game.started) Features.toggleLaneLock(); };
         $('front-btn').onclick = () => { if (Game.started) Features.toggleFrontLock(); };
         $('view-btn').onclick = () => { if (window.Train && Train.riding) Train.toggleView(); else Car.toggleView(); };
-        $('music-btn').onclick = () => { U.renderMusic(); $('music-modal').classList.add('open'); };
-        $('music-stop').onclick = () => { Music.stop(); U.renderMusic(); };
         $('walk-btn').onclick = () => { if (Game.started && window.Walk) Walk.toggle(); };
         $('boost-btn').onclick = () => { if (Game.started) Car.boostStart(); };
         $('fix-btn').onclick = () => { if (Game.started) Features.fixAtWorkshop(); };
@@ -114,28 +109,12 @@ window.UI = (function () {
     };
 
     function refreshSettings() {
-        $('sound-toggle').textContent = (window.GameAudio && !GameAudio.isEnabled()) ? 'OFF' : 'ON';
         $('mode-toggle').textContent = (window.Robbery && Robbery.isOn()) ? 'ROBBERY' : 'DRIVE';
         $('who-label').textContent = Save.isCreator() ? 'creator' : Save.account();
         $('paylink-row').style.display = Save.isCreator() ? 'block' : 'none';
         $('paylink-input').value = Save.getGlobal('td_pay_link', '') || '';
     }
 
-    U.renderMusic = function () {
-        const list = $('music-list'); if (!list || !window.Music) return;
-        list.innerHTML = '';
-        Music.songs.forEach(sg => {
-            const b = document.createElement('button'); b.className = 'menu-btn'; b.style.margin = '6px 0';
-            const on = Music.current === sg && Music.playing;
-            b.textContent = (on ? '■  ' : '▶  ') + sg.title + '   —   ' + sg.bpm + ' bpm';
-            if (on) b.style.background = 'linear-gradient(135deg, #ffd21e, #ff9a00)';
-            b.onclick = () => { if (on) Music.stop(); else Music.play(sg.id); U.renderMusic(); };
-            list.appendChild(b);
-        });
-        const note = document.createElement('div'); note.style.cssText = 'opacity:0.7;font-size:0.8rem;margin-top:8px;line-height:1.4';
-        note.textContent = 'Four original instrumental rap beats the game plays live (drums, 808s, synth).';
-        list.appendChild(note);
-    };
     U.showMenu = function () { $('start-screen').style.display = 'flex'; };
     U.enterDriveReady = function () { $('start-screen').style.display = 'none'; $('drive-btn').style.display = 'block'; };
     U.closeModals = function () { document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open')); };

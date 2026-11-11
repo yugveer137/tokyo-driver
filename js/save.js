@@ -196,7 +196,7 @@
         #pay-more { width: 54px; border: none; border-radius: 10px; font-size: 1.3rem; cursor: pointer; background: #1c2a3c; color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.35); }
         #pay-plans, #pay-more-box { display: none; margin-top: 14px; }
         #pay-plans.on, #pay-more-box.on { display: block; }
-        #pay-plans .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+        #pay-plans .plans { display: grid; grid-template-columns: minmax(0, 220px); justify-content: center; gap: 8px; margin-bottom: 12px; }
         #pay-plans .plan { background: #101a2e; border: 1px solid rgba(0, 229, 255, 0.25); border-radius: 12px; padding: 12px 6px; }
         #pay-plans .plan b { display: block; font-size: 1.5rem; color: #00ff88; }
         #pay-plans .plan span { display: block; font-size: 0.72rem; color: #8aa; margin: 4px 0 8px; }
@@ -300,17 +300,15 @@
         <div class="pay-card">
             <h2>Bay Area Driver</h2>
             <div class="pay-price">PAY $1</div>
-            <p class="pay-sub">A week of Bay Area Driver is $1. Pay the owner by email and you get a money code that opens the game.</p>
+            <p class="pay-sub">Bay Area Driver costs $1, once. Pay the owner by email and you get a money code that opens the game for good. There is nothing to pay for inside the game.</p>
             <div class="pay-row"><button id="pay-btn">PAY $1</button><button id="pay-more" title="more choices">&#9662;</button></div>
             <div id="pay-plans">
                 <div class="plans">
-                    <div class="plan"><b>$1</b><span>a week</span><a id="mail-week" href="#">EMAIL TO PAY</a></div>
-                    <div class="plan"><b>$10</b><span>a month</span><a id="mail-month" href="#">EMAIL TO PAY</a></div>
-                    <div class="plan"><b>$100</b><span>a year</span><a id="mail-year" href="#">EMAIL TO PAY</a></div>
+                    <div class="plan"><b>$1</b><span>once, and the game is yours to keep</span><a id="mail-once" href="#">EMAIL TO PAY</a></div>
                 </div>
                 <p class="pay-sub" style="margin-bottom:8px">To play you have to email the owner at<br>
                    <b style="color:#fff;font-size:1.1em">${OWNER_EMAIL}</b><br>
-                   Say which plan you want and write your game login:<br>
+                   Write your game login in the email:<br>
                    <b id="pay-login" style="color:#7fa"></b><br>
                    The owner emails you back your money code. Type it below and you can play.</p>
                 <button id="copy-owner" class="toggle-btn">COPY THE OWNER'S EMAIL ADDRESS</button>
@@ -540,10 +538,10 @@
                 if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(OWNER_EMAIL).then(done, done); else done();
             });
 
-            // PAY $1 opens the plans; each plan's EMAIL TO PAY drafts the email to the owner
+            // PAY $1 opens the one price ($1, once: the money code never runs out); EMAIL TO PAY drafts the email to the owner
             const plans = gate.querySelector('#pay-plans'), more = gate.querySelector('#pay-more-box');
             const login = account() || '(not signed in)';
-            [['mail-week', '$1 for a week'], ['mail-month', '$10 for a month'], ['mail-year', '$100 for a year']].forEach(function (pair) {
+            [['mail-once', '$1, once']].forEach(function (pair) {
                 const a = gate.querySelector('#' + pair[0]);
                 a.href = 'mailto:' + OWNER_EMAIL + '?subject=' + encodeURIComponent('Bay Area Driver: ' + pair[1]) + '&body=' + encodeURIComponent('Hi, I want to play Bay Area Driver: ' + pair[1] + '.\nMy game login: ' + login + '\nPlease send me my money code.');
             });
@@ -551,7 +549,7 @@
                 plans.classList.toggle('on'); more.classList.remove('on');
                 const link = String(getGlobal(PAY_LINK_KEY, '') || '').trim();
                 if (link) window.open(link, '_blank', 'noopener');
-                noteEl.textContent = plans.classList.contains('on') ? 'Pick a plan, email ' + OWNER_EMAIL + ', and type the money code you get back.' : '';
+                noteEl.textContent = plans.classList.contains('on') ? 'Email ' + OWNER_EMAIL + ' to pay your $1, and type the money code you get back.' : '';
             });
             gate.querySelector('#pay-more').addEventListener('click', function () { more.classList.toggle('on'); });
             // the free trials: one per account; the gate comes back when the days are up
@@ -565,7 +563,7 @@
             gate.querySelector('#free3').addEventListener('click', function () { startTrial(3); });
             if (readRaw(nsKey('trialUsed'), null) === 'yes') {                    // one trial per account: the buttons go grey
                 ['#trial7', '#free3'].forEach(function (sel) { var b = gate.querySelector(sel); b.disabled = true; b.style.opacity = '0.45'; b.textContent = 'FREE TRIAL ALREADY USED'; });
-                if (trialLeftMs() <= 0) noteEl.textContent = 'Your free trial has ended. $1 keeps you driving for a week.';
+                if (trialLeftMs() <= 0) noteEl.textContent = 'Your free trial has ended. $1, once, keeps you driving for good.';
             }
 
             // Unlock code the owner emails to people who've paid. Only its SHA-256 fingerprint

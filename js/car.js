@@ -9,6 +9,7 @@ window.Car = (function () {
     let steer = 0;
     const camPos = new THREE.Vector3(), camLook = new THREE.Vector3();
     const tmpV = new THREE.Vector3(), tmpQ = new THREE.Quaternion();
+    const armAxis = new THREE.Vector3(0, 0, 1);                  // a sleeve's long axis (see CarModels: the driver's arms)
 
     C.keys = keys;
 
@@ -195,7 +196,6 @@ window.Car = (function () {
         if (C.boost.cooldown > 0) { UI.toast('Boost recharging — ' + Math.ceil(C.boost.cooldown) + ' s'); return; }
         C.boost.active = 10; C.boost.cooldown = 40;
         UI.toast('BOOST! Ten seconds of extra power', 2000);
-        if (window.GameAudio) GameAudio.honk();
     };
     function updateCockpitExtras(dt) {
         if (C.boost.active > 0) C.boost.active = Math.max(0, C.boost.active - dt);
@@ -205,6 +205,18 @@ window.Car = (function () {
         if (u.crystal) { const want = (C.mph < 1 && !keys.fwd && !keys.back) ? 0 : Math.PI; u.crystal.rotation.x += (want - u.crystal.rotation.x) * Math.min(1, dt * 4); }
         if (u.boostBtn) u.boostBtn.material.color.setHex(C.boost.active > 0 ? (Math.floor(performance.now() / 150) % 2 ? 0xff5566 : 0x7a0010) : C.boost.cooldown > 0 ? 0x5a1a20 : 0xd11a2a);
         if (u.steeringWheelSpin) u.steeringWheelSpin.rotation.z = steer * 2.5;
+        // the driver's arms: each sleeve runs from its elbow (low, either side of the wheel, just
+        // in front of the eye) to its hand, wherever the wheel has turned it
+        if (u.arms && u.steeringWheelSpin) {
+            const hub = u.steeringWheelSpin.parent.position;
+            u.arms.forEach(a => {
+                a.hand.getWorldPosition(tmpV); I.worldToLocal(tmpV);
+                a.arm.position.set(hub.x + a.side * 0.27, hub.y - 0.2, hub.z - 0.38);
+                tmpV.sub(a.arm.position);
+                a.arm.scale.z = tmpV.length();
+                a.arm.quaternion.setFromUnitVectors(armAxis, tmpV.normalize());
+            });
+        }
         if (C.group.userData.lidar) C.group.userData.lidar.rotation.y += dt * 8;
         if (u.ambient && window.Sky) u.ambient.material.color.setHex(Sky.night > 0.5 ? 0x9fd8ff : (C.data && C.data.color) || 0x00d9ff);
         if (mirrorRT && window.game && mirrorFrame++ % 4 === 0) {
@@ -277,7 +289,8 @@ window.Car = (function () {
 
     C.gearUp = function () { if (C.gear < CFG.GEARS.length - 1) C.gear++; C.manualTimer = 4; };
     C.gearDown = function () { if (C.gear > 0) C.gear--; C.manualTimer = 4; };
-    C.toggleView = function () { C.view = C.view === 'chase' ? 'cockpit' : 'chase'; };
+    // C cycles the camera: behind the car, the driver's seat, in front of the car looking back at it
+    C.toggleView = function () { C.view = C.view === 'chase' ? 'cockpit' : C.view === 'cockpit' ? 'front' : 'chase'; };
 
     C.teleport = function (x, y, z, yaw) {
         const b = C.body; if (!b) return;
@@ -433,6 +446,16 @@ window.Car = (function () {
         }
         if (!C.group.visible) { C.group.visible = true; C.wheels.forEach(w => w.visible = true); }
         const s = Math.min(C.mph / 200, 1);
+        if (C.view === 'front') {                                   // ahead of the car, looking back at its nose
+            tmpV.set(0, 1.7 + s, 9 + 4 * s).applyQuaternion(tmpQ).add(b.position);
+            tmpV.y = Math.max(tmpV.y, Terrain.height(tmpV.x, tmpV.z) + 1);
+            camPos.copy(tmpV); camera.position.copy(tmpV);
+            camLook.set(b.position.x, b.position.y + 0.8, b.position.z);
+            camera.lookAt(camLook);
+            camera.fov += (70 - camera.fov) * (1 - Math.exp(-dt * 4));
+            camera.updateProjectionMatrix();
+            return;
+        }
         tmpV.set(0, 6 + 2 * s, -14 - 6 * s).applyQuaternion(tmpQ).add(b.position);
         // keep the camera above the ground
         const gy = Terrain.height(tmpV.x, tmpV.z) + 1.5;

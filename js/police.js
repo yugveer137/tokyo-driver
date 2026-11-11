@@ -1,6 +1,6 @@
 // tokyo-driver1 v2 — police. A patrol car shadows you on the freeway and the avenues. Go more
 // than 15 over the limit near it and it lights up and gives chase: pull over (stop) and you pay
-// a fine, outrun it by 500 m and you are clear. The siren is GameAudio.siren(). In ROBBERY
+// a fine, outrun it by 500 m and you are clear. The game is silent: no siren. In ROBBERY
 // mode a patrol car also idles along the street while you are on foot, watching the houses:
 // walk and it ignores you, run within its sight and it comes for you.
 window.Police = (function () {
@@ -21,10 +21,10 @@ window.Police = (function () {
         scene.add(g);
         P.car = { mesh: g, road, s, dir, speed: 0 };
     }
-    function remove() { if (P.car) { scene.remove(P.car.mesh); if (P.car.arrest && P.car.arrest.cop) scene.remove(P.car.arrest.cop); } if (window.Walk) { Walk.cuffed = false; if (Walk.ride) { Walk.ride = null; if (Walk.avatar) Walk.avatar.visible = true; } } P.car = null; P.state = 'off'; P.wanted = false; if (window.GameAudio && GameAudio.siren) GameAudio.siren(false); }
+    function remove() { if (P.car) { scene.remove(P.car.mesh); if (P.car.arrest && P.car.arrest.cop) scene.remove(P.car.arrest.cop); } if (window.Walk) { Walk.cuffed = false; if (Walk.ride) { Walk.ride = null; if (Walk.avatar) Walk.avatar.visible = true; } } P.car = null; P.state = 'off'; P.wanted = false; }
     // a robber friend rammed the patrol car: the police give up for now
     P.standDown = function () { remove(); };                                   // the night officer has you already: the car outside goes back to its beat
-    P.rammed = function (who) { if (!P.car) return false; UI.toast(who + ' ran the cops off the road! You are clear.', 3500); if (window.GameAudio) GameAudio.honk(); remove(); return true; };
+    P.rammed = function (who) { if (!P.car) return false; UI.toast(who + ' ran the cops off the road! You are clear.', 3500); remove(); return true; };
 
     // the road the player is on (freeways and avenues only for patrols; any road once wanted)
     function playerRoad() {
@@ -43,7 +43,6 @@ window.Police = (function () {
             spawn(best.r, Math.max(0, Math.min(best.r.length, best.n.s - d * 140)), d);
         }
         P.state = 'chase'; P.car.t = 0;
-        if (window.GameAudio && GameAudio.siren) GameAudio.siren(true);
     };
     function dirOnRoad(road, n) {
         const yaw = Car.yaw(), fwd = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
@@ -118,7 +117,7 @@ window.Police = (function () {
         if (a.phase === 'cop') {
             if (inside && !a.in) {
                 // to the door, then a shoulder through it
-                if (walk(inside.doorOut, COP_WALK) < 1.2) { a.t += dt; if (a.t > 1.5) { a.in = true; cop.position.copy(inside.doorIn); cop.position.y = inside.floorY; UI.toast('BANG — they kicked the door in!', 4000); if (window.GameAudio) GameAudio.honk(); } }
+                if (walk(inside.doorOut, COP_WALK) < 1.2) { a.t += dt; if (a.t > 1.5) { a.in = true; cop.position.copy(inside.doorIn); cop.position.y = inside.floorY; UI.toast('BANG — they kicked the door in!', 4000); } }
                 else cop.position.y = Walk.groundY(cop.position.x, cop.position.z, cop.position.y);
                 return;
             }
@@ -138,7 +137,6 @@ window.Police = (function () {
                 a.phase = 'shot'; a.t = 0;
                 a.flash = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffe08a })); a.flash.position.set(0, -0.75, 0.2); cop.userData.arms[1].add(a.flash);
                 UI.toast('BANG! A warning shot over your head. "Next one\'s not a warning."', 3200);
-                if (window.GameAudio) { GameAudio.honk(); if (GameAudio.clank) GameAudio.clank(); }
             }
         } else if (a.phase === 'shot') {
             a.t += dt;
@@ -194,7 +192,7 @@ window.Police = (function () {
         const gap = (n.s - c.s) * c.dir;                                        // how far ahead of the cop you are along the road
         if (P.state === 'patrol') {
             c.speed += ((limit / CFG.MPH) - c.speed) * Math.min(1, dt);
-            if (Car.mph > limit + OVER && Math.abs(gap) < 220 && !(window.SelfDrive && SelfDrive.active)) { /* (the self-driving Waymo's 200 mph is the robot's, not yours) */ P.state = 'chase'; c.t = 0; UI.toast('POLICE! You were doing ' + Math.round(Car.mph) + ' in a ' + limit + '. Pull over or outrun them.', 3500); if (window.GameAudio && GameAudio.siren) GameAudio.siren(true); if (window.GameAudio) GameAudio.honk(); }
+            if (Car.mph > limit + OVER && Math.abs(gap) < 220 && !(window.SelfDrive && SelfDrive.active)) { /* (the self-driving Waymo's 200 mph is the robot's, not yours) */ P.state = 'chase'; c.t = 0; UI.toast('POLICE! You were doing ' + Math.round(Car.mph) + ' in a ' + limit + '. Pull over or outrun them.', 3500); }
             if (Math.abs(gap) > 600) remove();                                   // drifted out of sight: off duty
         } else if (P.state === 'chase') {
             // close in fast from far back, ease off close behind, and back up if it overshoots

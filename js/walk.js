@@ -46,7 +46,7 @@ window.Walk = (function () {
         W.getOut();
     };
     W.getOut = function () {
-        prevView = Car.view; if (Car.view === 'cockpit') Car.view = 'chase';
+        prevView = Car.view; if (Car.view !== 'chase') Car.view = 'chase';
         Car.parked = true; Car.cruise = null; Car.autoBrake = false; Car.assistSteer = null;
         if (window.SelfDrive && SelfDrive.active) SelfDrive.cancel(true);
         Object.assign(Car.keys, { fwd: false, back: false, left: false, right: false, drift: false });

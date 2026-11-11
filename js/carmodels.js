@@ -1655,6 +1655,19 @@
         bezel.traverse(o => { if (o.isMesh) o.userData.tier = 1; });
         wheelGroup.traverse(o => { if (o.isMesh) o.userData.tier = 2; });
         crystal.traverse(o => { if (o.isMesh) o.userData.tier = 3; });
+        // the driver's hands on the rim at 9 and 3 (in the spin group, so they turn with the
+        // wheel) and a sleeve for each arm. A sleeve is a box one unit long from its near end;
+        // Car.updateCockpitExtras stretches it from the elbow to its hand every frame.
+        const skin = _iv.mat(0xd9a57e), sleeve = _iv.mat(0x2b3550);
+        g.userData.arms = [-1, 1].map(sd => {
+            const hand = new THREE.Group(); hand.position.set(sd * 0.17, 0, -0.015);
+            _iv.box(hand, 0.07, 0.095, 0.075, skin, 0, 0, -0.01).userData.tier = 2.4;                      // the fist round the rim
+            _iv.box(hand, 0.028, 0.055, 0.03, skin, -sd * 0.04, 0.05, 0.012, 0, 0, sd * 0.5).userData.tier = 2.4;   // the thumb over the top
+            spin.add(hand);
+            const box = new THREE.BoxGeometry(0.085, 0.085, 1); box.translate(0, 0, 0.5);
+            const arm = new THREE.Mesh(box, sleeve); arm.userData.tier = 2.5; g.add(arm);                // (over the wrist: it is nearer the eye)
+            return { hand, arm, side: sd };
+        });
         // digital side mirrors: camera screens at the top of each door
         [-1, 1].forEach(sd => {
             const b = _iv.box(g, 0.2, 0.12, 0.02, black, sd * 0.9, 0.6, 0.38); b.rotation.y = -sd * 0.6;
