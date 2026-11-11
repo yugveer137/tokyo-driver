@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>tokyo-driver1</title>
+    <title>Bay Area Driver</title>
     <style>
         :root { --hud: rgba(10, 14, 24, 0.55); --accent: #7cf7a8; --cyan: #00e5ff; }
         html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1020; font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color: #fff; }
@@ -38,8 +38,14 @@
         #lane-btn.on, #front-btn.on { background: linear-gradient(135deg, #38d66b, #1f9a48); }
         #hud-delivery { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); background: var(--hud); border-radius: 10px; padding: 6px 14px; font-size: 0.8rem; font-weight: 700; color: #3af0ff; pointer-events: none; }
         #hud-delivery:empty { display: none; }
-        #hud-tires { position: fixed; left: 50%; top: 52px; transform: translateX(-50%); background: var(--hud); border-radius: 10px; padding: 6px 14px; font-size: 0.8rem; font-weight: 800; color: #ffb000; pointer-events: none; animation: blink 1s infinite; }
-        #hud-tires:empty { display: none; }
+        /* the small DAMAGE board: label, bar and percent; blinks once the car is badly hurt */
+        #hud-damage { position: fixed; left: 50%; top: 52px; transform: translateX(-50%); background: var(--hud); border-radius: 10px; padding: 5px 12px; font-size: 0.75rem; font-weight: 800; color: #fff; pointer-events: none; display: flex; align-items: center; gap: 8px; }
+        #hud-damage:empty { display: none; }
+        #hud-damage.hot { animation: blink 1s infinite; }
+        #hud-damage .dmg-bar { display: inline-block; width: 90px; height: 8px; border-radius: 4px; background: #ffffff22; overflow: hidden; }
+        #hud-damage .dmg-bar span { display: block; height: 100%; border-radius: 4px; transition: width 0.3s; }
+        #hud-damage .dmg-pct { min-width: 2.6em; text-align: right; }
+        #hud-damage .dmg-note { font-weight: 700; opacity: 0.9; }
         @keyframes blink { 50% { opacity: 0.4; } }
         #tada { position: fixed; left: 50%; top: 30%; transform: translate(-50%, -50%) scale(0.3); font-size: 3.6rem; font-weight: 900; letter-spacing: 4px; color: #ffd21e; text-shadow: 0 0 24px #ff9a00, 0 4px 0 #7a4a00; opacity: 0; pointer-events: none; }
         #tada.show { animation: tada 2.2s ease-out forwards; }
@@ -54,7 +60,7 @@
         .mp-box { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; flex-direction: column; gap: 10px; background: #121826; border: 1px solid #ffffff22; border-radius: 16px; padding: 20px 24px; width: min(460px, 92vw); z-index: 55; }
         .mp-box h3 { margin: 0; color: var(--cyan); letter-spacing: 2px; } .mp-box p { margin: 0; color: #c9d2e0; font-size: 0.9rem; }
         .mp-box input { width: 100%; box-sizing: border-box; padding: 8px; border-radius: 8px; border: 1px solid #ffffff33; background: #0008; color: #fff; font-family: ui-monospace, monospace; font-size: 0.8rem; }
-        #toast { position: fixed; left: 50%; top: 18%; transform: translateX(-50%); background: #000a; border: 1px solid #fff3; border-radius: 10px; padding: 10px 18px; font-weight: 700; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+        #toast { position: fixed; left: 50%; top: 26%; transform: translateX(-50%); background: #000a; border: 1px solid #fff3; border-radius: 10px; padding: 10px 18px; font-weight: 700; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
         #toast.show { opacity: 1; }
         #minimap { position: fixed; right: 16px; bottom: 80px; width: 200px; height: 200px; border-radius: 50%; box-shadow: 0 4px 16px #0008; pointer-events: none; }
         @media (max-width: 768px) { #minimap { width: 120px; height: 120px; bottom: 170px; } }
@@ -71,6 +77,7 @@
         #settings-panel { display: none; }
         .setting-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #ffffff22; color: #dde; }
         .toggle-btn { background: #ffffff22; color: #fff; border: 1px solid #ffffff44; border-radius: 8px; padding: 6px 14px; cursor: pointer; font-weight: 700; }
+        #msg-who .toggle-btn.on { background: #1d6fd6; border-color: #3b8bff; }
         #paylink-row { display: none; padding: 10px 0; }
         #paylink-row label { display: block; font-size: 0.75rem; color: #9ab; margin-bottom: 6px; }
         #paylink-row input { width: 100%; box-sizing: border-box; padding: 8px; border-radius: 8px; border: 1px solid #ffffff33; background: #0008; color: #fff; }
@@ -113,6 +120,23 @@
             #side-btns { top: 36px; width: 190px; } .side-btn { padding: 7px 4px; font-size: 0.62rem; }
             #menu-content { padding: 24px; } #menu-content h1 { font-size: 1.8rem; }
         }
+        /* Phones: the button panel would cover half the road, so it folds behind a MENU button,
+           and the minimap moves to the left, clear of the drift pad */
+        #menu-toggle { display: none; position: fixed; right: 12px; top: 34px; z-index: 31; padding: 9px 14px; border: none; border-radius: 9px; background: #0b1020cc; color: #fff; font-weight: 800; font-size: 0.72rem; letter-spacing: 1px; box-shadow: 0 3px 10px #0006; }
+        @media (max-width: 500px) {
+            #menu-toggle { display: block; }
+            #side-btns { display: none; top: 72px; right: 12px; width: 220px; z-index: 30; }
+            #side-btns.open { display: grid; }
+            #minimap { left: 16px; right: auto; bottom: 176px; width: 110px; height: 110px; }
+            /* robbery mode: the level line goes under the HUD boxes and the side map shrinks, so the road stays in view */
+            /* (!important: the level line is positioned inline and the side map's rules come later) */
+            #rob-hud { left: 16px !important; right: 16px !important; top: 158px !important; width: auto !important; max-width: none !important; transform: none !important; font-size: 0.68rem !important; padding: 5px 10px !important; }
+            #rob-map { top: 218px !important; width: 172px !important; }
+            #rob-map canvas { width: 160px !important; height: 120px !important; }
+            #rob-map-text { font-size: 0.62rem !important; }
+            #chat-alert { bottom: 300px !important; left: 16px !important; max-width: 200px !important; font-size: 0.75rem !important; }
+            #next-city, #getmoney-big, #escape-big { bottom: 36% !important; }
+        }
     </style>
 </head>
 <body>
@@ -125,6 +149,7 @@
     <div id="gear"><small>GEAR</small><div id="hud-gear">1</div></div>
     <div id="hint"><kbd>W</kbd>/<kbd>S</kbd> drive &nbsp; <kbd>A</kbd>/<kbd>D</kbd> steer &nbsp; <kbd>Space</kbd> drift &nbsp; <kbd>F</kbd> horn<br><kbd>Z</kbd>/<kbd>X</kbd> gears &nbsp; <kbd>C</kbd> view &nbsp; <kbd>Q</kbd>/<kbd>E</kbd>/<kbd>H</kbd> signals &nbsp; <kbd>K</kbd> cruise &nbsp; <kbd>V</kbd> rain &nbsp; <kbd>R</kbd> reset &nbsp; <kbd>B</kbd> boost &nbsp; <kbd>G</kbd> walk &nbsp; <kbd>T</kbd> train &nbsp; <kbd>E</kbd> rob (on foot)</div>
     <div id="hud-fps"></div>
+    <button id="menu-toggle">MENU ▾</button>
     <div id="side-btns">
         <button class="side-btn" id="garage-btn">GARAGE</button>
         <button class="side-btn" id="travel-btn">FAST TRAVEL</button>
@@ -133,6 +158,10 @@
         <button class="side-btn" id="fwrace-btn">FREEWAY RACE</button>
         <button class="side-btn" id="train-btn">TRAIN</button>
         <button class="side-btn" id="map-btn">MAP</button>
+        <button class="side-btn" id="selfdrive-btn" style="display:none;background: linear-gradient(135deg, #7cf7a8, #27b36a); color: #0a2a16">SELF DRIVE</button>
+        <button class="side-btn" id="friends-btn" style="display:none;background: linear-gradient(135deg, #ff5a3c, #9c2412)">CALL ROBBER FRIENDS</button>
+        <button class="side-btn" id="msg-btn" style="display:none;background: linear-gradient(135deg, #3b8bff, #1a4fb0)">CHAT</button>
+        <button class="side-btn" id="escape-btn" style="display:none;background: linear-gradient(135deg, #ffd21e, #d68a00); color: #1a1200">SNEAK</button>
         <button class="side-btn" id="osm-btn">REAL MAP</button>
         <button class="side-btn" id="osm-exit" style="display:none">EXIT REAL MAP</button>
         <button class="side-btn" id="cruise-btn">CRUISE</button>
@@ -144,16 +173,52 @@
         <button class="side-btn" id="reset-btn" style="background: linear-gradient(135deg, #ffb000, #d68a00); color: #1a1200">RESET CAR (R)</button>
         <button class="side-btn" id="tow-btn" style="background: linear-gradient(135deg, #ffcf4a, #e0a300); color: #1a1200">TOW TRUCK</button>
         <button class="side-btn" id="fix-btn" style="background: linear-gradient(135deg, #38d66b, #1f9a4a)">FIX CAR</button>
-        <button class="side-btn" id="tires-btn" style="background: linear-gradient(135deg, #8a9bb0, #56677c)">TIRE PRESSURE</button>
+        <button class="side-btn" id="damage-btn" style="background: linear-gradient(135deg, #8a9bb0, #56677c)">DAMAGE</button>
         <button class="side-btn" id="walk-btn" style="background: linear-gradient(135deg, #52b8ff, #1f7fd0)">WALK (G)</button>
         <button class="side-btn" id="boost-btn" style="background: linear-gradient(135deg, #ff3b4a, #b80d1c)">BOOST (B)</button>
         <button class="side-btn" id="music-btn" style="background: linear-gradient(135deg, #c04bff, #7a1fd0)">MUSIC</button>
     </div>
     <div id="hud-delivery"></div>
-    <div id="hud-tires"></div>
+    <div id="hud-damage"></div>
     <div id="rob-hud" style="position:fixed;left:50%;top:86px;transform:translateX(-50%);background:#3a0a0acc;border:1px solid #ff5a3c66;border-radius:10px;padding:6px 14px;font-weight:800;color:#ffb3a3;pointer-events:none;letter-spacing:0.5px"></div>
-    <style>#rob-hud:empty { display: none; }</style>
-    <div id="hud-walk" style="position:fixed;left:50%;top:22%;transform:translateX(-50%);color:#8ad0ff;font-weight:700;text-shadow:0 1px 4px #000;pointer-events:none"></div>
+    <style>#rob-hud:empty { display: none; }
+        /* ROBBERY side map: the level's city with the houses to rob, the next one ringed, its address below */
+        #rob-map { position: fixed; left: 16px; top: 150px; width: 232px; background: var(--hud); border: 1px solid #ff5a3c66; border-radius: 10px; padding: 6px; pointer-events: none; display: none; }
+        #rob-map.on { display: block; }
+        #rob-map canvas { width: 220px; height: 170px; border-radius: 6px; display: block; }
+        #rob-map-text { font-size: 0.72rem; font-weight: 700; color: #ffb3a3; margin-top: 5px; line-height: 1.25; }
+    </style>
+    <div id="rob-map"><canvas id="rob-map-canvas" width="220" height="170"></canvas><div id="rob-map-text"></div></div>
+    <!-- a text from a robber friend pops up here; REPLY opens the chat -->
+    <style>
+        #chat-alert { position: fixed; left: 16px; bottom: 80px; max-width: 300px; background: #1a2030ee; border: 1px solid #3b8bff88; border-radius: 12px; padding: 10px 12px; font-size: 0.85rem; display: none; z-index: 30; box-shadow: 0 6px 20px #0008; }
+        #chat-alert.on { display: block; }
+        #chat-alert b { color: #8ab8ff; }
+        #chat-alert button { margin-top: 6px; }
+    </style>
+    <div id="chat-alert"><div id="chat-alert-text"></div><button class="toggle-btn" id="chat-alert-reply">REPLY</button></div>
+    <!-- the big ESCAPE button while you sit in the jail cell -->
+    <style>
+        #escape-big { position: fixed; left: 50%; bottom: 18%; transform: translateX(-50%); display: none; z-index: 25; background: linear-gradient(135deg, #ffd21e, #d68a00); color: #1a1200; border: 0; border-radius: 40px; padding: 18px 44px; font-size: 1.6rem; font-weight: 900; letter-spacing: 2px; box-shadow: 0 8px 30px #000a; cursor: pointer; animation: blink 1.2s infinite; }
+        #escape-big.on { display: block; }
+        #escape-big small { display: block; font-size: 0.75rem; letter-spacing: 0; font-weight: 700; margin-top: 4px; }
+    </style>
+    <button id="escape-big">SNEAK<small>open the cell and sneak out</small></button>
+    <!-- when a robbery level is done: on to the next city -->
+    <style>
+        #next-city { position: fixed; left: 50%; bottom: 18%; transform: translateX(-50%); display: none; z-index: 25; background: linear-gradient(135deg, #7cf7a8, #27b36a); color: #0a2a16; border: 0; border-radius: 40px; padding: 16px 40px; font-size: 1.4rem; font-weight: 900; letter-spacing: 2px; box-shadow: 0 8px 30px #000a; cursor: pointer; }
+        #next-city.on { display: block; }
+        #next-city small { display: block; font-size: 0.8rem; letter-spacing: 0; font-weight: 700; margin-top: 4px; }
+    </style>
+    <button id="next-city">NEXT CITY<small id="next-city-name"></small></button>
+    <!-- at a house, or inside one: grab everything, and tell the crew to do the same -->
+    <style>
+        #getmoney-big { position: fixed; left: 50%; bottom: 18%; transform: translateX(-50%); display: none; z-index: 25; background: linear-gradient(135deg, #38d66b, #ffd21e); color: #102a14; border: 0; border-radius: 40px; padding: 16px 40px; font-size: 1.4rem; font-weight: 900; letter-spacing: 2px; box-shadow: 0 8px 30px #000a; cursor: pointer; }
+        #getmoney-big.on { display: block; }
+        #getmoney-big small { display: block; font-size: 0.8rem; letter-spacing: 0; font-weight: 700; margin-top: 4px; }
+    </style>
+    <button id="getmoney-big">GET MONEY<small id="getmoney-note">grab it all, and the crew too</small></button>
+    <div id="hud-walk" style="position:fixed;left:50%;top:70%;transform:translateX(-50%);max-width:46vw;text-align:center;color:#8ad0ff;font-weight:700;text-shadow:0 1px 4px #000;pointer-events:none"></div>
     <div id="tada"></div>
     <div id="race-hud"></div>
     <div id="toast"></div>
@@ -161,7 +226,7 @@
 
     <div id="start-screen">
         <div id="menu-content">
-            <h1>tokyo-driver1</h1>
+            <h1>Bay Area Driver</h1>
             <p>Drive the Bay Area: US-101 down the peninsula, I-880 up the east bay, three bridges over the water. Take the exits, cruise the cities, collect coins, buy cars.</p>
             <div id="menu-main">
                 <button id="continue-btn" class="menu-btn">CONTINUE GAME</button>
@@ -201,7 +266,7 @@
     </div>
     <div id="mp-join" class="mp-box" style="display:none">
         <h3>MULTIPLAYER INVITE</h3>
-        <p>Would you like to join this tokyo-driver1 game?</p>
+        <p>Would you like to join this Bay Area Driver game?</p>
         <div style="display:flex;gap:8px"><button id="mp-join-yes" class="menu-btn" style="margin:0">YES</button><button id="mp-join-no" class="menu-btn menu-btn-ghost" style="margin:0">NO</button></div>
     </div>
 
@@ -209,13 +274,22 @@
         <div class="modal-head"><h2>GARAGE</h2><span id="garage-coins" style="color:#ffd21e;font-weight:800"></span><button class="toggle-btn" data-close="garage-modal">CLOSE</button></div>
         <div class="modal-body"><div id="cars-grid"></div></div>
     </div></div>
+    <div class="modal" id="msg-modal"><div class="modal-box" style="width:min(440px,94vw)">
+        <div class="modal-head"><h2>MESSAGES</h2><button class="toggle-btn" data-close="msg-modal">CLOSE</button></div>
+        <div class="modal-body">
+            <div id="msg-who" style="display:flex;gap:8px;margin-bottom:8px"><button class="toggle-btn on">Albert</button><button class="toggle-btn">Benny</button></div>
+            <div id="msg-list" style="height:200px;overflow-y:auto;background:#0f1522;border-radius:10px;padding:8px;font-size:0.85rem"></div>
+            <div id="msg-quick" style="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0"></div>
+            <div style="display:flex;gap:6px"><input id="msg-text" type="text" placeholder="type, or paste a screenshot" style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid #334;background:#141a26;color:#fff" /><button class="toggle-btn" id="msg-send">SEND</button></div>
+        </div>
+    </div></div>
     <div class="modal" id="map-modal"><div class="modal-box" style="width:min(1000px,96vw)">
-        <div class="modal-head"><h2>MAP</h2><button class="toggle-btn" id="map-cancel">STOP SELF-DRIVE</button><button class="toggle-btn" data-close="map-modal">CLOSE</button></div>
+        <div class="modal-head"><h2 id="map-title">MAP</h2><button class="toggle-btn" id="map-back" style="display:none">&#9664; ALL CITIES</button><button class="toggle-btn" id="map-cancel">STOP SELF-DRIVE</button><button class="toggle-btn" data-close="map-modal">CLOSE</button></div>
         <div class="modal-body" style="padding:8px"><canvas id="map-canvas" style="width:100%;border-radius:10px;cursor:crosshair"></canvas></div>
     </div></div>
-    <div class="modal" id="tires-modal"><div class="modal-box" style="width:min(420px,94vw)">
-        <div class="modal-head"><h2>TIRE PRESSURE</h2><button class="toggle-btn" data-close="tires-modal">CLOSE</button></div>
-        <div class="modal-body" id="tires-list"></div>
+    <div class="modal" id="damage-modal"><div class="modal-box" style="width:min(420px,94vw)">
+        <div class="modal-head"><h2>DAMAGE</h2><button class="toggle-btn" data-close="damage-modal">CLOSE</button></div>
+        <div class="modal-body" id="damage-list"></div>
     </div></div>
     <div class="modal" id="music-modal"><div class="modal-box" style="width:min(460px,94vw)">
         <div class="modal-head"><h2>MUSIC</h2><button class="toggle-btn" id="music-stop">STOP</button><button class="toggle-btn" data-close="music-modal">CLOSE</button></div>

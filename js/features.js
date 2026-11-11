@@ -124,7 +124,7 @@ window.Features = (function () {
     F.aids = A;
     F.toggleLaneLock = function () {
         A.lane = !A.lane; A.laneIndex = null; Car.assistSteer = null;
-        UI.toast(A.lane ? 'Lane lock on (steer to cancel)' : 'Lane lock off');
+        UI.toast(A.lane ? 'Lane lock on: steering you back into the lane (steer to cancel)' : 'Lane lock off');
         const b = document.getElementById('lane-btn'); if (b) b.classList.toggle('on', A.lane);
     };
     F.toggleFrontLock = function () {
@@ -132,11 +132,18 @@ window.Features = (function () {
         UI.toast(A.front ? 'Front lock on: auto-braking for traffic' : 'Front lock off');
         const b = document.getElementById('front-btn'); if (b) b.classList.toggle('on', A.front);
     };
-    // where the player is on the freeway: {s, lateral, dir, frame} or null
+    // where the player is on the road: {s, lateral, dir, frame} or null. The freeway when it
+    // is within reach (so an exit beside you does not steal the lock), else whatever built road
+    // with lanes you are on: ramps and city streets lock too.
     function freewayPose() {
         const pos = Car.body.position;
-        const near = World.freewayAt(pos), fw = near.fw, n = near.n;
-        if (!fw || n.dist > fw.width) return null;
+        let near = World.freewayAt(pos), fw = near.fw, n = near.n;
+        if (!fw || n.dist > fw.width * 0.6 || Math.abs(pos.y - n.frame.p.y) > 3) {
+            fw = null; let bd = Infinity;
+            const yaw0 = Car.yaw(), fx = Math.sin(yaw0), fz = Math.cos(yaw0);
+            Road.all.forEach(r => { if (!r.lanes || !r.lanes.length || !Object.keys(r.chunks).length) return; const m = Road.nearest(r, pos); if (Math.abs(fx * m.frame.tan.x + fz * m.frame.tan.z) < 0.7) return; /* a cross street at a junction is not ours */ if (m.dist < r.width * 0.7 && Math.abs(pos.y - m.frame.p.y) < 3 && m.dist < bd) { bd = m.dist; fw = r; n = m; } });
+            if (!fw) return null;
+        }
         A.fw = fw;
         const f = n.frame, dx = pos.x - f.p.x, dz = pos.z - f.p.z;
         const yaw = Car.yaw(), fwd = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
@@ -162,6 +169,7 @@ window.Features = (function () {
         const pose = freewayPose();
         if (!pose) { Car.assistSteer = null; Car.autoBrake = false; return; }
         const lanes = A.fw.lanes.filter(l => l.dir === pose.dir);
+        if (!lanes.length) { Car.assistSteer = null; Car.autoBrake = false; return; }
         if (A.lane) {
             if (Car.keys.left || Car.keys.right) { F.toggleLaneLock(); return; }
             if (A.laneIndex === null) {
@@ -175,11 +183,18 @@ window.Features = (function () {
                 if (free !== undefined) { A.laneIndex = free; A.cooldown = 3; }
             }
             const lane = lanes.find(l => l.index === A.laneIndex) || lanes[0];
-            const err = (lane.offset - pose.lateral) * pose.dir;             // + = need to move toward the driver's right
-            const tx = pose.frame.tan.x * pose.dir, tz = pose.frame.tan.z * pose.dir;
-            const heading = Math.atan2(pose.fwd.x * tz - pose.fwd.z * tx, pose.fwd.x * tx + pose.fwd.z * tz);   // + = nose points left of the road
-            // steer: proportional on lateral error, damped by heading relative to the road
-            Car.assistSteer = Math.max(-0.25, Math.min(0.25, -err * 0.06 - heading * 0.9));
+            // steer at a point ahead in the lane (further ahead the faster you go), like the
+            // self-drive does: smooth through bends, no wobble at speed, and from the shoulder
+            // it visibly pulls back in. Out of the lane it looks closer, to come back sooner.
+            const err = Math.abs(lane.offset - pose.lateral);
+            const lookAhead = Math.max(6, (err > 1.5 ? 6 : 12) + Car.mph * 0.14);
+            const sAhead = Math.max(0, Math.min(A.fw.length, pose.s + pose.dir * lookAhead));
+            const look = Road.at(A.fw, sAhead, lane.offset).p;
+            const pos = Car.body.position;
+            let e = Math.atan2(look.x - pos.x, look.z - pos.z) - Car.yaw();
+            while (e > Math.PI) e -= 2 * Math.PI; while (e < -Math.PI) e += 2 * Math.PI;
+            const lim = err > 1.5 ? 0.45 : 0.3;
+            Car.assistSteer = Math.max(-lim, Math.min(lim, e * 2.5));
         }
         if (A.front) {
             const li = A.laneIndex !== null ? A.laneIndex : lanes.reduce((b, l) => Math.abs(l.offset - pose.lateral) < Math.abs(b.offset - pose.lateral) ? l : b, lanes[0]).index;
@@ -188,62 +203,52 @@ window.Features = (function () {
         }
     }
 
-    // ---------- tires + tow truck ----------
-    // Pressure wears with speed and drops on hard impacts. Low pressure softens handling and
-    // caps speed; at <= 6 psi the car is stranded until a tow truck drives up and repairs it.
-    const Tires = { psi: [32, 32, 32, 32], stranded: false, tow: null, lastImpact: 0 };
-    F.tires = Tires;
-    function tireHud() {
-        const el = document.getElementById('hud-tires'); if (!el) return;
-        const min = Math.min(...Tires.psi);
-        el.textContent = Tires.stranded ? (Tires.tow ? 'STRANDED — tow truck on its way' : 'STRANDED — limp to a WORKSHOP (any city) or press TOW TRUCK') : min < 14 ? 'LOW TIRE PRESSURE (' + Math.round(min) + ' psi) — any city WORKSHOP fixes it' : '';
-        el.style.color = Tires.stranded ? '#ff5d6c' : '#ffb000';
+    // ---------- damage + tow truck ----------
+    // Every crash adds damage, shown on the small DAMAGE board under the HUD. Damage never slows
+    // the car down: it is a score to keep low, and any workshop or the tow truck resets it.
+    const Damage = { pct: 0, stranded: false, tow: null, lastImpact: 0 };
+    F.damage = Damage;
+    function damageColor(pct) { return pct >= 100 ? '#ff5d6c' : pct >= 60 ? '#ffb000' : '#38d66b'; }
+    function damageHud() {
+        const el = document.getElementById('hud-damage'); if (!el) return;
+        const pct = Math.round(Damage.pct), col = damageColor(pct);
+        const note = Damage.tow ? 'tow truck on its way' : pct >= 100 ? 'WRECKED — any city WORKSHOP repairs it' : pct >= 60 ? 'any city WORKSHOP repairs it' : '';
+        el.innerHTML = '<span class="dmg-label">DAMAGE</span><span class="dmg-bar"><span style="width:' + pct + '%;background:' + col + '"></span></span><span class="dmg-pct" style="color:' + col + '">' + pct + '%</span>' + (note ? '<span class="dmg-note" style="color:' + col + '">' + note + '</span>' : '');
+        el.classList.toggle('hot', pct >= 60);
     }
-    // Crashes are part of the fun, so they are cheap: only a really hard hit (45+ mph straight
-    // into something, or head-on with traffic) costs one tire a little air, and no crash can
-    // take a tire below 10 psi. Tires only go flat from wear at very high speed for a long time.
+    // A hard hit (walls, buildings, traffic) adds damage with the speed of the hit: a 30 mph
+    // wall is about 15%, a flat-out crash about 40%. Little bumps and kerbs cost nothing.
     F.onImpact = function (speedAlongNormal) {
         const now = performance.now();
-        if (speedAlongNormal < 20 || now - Tires.lastImpact < 3000) return;
-        Tires.lastImpact = now;
-        const i = Math.floor(Math.random() * 4);
-        const loss = Math.min(6 + Math.random() * 4, Math.max(0, Tires.psi[i] - 10));
-        if (loss < 1) return;
-        Tires.psi[i] -= loss;
-        UI.toast('Big crash! Tire ' + (i + 1) + ' lost ' + Math.round(loss) + ' psi');
+        if (speedAlongNormal < 8 || now - Damage.lastImpact < 1500) return;
+        Damage.lastImpact = now;
+        const hit = Math.min(40, (speedAlongNormal - 6) * 2);
+        Damage.pct = Math.min(100, Damage.pct + hit);
+        UI.toast('Crash! +' + Math.round(hit) + '% damage');
         if (window.GameAudio) GameAudio.npcHorn();
-        tireHud();
+        damageHud();
     };
-    // TIRE PRESSURE panel: the four tires as bars, live while it is open
-    F.renderTires = function () {
-        const el = document.getElementById('tires-list'); if (!el) return;
-        const names = ['Front left', 'Front right', 'Rear left', 'Rear right'];
-        el.innerHTML = Tires.psi.map((p, i) => {
-            const pct = Math.max(0, Math.min(100, p / 32 * 100)), col = p <= 6 ? '#ff5d6c' : p < 14 ? '#ffb000' : '#38d66b';
-            return '<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-weight:700"><span>' + names[i] + '</span><span style="color:' + col + '">' + Math.round(p) + ' psi' + (p <= 6 ? ' — BLOWN' : p < 14 ? ' — low' : '') + '</span></div>' +
-                '<div style="height:12px;border-radius:6px;background:#ffffff18;margin-top:4px"><div style="height:100%;width:' + pct + '%;border-radius:6px;background:' + col + '"></div></div></div>';
-        }).join('') + '<div style="opacity:0.7;font-size:0.8rem;margin-top:10px">32 psi is full. Tires lose air in hard crashes (30+ mph) and wear slowly at speed. Any city WORKSHOP or the FIX CAR button there refills all four; the TOW TRUCK takes you to one.</div>';
+    // DAMAGE panel: the bar bigger, live while it is open
+    F.renderDamage = function () {
+        const el = document.getElementById('damage-list'); if (!el) return;
+        const pct = Math.round(Damage.pct), col = damageColor(pct);
+        el.innerHTML = '<div style="margin:10px 0"><div style="display:flex;justify-content:space-between;font-weight:700"><span>Car damage</span><span style="color:' + col + '">' + pct + '%' + (pct >= 100 ? ' — WRECKED' : pct >= 60 ? ' — bad' : pct > 0 ? ' — dents' : ' — like new') + '</span></div>' +
+            '<div style="height:16px;border-radius:8px;background:#ffffff18;margin-top:6px"><div style="height:100%;width:' + pct + '%;border-radius:8px;background:' + col + '"></div></div></div>' +
+            '<div style="opacity:0.7;font-size:0.8rem;margin-top:10px">Every crash adds damage, harder crashes add more. It never slows you down — keep it low for the look of it. Any city WORKSHOP or the FIX CAR button there repairs it; the TOW TRUCK takes you to one.</div>';
     };
-    // TOW TRUCK button: call one any time (fixes low tires too); it drives up from behind you
+    // TOW TRUCK button: call one any time (repairs damage too); it drives up from behind you
     F.callTow = function () {
-        if (Tires.tow) { UI.toast('The tow truck is already on its way'); return; }
+        if (Damage.tow) { UI.toast('The tow truck is already on its way'); return; }
         spawnTow();
         UI.toast('Tow truck called — it is coming up behind you', 2500);
     };
-    function updateTires(dt) {
-        if (Tires.tow && !Tires.stranded) updateTow(dt);
-        if (Tires.tow && (Tires.tow.phase === 'tow' || Tires.tow.phase === 'hook' || Tires.tow.phase === 'drop')) { if (Tires.stranded) updateTow(dt); return; }
-        if (!Tires.stranded) {
-            const wear = Car.mph > 100 ? 0.08 : Car.mph > 60 ? 0.02 : 0.005;
-            for (let i = 0; i < 4; i++) Tires.psi[i] = Math.max(0, Tires.psi[i] - wear * dt);
-            const min = Math.min(...Tires.psi);
-            Car.tireGrip = min < 14 ? 0.7 + (min / 14) * 0.3 : 1;
-            if (min <= 6) {
-                Tires.stranded = true; Car.tireGrip = 0.5;
-                UI.toast('Tire blown out! Limp to a city WORKSHOP, or press TOW TRUCK.', 4000);
-            }
-            if (Math.floor(performance.now() / 500) % 2 === 0) tireHud();
-            const modal = document.getElementById('tires-modal'); if (modal && modal.classList.contains('open') && Math.floor(performance.now() / 250) % 2 === 0) F.renderTires();
+    function updateDamage(dt) {
+        if (Damage.tow && !Damage.stranded) updateTow(dt);
+        if (Damage.tow && (Damage.tow.phase === 'tow' || Damage.tow.phase === 'hook' || Damage.tow.phase === 'drop')) { if (Damage.stranded) updateTow(dt); return; }
+        if (!Damage.stranded) {
+            Car.damageGrip = 1;                                                 // damage never costs speed
+            if (Math.floor(performance.now() / 500) % 2 === 0) damageHud();
+            const modal = document.getElementById('damage-modal'); if (modal && modal.classList.contains('open') && Math.floor(performance.now() / 250) % 2 === 0) F.renderDamage();
             return;
         }
         // stranded: creep only (to a workshop), or wait for the tow truck
@@ -266,7 +271,7 @@ window.Features = (function () {
     };
     // ---------- workshop ----------
     // Every city has a workshop beside its frontage road (World builds it). Pull into the bay
-    // and stop: the door comes down, sparks fly for a few seconds, your tires are new again.
+    // and stop: the door comes down, sparks fly for a few seconds, the damage is gone.
     function updateWorkshop(dt) {
         const p = Car.body.position;
         World.cities.forEach(c => {
@@ -284,9 +289,9 @@ window.Features = (function () {
                 if (Math.floor(w.t * 4) !== Math.floor((w.t - dt) * 4) && window.GameAudio && GameAudio.clank) GameAudio.clank();
                 if (w.t > 5) {
                     w.sparks.visible = false; w.state = 'opening'; Car.autoBrake = false;
-                    Tires.psi = [32, 32, 32, 32]; Tires.stranded = false; Car.tireGrip = 1; tireHud();
-                    if (Tires.tow) { scene.remove(Tires.tow.mesh); Tires.tow = null; }
-                    UI.toast('All fixed — four new tires. Door opening!', 3000);
+                    Damage.pct = 0; Damage.stranded = false; Car.damageGrip = 1; damageHud();
+                    if (Damage.tow) { scene.remove(Damage.tow.mesh); Damage.tow = null; }
+                    UI.toast('All fixed — damage repaired. Door opening!', 3000);
                 }
             } else if (w.state === 'opening') {
                 if (Math.abs(w.door.position.y - w.openY) < 0.2) w.state = 'done';
@@ -320,10 +325,10 @@ window.Features = (function () {
         const sx = p.x - Math.sin(yaw) * 120, sz = p.z - Math.cos(yaw) * 120;
         g.position.set(sx, Terrain.height(sx, sz), sz); g.rotation.y = yaw;
         scene.add(g);
-        Tires.tow = { mesh: g, phase: 'approach', t: 0, beacon };
+        Damage.tow = { mesh: g, phase: 'approach', t: 0, beacon };
     }
     function updateTow(dt) {
-        const T = Tires.tow; if (!T) return;
+        const T = Damage.tow; if (!T) return;
         const p = Car.body.position, m = T.mesh;
         T.beacon.material.emissiveIntensity = Math.floor(performance.now() / 300) % 2 ? 2.5 : 0.2;
         if (T.phase === 'approach') {
@@ -338,13 +343,13 @@ window.Features = (function () {
                 // reachable (open country, nothing loaded), repair on the spot instead
                 const station = nearestStation();
                 if (station) { T.phase = 'hook'; T.t = 0; T.station = station; UI.toast('Tow truck here. Hooking you up…', 2500); }
-                else { T.phase = 'repair'; T.t = 0; UI.toast('Tow truck here. Repairing tires…', 2500); }
+                else { T.phase = 'repair'; T.t = 0; UI.toast('Tow truck here. Repairing the damage…', 2500); }
             }
         } else if (T.phase === 'hook') {
             T.t += dt;
             if (T.t > 2) {
                 T.phase = 'tow'; T.t = 0;
-                Tires.stranded = false; Car.tireGrip = 1; Car.cruise = null;
+                Damage.stranded = false; Car.damageGrip = 1; Car.cruise = null;
                 SelfDrive.goTo(T.station.point, { quiet: true, tow: true, onArrive: () => { T.phase = 'drop'; T.t = 0; } });
                 UI.toast('Towing you to the ' + T.station.city.name + ' workshop — hold on, 200 mph!', 3000);
             }
@@ -360,19 +365,19 @@ window.Features = (function () {
             Car.towed = false;
             T.t += dt;
             if (T.t > 3) {
-                Tires.psi = [32, 32, 32, 32]; Tires.stranded = false; Car.tireGrip = 1; T.phase = 'leave'; T.t = 0;
-                UI.toast('Service station: tires repaired. Drive on!', 3000); tireHud();
+                Damage.pct = 0; Damage.stranded = false; Car.damageGrip = 1; T.phase = 'leave'; T.t = 0;
+                UI.toast('Service station: damage repaired. Drive on!', 3000); damageHud();
             }
         } else if (T.phase === 'repair') {
             T.t += dt;
             if (T.t > 5) {
-                Tires.psi = [32, 32, 32, 32]; Tires.stranded = false; Car.tireGrip = 1; T.phase = 'leave'; T.t = 0;
-                UI.toast('Tires repaired. Drive on!', 2500); tireHud();
+                Damage.pct = 0; Damage.stranded = false; Car.damageGrip = 1; T.phase = 'leave'; T.t = 0;
+                UI.toast('Damage repaired. Drive on!', 2500); damageHud();
             }
         } else {
             T.t += dt;
             m.position.x += Math.sin(m.rotation.y) * 12 * dt; m.position.z += Math.cos(m.rotation.y) * 12 * dt;
-            if (T.t > 8) { scene.remove(m); Tires.tow = null; }
+            if (T.t > 8) { scene.remove(m); Damage.tow = null; }
         }
     }
 
@@ -390,11 +395,22 @@ window.Features = (function () {
 
     F.init = function (sc) {
         scene = sc;
-        Car.onImpact = F.onImpact;
+        Car.onImpact = F.onImpact; damageHud();
     };
+    // Drove into the bay: after a couple of seconds under water the car is pulled back onto
+    // the nearest road (what RESET CAR does), so a wrong turn at a bridge never strands you
+    let wet = 0;
+    function updateWater(dt) {
+        const w = World.water; if (!w || !Car.body || Car.towed) return;
+        const p = Car.body.position;
+        const inBay = p.y < w.y - 1.2 && Math.abs(p.x - w.x) < w.w / 2 && Math.abs(p.z - w.z) < w.d / 2;
+        wet = inBay ? wet + dt : 0;
+        if (wet > 2.5) { wet = 0; UI.toast('You drove into the bay! Pulled back onto the road.', 3500); Car.reset(); }
+    }
     F.update = function (dt) {
+        updateWater(dt);
         if (!Car.body || !Game.started) return;
-        updateDelivery(dt); updateRain(dt); updateDrift(dt); updateLights(); updateAids(dt); updateTires(dt); updateWorkshop(dt); updateTada();
+        updateDelivery(dt); updateRain(dt); updateDrift(dt); updateLights(); updateAids(dt); updateDamage(dt); updateWorkshop(dt); updateTada();
     };
     return F;
 })();

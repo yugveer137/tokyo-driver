@@ -73,9 +73,9 @@ window.Sky = (function () {
         sun.shadow.bias = -0.0006;
         scene.add(sun); scene.add(sun.target);
 
-        hemi = new THREE.HemisphereLight(0x9fc7ff, 0x6b6b5a, 0.6);
+        hemi = new THREE.HemisphereLight(0x9fc7ff, 0x6b6b5a, 0.45);          // (the sky environment map lights things too now)
         scene.add(hemi);
-        ambient = new THREE.AmbientLight(0xffffff, 0.3);
+        ambient = new THREE.AmbientLight(0xffffff, 0.18);
         scene.add(ambient);
 
         scene.fog = new THREE.FogExp2(0xcfe6ff, 0.0012);
@@ -99,7 +99,21 @@ window.Sky = (function () {
     };
 
     // focus = the player position; the sky follows it and the shadow camera is centred on it
+    // The sky as an environment map, so car paint, glass and wet-looking roads reflect it. Made
+    // from the dome's own shader (a clone in a private scene), refreshed every few seconds as
+    // the day turns; three's standard materials pick it up from scene.environment.
+    let pmrem = null, envScene = null, envRT = null, envT = -1e9;
+    S.refreshEnv = function () {
+        if (!renderer || !dome) return;
+        if (!pmrem) { pmrem = new THREE.PMREMGenerator(renderer); pmrem.compileEquirectangularShader(); envScene = new THREE.Scene(); envScene.add(new THREE.Mesh(dome.geometry, dome.material)); }
+        const rt = pmrem.fromScene(envScene, 0.04);
+        scene.environment = rt.texture;
+        if (envRT) envRT.dispose();
+        envRT = rt;
+    };
     S.update = function (dt, focus) {
+        // (the reflections are the static day/night maps swapped below: a live PMREM of the dome
+        // was rebuilt every 6 s and then overwritten by that swap in the same call)
         time += dt * S.speed;
         const cycle = CFG.CYCLE.day + CFG.CYCLE.night;
         S.t = (time / cycle) % 1;

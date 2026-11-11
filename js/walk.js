@@ -2,7 +2,7 @@
 // G by the car gets back in, T by a train boards it. You can walk on the freeway deck, down the
 // station stairs beside it, along the streets. Falling off an edge just drops you to the ground.
 window.Walk = (function () {
-    const W = { active: false, avatar: null, pos: new THREE.Vector3(), yaw: 0, vy: 0, surfaces: [] };
+    const W = { active: false, avatar: null, pos: new THREE.Vector3(), yaw: 0, vy: 0, surfaces: [], room: null, running: false };
     let scene, camera, prevView = 'chase', frame = 0, lastHint = 0;
     const camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), tmp = new THREE.Vector3();
 
@@ -34,6 +34,10 @@ window.Walk = (function () {
         if (!Car.body || !Game.started) return;
         if (window.Train && Train.riding) { UI.toast('Press T to get off the train first'); return; }
         if (W.active) {
+            if (W.ride) { UI.toast('You are in the back of a police car. Sit tight.'); return; }
+            if (W.cuffed) { UI.toast('You are handcuffed.'); return; }
+            if (window.Robbery && Robbery.jumpInNearby && Robbery.jumpInNearby()) return;   // a robber friend's car (or your parked one) right here
+            if (W.room) { UI.toast(W.room.jail ? 'The cell is locked. ESCAPE jumps out the window.' : 'Leave the house first: E at the door'); return; }
             if (W.pos.distanceTo(Car.body.position) < 5) W.getIn();
             else UI.toast('Walk back to your car to get in (G)');
             return;
@@ -67,27 +71,48 @@ window.Walk = (function () {
         W.active = false; Car.parked = false; Car.view = prevView; W.hideGuide();
     };
 
+    // inside a house (robbery): the room keeps you within its walls and the camera comes in close
+    // (inside you see through your own eyes: the rooms are too small for the camera behind you)
+    W.enterRoom = function (room) {
+        W.room = room; W.pos.copy(room.doorIn); W.pos.y = room.floorY; W.vy = 0; W.hideGuide(); if (W.avatar) W.avatar.visible = false;
+        const at = room.loot || room.bed; if (at) W.yaw = Math.atan2(at.x - W.pos.x, at.z - W.pos.z);   // in through the door, facing into the room
+    };
+    W.leaveRoom = function () { const r = W.room; W.room = null; if (W.avatar) W.avatar.visible = true; if (r) { W.pos.copy(r.doorOut); W.pos.y = W.groundY(W.pos.x, W.pos.z, r.doorOut.y + 0.5); } };
+
     W.update = function (dt) {
         if (!W.active || !W.avatar) return;
         const k = Car.keys, run = k.drift, sp = run ? 9 : 4;
         if (k.left) W.yaw += 2.6 * dt;
         if (k.right) W.yaw -= 2.6 * dt;
         let mv = 0; if (k.fwd) mv = sp; else if (k.back) mv = -sp * 0.55;
+        if (W.cuffed) mv = 0;                                                  // handcuffed: you stand there
+        if (W.ride) { W.pos.copy(W.ride.position); W.pos.y += 0.2; W.yaw = W.ride.rotation.y; mv = 0; }   // in the back of the police car
         if (mv) { W.pos.x += Math.sin(W.yaw) * mv * dt; W.pos.z += Math.cos(W.yaw) * mv * dt; }
-        if (frame++ % 2 === 0 || mv) W.gy = W.groundY(W.pos.x, W.pos.z, W.pos.y);
+        W.running = !!(run && mv);
+        if (W.room) W.room.clamp(W.pos);
+        if (W.room) W.gy = W.room.floorY;
+        else if (W.ride) W.gy = W.pos.y;
+        else if (frame++ % 2 === 0 || mv) W.gy = W.groundY(W.pos.x, W.pos.z, W.pos.y);
         const gy = W.gy === undefined ? W.pos.y : W.gy;
         if (W.pos.y > gy + 0.25) { W.vy -= 25 * dt; W.pos.y = Math.max(gy, W.pos.y + W.vy * dt); }
         else { W.pos.y = gy; W.vy = 0; }
         W.avatar.position.copy(W.pos); W.avatar.rotation.y = W.yaw;
         Peds.animate(W.avatar, dt, mv !== 0, run);
-        // third-person camera behind the walker
-        tmp.set(-Math.sin(W.yaw) * 4.2, 2.3, -Math.cos(W.yaw) * 4.2).add(W.pos);
-        const g2 = Terrain.height(tmp.x, tmp.z) + 0.6; if (tmp.y < g2) tmp.y = g2;
-        camPos.lerp(tmp, 1 - Math.exp(-dt * 7)); camera.position.copy(camPos);
-        camLook.set(Math.sin(W.yaw) * 2, 1.4, Math.cos(W.yaw) * 2).add(W.pos); camera.lookAt(camLook);
-        camera.fov += (70 - camera.fov) * (1 - Math.exp(-dt * 4)); camera.updateProjectionMatrix();
+        if (W.room) {
+            // first person inside a house: eye height, looking where you face
+            tmp.set(Math.sin(W.yaw) * 0.15, 1.5, Math.cos(W.yaw) * 0.15).add(W.pos);
+            camPos.lerp(tmp, 1 - Math.exp(-dt * 14)); camera.position.copy(camPos);
+            camLook.set(Math.sin(W.yaw) * 3, 1.25, Math.cos(W.yaw) * 3).add(W.pos); camera.lookAt(camLook);
+        } else {
+            // third-person camera behind the walker
+            tmp.set(-Math.sin(W.yaw) * 4.2, 2.3, -Math.cos(W.yaw) * 4.2).add(W.pos);
+            const g2 = Terrain.height(tmp.x, tmp.z) + 0.6; if (tmp.y < g2) tmp.y = g2;
+            camPos.lerp(tmp, 1 - Math.exp(-dt * 7)); camera.position.copy(camPos);
+            camLook.set(Math.sin(W.yaw) * 2, 1.4, Math.cos(W.yaw) * 2).add(W.pos); camera.lookAt(camLook);
+        }
+        camera.fov += ((W.room ? 80 : 70) - camera.fov) * (1 - Math.exp(-dt * 4)); camera.updateProjectionMatrix();
         // guide line to the nearest train stop, so you can walk there on your own
-        guide();
+        if (!W.room) guide();
         // hints
         const now = performance.now();
         if (now - lastHint > 4000) {
@@ -100,15 +125,18 @@ window.Walk = (function () {
     function guide() {
         if (guideFrame++ % 10 || !window.Train) return;
         if (!guideEl) { guideEl = document.getElementById('hud-walk'); if (!guideEl) return; }
+        // a robber friend's black car (or your own parked one) in reach comes first: G gets you in
+        const near = window.Robbery && Robbery.carNearby && Robbery.carNearby();
+        if (near) { guideEl.textContent = near; return; }
         let best = null, bd = Infinity;
         Train.stations.forEach(st => { if (!st.city.loaded || !st.platform) return; const d = st.platform.distanceTo(W.pos); if (d < bd) { bd = d; best = st; } });
         if (!best) { guideEl.textContent = 'No train stop near here — stops are beside the freeway at every city'; return; }
         const dx = best.platform.x - W.pos.x, dz = best.platform.z - W.pos.z;
         let rel = Math.atan2(dx, dz) - W.yaw; while (rel > Math.PI) rel -= 2 * Math.PI; while (rel < -Math.PI) rel += 2 * Math.PI;
         const where = Math.abs(rel) < 0.4 ? 'straight ahead' : Math.abs(rel) > 2.7 ? 'behind you' : rel > 0 ? 'on your left' : 'on your right';
-        const when = Train.nextAt(best.s);
+        const when = Train.nextAt(best);
         const timing = when.here ? 'train is in, leaves in ' + when.leavesIn + ' s — press T' : 'next train in ' + when.inSeconds + ' s';
-        const steps = bd < 15 ? 'Train stop: ' + timing : best.city.name + ' train stop: ' + Math.round(bd) + ' m, ' + where + (bd > 60 ? ' (look for the blue beacon; stairs go down from the freeway\'s left shoulder)' : '');
+        const steps = bd < 15 ? 'Train stop: ' + timing : best.city.name + ' train stop: ' + Math.round(bd) + ' m, ' + where + (bd > 60 ? ' (look for the blue beacon; stairs go down from the freeway\'s shoulder)' : '');
         guideEl.textContent = steps;
     }
     W.hideGuide = function () { if (guideEl) guideEl.textContent = ''; };

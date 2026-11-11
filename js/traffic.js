@@ -31,11 +31,8 @@ window.Traffic = (function () {
         let g;
         if (window.Models && Models.ready) {
             const name = kind < 0.15 ? (Math.random() < 0.5 ? 'truck' : 'delivery') : KINDS[Math.floor(Math.random() * KINDS.length)];
-            g = Models.car(name, color, long, { keepColors: name === 'taxi' || name === 'police' || name === 'delivery' });
             // the model's own wheels are hidden; traffic cars get simple spinning-free wheels
-            const wheelGeom = new THREE.CylinderGeometry(0.36, 0.36, 0.3, 10); wheelGeom.rotateZ(Math.PI / 2);
-            const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
-            [[0.85, long * 0.32], [-0.85, long * 0.32], [0.85, -long * 0.32], [-0.85, -long * 0.32]].forEach(([x, z]) => { const w = new THREE.Mesh(wheelGeom, wheelMat); w.position.set(x, 0.36, z); g.add(w); });
+            g = Models.car(name, color, long, { keepColors: name === 'taxi' || name === 'police' || name === 'delivery', wheels: true });
         } else {
             g = new THREE.Group();
             const paint = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.5 });

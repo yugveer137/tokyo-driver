@@ -22,7 +22,7 @@ window.Road = (function () {
     function widthOf(t) { return t.twoWay ? 2 * (t.lanes * t.laneW + t.shoulder) + t.median : t.lanes * t.laneW + 2 * t.shoulder; }
     R.widthOf = (name) => widthOf(R.types[name]);
 
-    const stripCache = {};
+    const stripCache = {}; const bumpCache = {};
     // Paint one road type's cross-section into a texture: u across the road, v along it
     // (one tile = 12 units along, so the dash pattern repeats cleanly).
     function stripTexture(typeName) {
@@ -32,14 +32,20 @@ window.Road = (function () {
         const w = Math.round(W * pxPerUnit), h = 12 * pxPerUnit;
         const c = document.createElement('canvas'); c.width = w; c.height = h;
         const ctx = c.getContext('2d');
+        // a second strip, the same size, is the bump map: the asphalt grain in relief, the paint flat
+        const bc = document.createElement('canvas'); bc.width = w; bc.height = h;
+        const bctx = bc.getContext('2d');
         // Asphalt the way it really looks: a mid-grey base, large soft tonal patches, fine
         // aggregate speckle, tar-filled cracks, and darker worn tracks where the wheels run.
         if (window.Tex && Tex.photo && Tex.photo.asphalt) {
             // real asphalt photo (CC0) tiled at about 8 units per tile, darkened a little
             const pat = ctx.createPattern(Tex.photo.asphalt, 'repeat');
             ctx.save(); ctx.scale(8 * pxPerUnit / 1024, 8 * pxPerUnit / 1024); ctx.fillStyle = pat; ctx.fillRect(0, 0, w / (8 * pxPerUnit / 1024), h / (8 * pxPerUnit / 1024)); ctx.restore();
-            ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(0, 0, w, h);
+            ctx.fillStyle = 'rgba(0,0,0,0.42)'; ctx.fillRect(0, 0, w, h);
+            const bpat = bctx.createPattern(Tex.photo.asphalt, 'repeat');
+            bctx.save(); bctx.scale(8 * pxPerUnit / 1024, 8 * pxPerUnit / 1024); bctx.fillStyle = bpat; bctx.fillRect(0, 0, w / (8 * pxPerUnit / 1024), h / (8 * pxPerUnit / 1024)); bctx.restore();
         } else {
+            bctx.fillStyle = '#808080'; bctx.fillRect(0, 0, w, h);
             const img = ctx.createImageData(w, h), d = img.data;
             for (let i = 0; i < d.length; i += 4) { const v = 70 + (Math.random() - 0.5) * 26; d[i] = v; d[i + 1] = v; d[i + 2] = v + 2; d[i + 3] = 255; }
             ctx.putImageData(img, 0, 0);
@@ -74,6 +80,7 @@ window.Road = (function () {
         // paint that has seen traffic: solid colour with nicks worn out of it
         const paint = (x, y, lw, lh, color) => {
             ctx.fillStyle = color; ctx.fillRect(x, y, lw, lh);
+            bctx.fillStyle = '#9a9a9a'; bctx.fillRect(x, y, lw, lh);                              // paint lies flat over the grain
             for (let i = 0; i < lw * lh / 40; i++) { ctx.fillStyle = `rgba(60,60,60,${0.2 + Math.random() * 0.5})`; ctx.fillRect(x + Math.random() * lw, y + Math.random() * lh, 1 + Math.random() * 2, 1 + Math.random() * 3); }
         };
         const line = (u, color, width, dashed) => {
@@ -84,7 +91,7 @@ window.Road = (function () {
                 ctx.fillStyle = '#f4f4f0'; ctx.fillRect(X(u) - 4, 7.5 * pxPerUnit, 8, 5);   // reflective road stud in the gap
             }
         };
-        const white = '#dcdcd6', yellow = '#e6b800';
+        const white = '#eeeeea', yellow = '#f2c21c';
         let u = 0;
         const lanesFwd = (count) => { for (let l = 0; l < count; l++) { track(u + t.laneW / 2); u += t.laneW; if (l < count - 1) line(u, white, 0.15, true); } };
         if (t.twoWay) {
@@ -104,7 +111,11 @@ window.Road = (function () {
         }
         const tex = new THREE.CanvasTexture(c);
         tex.wrapS = THREE.ClampToEdgeWrapping; tex.wrapT = THREE.RepeatWrapping;
-        tex.anisotropy = 4;
+        tex.anisotropy = 8;
+        const bump = new THREE.CanvasTexture(bc);
+        bump.wrapS = THREE.ClampToEdgeWrapping; bump.wrapT = THREE.RepeatWrapping;
+        bump.anisotropy = 4;
+        bumpCache[typeName] = bump;                                       // (r128 textures have no userData to hang it on)
         stripCache[typeName] = tex;
         return tex;
     }
@@ -116,7 +127,8 @@ window.Road = (function () {
     function pierMat() { return mats.pier || (mats.pier = new THREE.MeshStandardMaterial({ color: 0x8a8a84, map: Tex.concrete, roughness: 0.95 })); }
     function surfMat(type, conform) {
         const k = type + (conform ? '_c' : '');
-        return mats[k] || (mats[k] = new THREE.MeshStandardMaterial({ map: stripTexture(type), roughness: 0.92, metalness: 0.05,
+        const strip = stripTexture(type);
+        return mats[k] || (mats[k] = new THREE.MeshStandardMaterial({ map: strip, bumpMap: bumpCache[type], bumpScale: 0.025, roughness: 0.9, metalness: 0.05,
             polygonOffset: !!conform, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
     }
 
@@ -425,7 +437,7 @@ window.Road = (function () {
         const pts = PEEL.map(([k, lat, dy]) => peelPoint(fw, s0, dir, k, lat, dy));
         const end = toPoint.clone(), d = toDir.clone().normalize();
         if (!opts.keepY) end.y = Terrain.height(end.x, end.z) + R.DRAPE;
-        const tail = end.clone().addScaledVector(d, 30); if (!opts.keepY) tail.y = Terrain.height(tail.x, tail.z) + R.DRAPE;
+        const tail = end.clone().addScaledVector(d, opts.stub || 30); if (!opts.keepY) tail.y = Terrain.height(tail.x, tail.z) + R.DRAPE;   // opts.stub: a short run-out when the ramp lands at a slant
         (opts.via || []).forEach(v => pts.push(v.clone()));
         pts.push(end.clone().addScaledVector(d, -40).setY((pts[pts.length - 1].y + end.y) / 2));
         pts.push(end); pts.push(tail);
@@ -441,7 +453,7 @@ window.Road = (function () {
         opts = opts || {};
         const pts = [], d = fromDir.clone().normalize();
         const start = fromPoint.clone(); if (!opts.keepY) start.y = Terrain.height(start.x, start.z) + R.DRAPE;
-        const head = start.clone().addScaledVector(d, -30); if (!opts.keepY) head.y = Terrain.height(head.x, head.z) + R.DRAPE;
+        const head = start.clone().addScaledVector(d, -(opts.stub || 30)); if (!opts.keepY) head.y = Terrain.height(head.x, head.z) + R.DRAPE;   // opts.stub: a short run-in when the ramp leaves at a slant
         pts.push(head); pts.push(start);
         const climb = PEEL.slice().reverse().map(([k, lat, dy]) => peelPoint(fw, s1, dir, -k, lat, dy));   // merge is reached last
         // 40 m in the ramp is already climbing, unless via points come first (an underpass):

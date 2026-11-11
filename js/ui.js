@@ -32,7 +32,7 @@ window.UI = (function () {
             if (e.code === 'KeyM') { SelfDrive.draw(); $('map-modal').classList.toggle('open'); }
             if (e.code === 'Escape') U.closeModals();
         });
-        window.addEventListener('keyup', e => { if (keyMap[e.code]) Car.keys[keyMap[e.code]] = false; });
+        window.addEventListener('keyup', e => { if (keyMap[e.code]) Car.keys[keyMap[e.code]] = false; if (e.code === 'KeyE' && window.Robbery) Robbery.release(); });
 
         // menu
         $('continue-btn').onclick = () => U.enterDriveReady();
@@ -48,7 +48,7 @@ window.UI = (function () {
             if (v && !/^https:\/\//i.test(v)) { $('paylink-note').textContent = 'The link must start with https://'; return; }
             Save.setGlobal('td_pay_link', v); $('paylink-note').textContent = v ? 'Saved. Players see this link on the $1 screen.' : 'Cleared.';
         };
-        $('drive-btn').onclick = () => { $('drive-btn').style.display = 'none'; Game.start(); U.toast('Drive safe. Take Exit 1 for Tokyo.'); };
+        $('drive-btn').onclick = () => { $('drive-btn').style.display = 'none'; Game.start(); U.toast('Drive safe. Take Exit 1 for San Francisco.'); };
 
         // side buttons + modals
         $('garage-btn').onclick = () => { U.renderGarage(); $('garage-modal').classList.add('open'); };
@@ -60,6 +60,25 @@ window.UI = (function () {
         $('race-btn').onclick = () => { if (Game.started) Races.startStreet(); };
         $('train-btn').onclick = () => { if (Game.started) Train.toggle(); };
         $('map-btn').onclick = () => { SelfDrive.draw(); $('map-modal').classList.add('open'); };
+        // the Waymo's SELF DRIVE button: open the map to pick a city, then a street
+        $('selfdrive-btn').onclick = () => { SelfDrive.showOverview(); $('map-modal').classList.add('open'); U.toast('Click a city for its street map, then click where to go', 3000); };
+        $('map-back').onclick = () => SelfDrive.showOverview();
+        $('friends-btn').onclick = () => Robbery.callFriends();             // robbery mode only (shown by Robbery.setEnabled)
+        $('msg-btn').onclick = () => { Robbery.renderMessages(); $('msg-modal').classList.add('open'); };
+        $('escape-btn').onclick = () => Robbery.sneak();                        // shown only while in jail
+        $('escape-big').onclick = () => Robbery.sneak();
+        $('next-city').onclick = () => Robbery.nextCity();
+        $('getmoney-big').onclick = () => Robbery.getMoney();
+        $('chat-alert-reply').onclick = () => { $('chat-alert').classList.remove('on'); Robbery.renderMessages(); $('msg-modal').classList.add('open'); };
+        document.querySelectorAll('#msg-who button').forEach((b, i) => b.onclick = () => { Robbery.msgWho = i; Robbery.renderMessages(); });
+        const sendMsg = () => { const t = $('msg-text').value.trim(); if (!t) return; Robbery.message(Robbery.msgWho || 0, t); $('msg-text').value = ''; Robbery.renderMessages(); };
+        $('msg-send').onclick = sendMsg;
+        $('msg-text').addEventListener('keydown', e => { if (e.key === 'Enter') { sendMsg(); e.stopPropagation(); } });
+        // paste or drop a screenshot into the chat
+        const takeImage = (files) => { const f = [...(files || [])].find(x => x.type && x.type.startsWith('image/')); if (!f) return false; const rd = new FileReader(); rd.onload = () => { Robbery.messageImage(Robbery.msgWho || 0, rd.result); Robbery.renderMessages(); }; rd.readAsDataURL(f); return true; };
+        $('msg-modal').addEventListener('paste', e => { const items = e.clipboardData && e.clipboardData.files; if (takeImage(items)) e.preventDefault(); });
+        $('msg-modal').addEventListener('dragover', e => e.preventDefault());
+        $('msg-modal').addEventListener('drop', e => { e.preventDefault(); takeImage(e.dataTransfer && e.dataTransfer.files); });
         $('map-cancel').onclick = () => { SelfDrive.cancel(); U.closeModals(); };
         $('osm-btn').onclick = () => { if (Game.started) OSM.enter(); };
         $('osm-exit').onclick = () => OSM.exit();
@@ -72,11 +91,14 @@ window.UI = (function () {
         $('walk-btn').onclick = () => { if (Game.started && window.Walk) Walk.toggle(); };
         $('boost-btn').onclick = () => { if (Game.started) Car.boostStart(); };
         $('fix-btn').onclick = () => { if (Game.started) Features.fixAtWorkshop(); };
-        $('tires-btn').onclick = () => { Features.renderTires(); $('tires-modal').classList.add('open'); };
+        $('damage-btn').onclick = () => { Features.renderDamage(); $('damage-modal').classList.add('open'); };
         $('reset-btn').onclick = () => { if (Game.started) Car.reset(); };
         $('tow-btn').onclick = () => { if (Game.started) Features.callTow(); };
         document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => $(b.dataset.close).classList.remove('open'));
 
+        // phones: the button panel folds behind MENU, and closes again once a button is tapped
+        $('menu-toggle').onclick = () => { const open = $('side-btns').classList.toggle('open'); $('menu-toggle').textContent = open ? 'MENU ▴' : 'MENU ▾'; };
+        document.querySelectorAll('.side-btn').forEach(b => b.addEventListener('click', () => { $('side-btns').classList.remove('open'); $('menu-toggle').textContent = 'MENU ▾'; }));
         // touch controls on touch devices
         if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
             $('touch').classList.add('on');
@@ -126,8 +148,10 @@ window.UI = (function () {
     U.renderGarage = function () {
         const grid = $('cars-grid'); grid.innerHTML = '';
         $('garage-coins').textContent = Game.state.coins + ' coins';
+        const robbery = !!(window.Robbery && Robbery.isOn());
         Object.entries(CARS).forEach(([id, d]) => {
             const owned = Game.state.ownedCars.includes(id), selected = Game.state.selectedCar === id;
+            const locked = d.robberyOnly && !robbery;                       // the Robber's Car: only in ROBBERY mode (Settings > Game mode)
             const card = document.createElement('div');
             card.className = 'car-card' + (selected ? ' selected' : '');
             const col = '#' + (d.bodyColor || d.color || 0x888888).toString(16).padStart(6, '0');
@@ -139,11 +163,11 @@ window.UI = (function () {
                     <div><span>Accel</span><div class="stat-bar"><div class="stat-fill" style="width:${Math.min(100, d.acceleration * 2)}%"></div></div></div>
                     <div><span>Handling</span><div class="stat-bar"><div class="stat-fill" style="width:${Math.min(100, d.handling * 4500)}%"></div></div></div>
                 </div>
-                ${owned ? '' : `<div class="car-price">${d.price} coins</div>`}`;
+                ${owned ? '' : `<div class="car-price">${d.price} coins</div>`}${d.robberyOnly ? '<div class="car-price">ROBBERY mode only</div>' : ''}`;
             const btn = document.createElement('button');
             btn.className = 'car-btn ' + (owned ? (selected ? 'selected-btn' : 'select-btn') : 'buy-btn');
-            btn.textContent = owned ? (selected ? 'EQUIPPED' : 'SELECT') : 'BUY';
-            btn.disabled = selected || (!owned && Game.state.coins < d.price);
+            btn.textContent = locked ? 'ROBBERY ONLY' : owned ? (selected ? 'EQUIPPED' : 'SELECT') : 'BUY';
+            btn.disabled = locked || selected || (!owned && Game.state.coins < d.price);
             btn.onclick = () => {
                 if (owned) { Game.selectCar(id); U.toast('Now driving the ' + d.name); }
                 else if (Game.buyCar(id)) { Game.selectCar(id); U.toast('Bought the ' + d.name + '!'); }
@@ -159,7 +183,7 @@ window.UI = (function () {
         World.cities.forEach(c => {
             const b = document.createElement('button');
             b.className = 'travel-btn';
-            b.innerHTML = `${c.name}<small>${c.sub || ''} · Exit ${c.exitNumber} · ${c.side === 1 ? 'northbound side' : 'southbound side'}</small>`;
+            b.innerHTML = `${c.name}<small>${c.sub || ''} · ${c.exitNumber !== undefined ? 'Exit ' + c.exitNumber + ' · ' + (c.side === 1 ? 'northbound side' : 'southbound side') : 'over the Golden Gate'}</small>`;   // (Sausalito has no exit of its own)
             b.onclick = () => { U.closeModals(); World.travelTo(c); U.toast('On I-80, one mile before the ' + c.name + ' exit'); };
             list.appendChild(b);
         });

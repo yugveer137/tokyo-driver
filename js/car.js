@@ -80,7 +80,7 @@ window.Car = (function () {
         body.addShape(new CANNON.Box(t.half), new CANNON.Vec3(0, offsetY, 0));
         body.position.set(pos.x, pos.y, pos.z);
         body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), yaw || 0);
-        // hard hits (walls, buildings, traffic) are reported to Features for tire damage
+        // hard hits (walls, buildings, traffic) are reported to Features as crash damage
         body.addEventListener('collide', (e) => {
             if (!C.onImpact) return;
             const v = Math.abs(e.contact.getImpactVelocityAlongNormal());
@@ -112,8 +112,8 @@ window.Car = (function () {
         let group;
         if (window.Models && Models.ready) {
             const ch = CarModels.chassis(data.id);
-            const lift = t.points[0][1] - t.suspensionRestLength - t.radius + 0.05;      // wheel contact line
-            group = Models.car(Models.nameFor(data), data.bodyColor || data.color, ch.half[2] * 2 + 0.5, { lift });
+            const lift = t.points[0][1] - t.rest - t.radius;                             // the wheel contact line, below the chassis origin
+            group = Models.car(Models.nameFor(data), data.bodyColor || data.color, ch.half[2] * 2 + 0.5, { lift, width: t.half.x * 2 + 0.3 });
         } else group = (window.CarModels && CarModels.buildBody) ? CarModels.buildBody(data.id) : placeholderBody(data);
         if (data.isWaymo) {                                                  // the roof dome with the spinning lidar, and the fender sensors
             const black = new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.5 });
@@ -131,7 +131,7 @@ window.Car = (function () {
         // Headlights: two spotlights, on at night (Sky.night)
         const lights = [-0.7, 0.7].map(x => {
             const l = new THREE.SpotLight(0xfff5e0, 0, 90, Math.PI / 7, 0.45, 1.4);
-            l.position.set(x, 0.6, 2.0); l.target.position.set(x * 1.5, -0.2, 30);
+            l.position.set(x, 0.6, 2.0); l.target.position.set(x * 1.5, -2.6, 24);   // aimed about 7 degrees down: a level beam only grazes the road
             group.add(l); group.add(l.target); return l;
         });
 
@@ -338,7 +338,7 @@ window.Car = (function () {
             if (keys.back) brake = 50;
         } else if (fwd) {
             if (C.mph < cap) { engine = -maxForce * gear.force; C.throttle = 1; }
-        } else if (keys.back) {
+        } else if (keys.back || C.assistReverse) {                     // (assistReverse: self-drive backing up in a three-point turn)
             if (forwardSpeed > 1.5) brake = 50;       // moving forward: brake
             else { engine = maxForce * 0.3; C.throttle = 0.3; } // stopped: creep backwards
         } else {
@@ -348,9 +348,9 @@ window.Car = (function () {
         // front wheels in the air (a wheelie or a crest): ease off so it settles instead of flipping
         if (engine !== 0 && !(v.wheelInfos[0].raycastResult.hasHit || v.wheelInfos[1].raycastResult.hasHit)) engine *= 0.25;
         if (C.autoBrake && C.mph > 2) { engine = 0; brake = Math.max(brake, 35); C.throttle = 0; }
-        // worn tires: less power and a lower cap (Features.tires)
-        const grip = C.tireGrip === undefined ? 1 : C.tireGrip;
-        if (grip < 1) { engine *= grip; if (C.mph > 45 + 60 * grip) engine = 0; }   // low tires: a softer car and a lower top speed, never a dead one
+        // a damaged car: less power and a lower cap (Features.damage)
+        const grip = C.damageGrip === undefined ? 1 : C.damageGrip;
+        if (grip < 1) { engine *= grip; if (C.mph > 45 + 60 * grip) engine = 0; }   // badly damaged: a softer car and a lower top speed, never a dead one
         v.applyEngineForce(engine, 2); v.applyEngineForce(engine, 3);
         for (let i = 0; i < 4; i++) v.setBrake(brake, i);
 
@@ -413,7 +413,7 @@ window.Car = (function () {
             C.wheels[i].quaternion.copy(tr.quaternion);
         }
         const night = window.Sky ? Sky.night : 0;
-        C.headlights.forEach(l => l.intensity = 1.6 * Math.max(0, night - 0.1));
+        C.headlights.forEach(l => l.intensity = 3.2 * Math.max(0, night - 0.1));   // (dark asphalt needs a strong beam to show a pool)
 
         updateCamera(dt);
     };

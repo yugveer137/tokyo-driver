@@ -10,7 +10,7 @@ window.Models = (function () {
     // chosen to match the real car's body style (a Mach-E is a crossover, a Cybertruck a pickup)
     const BY_ID = {
         starter: 'sedan', sport: 'sedan-sports', muscle: 'sedan-sports', super: 'race', hyper: 'race-future', legend: 'race-future', electric: 'sedan-sports',
-        trailer: 'truck', gtbh: 'truck',
+        trailer: 'truck', gtbh: 'truck', robber: 'truck',
         supra: 'hatchback-sports', ferrari: 'race', mclaren: 'race', m4supra: 'sedan-sports', lec: 'race-future', f550: 'truck-flat', wrangler: 'suv',
         porsche: 'sedan-sports', gv60: 'suv-luxury', sonata: 'sedan', mustangev: 'suv', genesisveet: 'sedan', gv70veet: 'suv-luxury', nes2451: 'race-future',
         gr4: 'race', genesisi5: 'sedan', aventador: 'race', raptor: 'truck-flat',
@@ -34,55 +34,86 @@ window.Models = (function () {
         if (M.pending[name].length > 1) return;
         loader.load('assets/cars/' + name + '.glb', (gltf) => {
             const src = gltf.scene;
-            src.traverse(o => { if (o.isMesh) { o.castShadow = true; o.material.metalness = 0.15; o.material.roughness = 0.6; } });
+            src.traverse(o => { if (o.isMesh) { o.castShadow = true; o.material.metalness = 0.5; o.material.roughness = 0.3; o.material.envMapIntensity = 1.0; } });   // car paint: glossy, reflecting the sky
+            src.traverse(o => { if (o.isMesh && !(/wheel/i.test(o.name) || /wheel/i.test(o.parent.name))) markPaint(o); });
             M.cache[name] = src;
             M.pending[name].forEach(f => f(src)); delete M.pending[name];
         }, undefined, (err) => { console.warn('car model failed: ' + name, err); delete M.pending[name]; });
     }
 
     // The kit paints every part from one palette texture, so a plain colour tint would just
-    // darken the paint. Instead the shader swaps the body's palette colour for ours: we find
-    // that colour by sampling the texture under the body mesh's UVs.
+    // darken the paint. Instead each vertex is marked as paintwork or not (once per model), and
+    // the shader repaints the marked panels in the car's colour while glass, lights and trim keep
+    // the kit's colours. A panel's swatch is found by sampling the palette under its UVs: every
+    // saturated colour is a swatch, swatches of one hue make a cluster (the kit shades panels
+    // with lighter and darker swatches of the same hue), and the clusters covering most of the
+    // painted area are the paintwork. Tail and head lights are saturated too but tiny, so they
+    // fall below the area cut.
     let palette = null;
-    function paletteColorAt(mesh) {
+    function markPaint(mesh) {
         const img = mesh.material.map && mesh.material.map.image;
-        if (!img || !img.width) return null;
+        if (!img || !img.width) return;
         if (!palette) { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; c.getContext('2d').drawImage(img, 0, 0); palette = c.getContext('2d'); }
         const geo = mesh.geometry, uv = geo.attributes.uv, pos = geo.attributes.position, idx = geo.index;
-        if (!uv) return null;
-        // weigh each triangle by its area so the big painted panels win over trim and glass,
-        // and ignore greys (paint is saturated; windows, lights and chrome are not)
-        const area = {}, a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
-        const tris = idx ? idx.count / 3 : pos.count / 3;
+        if (!uv) return;
+        if (idx) { mesh.geometry = geo.toNonIndexed(); return markPaint(mesh); }   // one vertex per corner, so a flag per vertex is a flag per face
+        const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+        const tris = pos.count / 3, texel = [], area = {}, colours = {};
+        const sampled = {};
         for (let t = 0; t < tris; t++) {
-            const i0 = idx ? idx.getX(t * 3) : t * 3, i1 = idx ? idx.getX(t * 3 + 1) : t * 3 + 1, i2 = idx ? idx.getX(t * 3 + 2) : t * 3 + 2;
-            a.fromBufferAttribute(pos, i0); b.fromBufferAttribute(pos, i1); c.fromBufferAttribute(pos, i2);
+            a.fromBufferAttribute(pos, t * 3); b.fromBufferAttribute(pos, t * 3 + 1); c.fromBufferAttribute(pos, t * 3 + 2);
             const ar = b.sub(a).cross(c.sub(a)).length() / 2;
-            const px = Math.floor(uv.getX(i0) * (img.width - 1)), py = Math.floor(uv.getY(i0) * (img.height - 1));   // glTF textures are not flipped
-            const d = palette.getImageData(px, py, 1, 1).data; const k = d[0] + ',' + d[1] + ',' + d[2];
-            area[k] = (area[k] || 0) + ar;
+            const px = Math.floor(uv.getX(t * 3) * (img.width - 1)), py = Math.floor(uv.getY(t * 3) * (img.height - 1));   // glTF textures are not flipped
+            const pk = px + ',' + py;
+            if (!sampled[pk]) { const d = palette.getImageData(px, py, 1, 1).data; sampled[pk] = d[0] + ',' + d[1] + ',' + d[2]; }
+            const k = sampled[pk]; texel.push(k); area[k] = (area[k] || 0) + ar;
+            if (!colours[k]) { const [r, g, bl] = k.split(',').map(Number); colours[k] = new THREE.Color(r / 255, g / 255, bl / 255); }
         }
-        const sat = (k) => { const [r, g, bl] = k.split(',').map(Number); const mx = Math.max(r, g, bl), mn = Math.min(r, g, bl); return mx === 0 ? 0 : (mx - mn) / mx; };
-        const keys = Object.keys(area).sort((x, y) => area[y] - area[x]);
-        const best = keys.find(k => sat(k) > 0.25) || keys[0];
-        if (!best) return null;
-        const [r, g, bl] = best.split(',').map(Number);
-        return new THREE.Color(r / 255, g / 255, bl / 255).convertSRGBToLinear();
+        const hsl = {}; Object.keys(colours).forEach(k => { hsl[k] = colours[k].getHSL({}); });
+        // saturated = chroma, (max - min) / max: HSL saturation calls pale glass blue "saturated"
+        const chroma = (c) => { const mx = Math.max(c.r, c.g, c.b), mn = Math.min(c.r, c.g, c.b); return mx > 0 ? (mx - mn) / mx : 0; };
+        const sat = Object.keys(area).filter(k => chroma(colours[k]) > 0.25 && hsl[k].l > 0.08).sort((x, y) => area[y] - area[x]);
+        if (!sat.length) return;
+        // cluster the swatches by hue, biggest first
+        const clusters = [];
+        sat.forEach(k => {
+            let cl = clusters.find(q => { let d = Math.abs(hsl[k].h - hsl[q.seed].h); d = Math.min(d, 1 - d); return d < 0.045; });
+            if (!cl) { cl = { seed: k, keys: [], area: 0 }; clusters.push(cl); }
+            cl.keys.push(k); cl.area += area[k];
+        });
+        const total = clusters.reduce((s, q) => s + q.area, 0);
+        const paintKeys = {};
+        clusters.filter(q => q.area > total * 0.08).forEach(q => q.keys.forEach(k => { paintKeys[k] = true; }));
+        const flags = new Float32Array(pos.count);
+        texel.forEach((k, t) => { if (paintKeys[k]) flags[t * 3] = flags[t * 3 + 1] = flags[t * 3 + 2] = 1; });
+        mesh.geometry.setAttribute('paint', new THREE.BufferAttribute(flags, 1));
+        mesh.userData.key = colours[clusters[0].seed].clone().convertSRGBToLinear();   // the main swatch: shading is measured against it
     }
+    // The paint rides in the material's colour slot and the main swatch in its emissive slot:
+    // both are built-in uniforms uploaded for every material, which custom uniforms added in
+    // onBeforeCompile are not once the program is shared. Marked panels take the paint scaled by
+    // how much lighter or darker the kit drew that panel than its main swatch.
     function paintMaterial(mat, key, tint) {
-        mat.userData.key = key; mat.userData.paint = tint.clone().convertSRGBToLinear();
+        mat.color.copy(tint).convertSRGBToLinear();
+        mat.emissive.copy(key); mat.emissiveIntensity = 1;
+        mat.userData.key = key; mat.userData.paint = mat.color.clone();
         mat.onBeforeCompile = (shader) => {
-            shader.uniforms.uPaintKey = { value: mat.userData.key };
-            shader.uniforms.uPaint = { value: mat.userData.paint };
+            shader.vertexShader = shader.vertexShader
+                .replace('#include <common>', '#include <common>\nattribute float paint; varying float vPaint;')
+                .replace('#include <begin_vertex>', '#include <begin_vertex>\nvPaint = paint;');
             shader.fragmentShader = shader.fragmentShader
-                .replace('#include <common>', '#include <common>\nuniform vec3 uPaintKey; uniform vec3 uPaint;')
+                .replace('#include <common>', '#include <common>\nvarying float vPaint;')
                 .replace('#include <map_fragment>', `
                     #ifdef USE_MAP
                     vec4 texelColor = texture2D( map, vUv );
                     texelColor = mapTexelToLinear( texelColor );
-                    if (distance(texelColor.rgb, uPaintKey) < 0.06) texelColor.rgb = uPaint;
-                    diffuseColor *= texelColor;
-                    #endif`);
+                    if (vPaint > 0.5) {
+                        float shade = dot(texelColor.rgb, vec3(0.3, 0.59, 0.11)) / max(dot(emissive, vec3(0.3, 0.59, 0.11)), 0.02);
+                        texelColor.rgb = diffuse * clamp(shade, 0.45, 1.7);
+                    }
+                    diffuseColor = vec4(texelColor.rgb, diffuseColor.a * texelColor.a);   // glass, trim and lights stay as drawn
+                    #endif`)
+                .replace('#include <emissivemap_fragment>', 'totalEmissiveRadiance = vec3(0.0);');   // the swatch must not glow
         };
         mat.needsUpdate = true;
     }
@@ -90,30 +121,42 @@ window.Models = (function () {
     // A car body ready to drop in the world: `length` is the physics chassis length it has to
     // match, `color` is the paintwork, the model's own wheels are hidden (the game has its own).
     // group.userData gets hazardLights / brakeLights boxes like the old built-in bodies.
+    // `wheels: true` adds four plain black wheels (for cars that are not a RaycastVehicle:
+    // traffic, the robber friends' cars) sitting on the ground line.
     M.car = function (name, color, length, opts) {
         opts = opts || {};
         const g = new THREE.Group();
         g.userData.hazardLights = []; g.userData.brakeLights = [];
+        if (opts.wheels) M.addWheels(g, length);
+        // a plain body until the model arrives (a slow connection, or a file that never comes):
+        // a car is never just four wheels
+        const stub = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.9, length * 0.9), new THREE.MeshStandardMaterial({ color: color, metalness: 0.3, roughness: 0.6 }));
+        stub.position.y = (opts.lift || 0) + 0.85; stub.castShadow = true; g.add(stub);
         load(name, (src) => {
+            g.remove(stub); stub.geometry.dispose(); stub.material.dispose();
             const body = src.clone(true);
             const tint = new THREE.Color(color);
             body.traverse(o => {
                 if (!o.isMesh) return;
                 if (/wheel/i.test(o.name) || /wheel/i.test(o.parent.name)) { o.visible = false; return; }
                 o.material = o.material.clone();
-                if (opts.keepColors) return;
-                const key = paletteColorAt(o);
-                if (key) paintMaterial(o.material, key, tint);
+                if (opts.keepColors || !o.userData.key) return;
+                paintMaterial(o.material, new THREE.Color(o.userData.key), tint);   // (clone() turns userData's Color into a hex number: rebuild it)
             });
-            // scale to the chassis length and sit the model on its wheels
-            const box = new THREE.Box3().setFromObject(body);
+            // scale to the chassis length and sit the shell just above the wheel contact line. The
+            // box is taken over the visible parts only: the kit's own (hidden) wheels are bigger
+            // than the game's, and measuring them left the body floating above its wheels.
+            const box = new THREE.Box3(), tmp = new THREE.Box3();
+            body.updateMatrixWorld(true);
+            body.traverse(o => { if (o.isMesh && o.visible && o.parent.visible !== false) { o.geometry.computeBoundingBox(); tmp.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); box.union(tmp); } });
             const size = box.getSize(new THREE.Vector3());
             const s = length / Math.max(size.z, 0.01);
-            body.scale.setScalar(s);
-            body.position.set(-(box.min.x + box.max.x) / 2 * s, -box.min.y * s + (opts.lift || 0), -(box.min.z + box.max.z) / 2 * s);
+            const sx = opts.width ? Math.min(s, opts.width * 1.1 / Math.max(size.x, 0.01)) : s;   // (a long lorry scaled to its length came out twice as wide as its chassis)
+            body.scale.set(sx, s, s);
+            body.position.set(-(box.min.x + box.max.x) / 2 * sx, -box.min.y * s + (opts.lift || 0) + 0.30, -(box.min.z + box.max.z) / 2 * s);   // 30 cm of ground clearance: the shell rides above the wheel tops
             g.add(body);
             // signal and brake lights at the corners, driven by Features like the built-in bodies
-            const w = size.x * s, h = size.y * s, L = size.z * s, y = (opts.lift || 0) + h * 0.42;
+            const w = size.x * sx, h = size.y * s, L = size.z * s, y = (opts.lift || 0) + h * 0.42;
             const amber = () => new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0 });
             const red = () => new THREE.MeshBasicMaterial({ color: 0xff2020, transparent: true, opacity: 0.3 });
             [[-1, 1], [1, 1], [-1, -1], [1, -1]].forEach(([sx, sz]) => {
@@ -124,6 +167,12 @@ window.Models = (function () {
             [-1, 1].forEach(sx => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.14, 0.06), red()); m.position.set(sx * (w / 2 - 0.4), y + 0.05, -L / 2 - 0.02); g.add(m); g.userData.brakeLights.push(m); });
         });
         return g;
+    };
+    // four simple wheels on a car group whose body sits on the ground line
+    M.addWheels = function (g, length) {
+        const geom = new THREE.CylinderGeometry(0.36, 0.36, 0.3, 12); geom.rotateZ(Math.PI / 2);
+        const mat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
+        [[0.85, 1], [-0.85, 1], [0.85, -1], [-0.85, -1]].forEach(([x, z]) => { const w = new THREE.Mesh(geom, mat); w.position.set(x, 0.36, z * length * 0.32); g.add(w); });
     };
     return M;
 })();

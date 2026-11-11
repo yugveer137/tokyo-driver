@@ -1,6 +1,6 @@
 // tokyo-driver1 v2 — shared constants. Plain globals, no modules.
 window.CFG = {
-    TITLE: 'tokyo-driver1',
+    TITLE: 'Bay Area Driver',
     GRAVITY: -30,                       // ~3x real, keeps the car planted (same as the old game)
     CYCLE: { day: 60, night: 60 },      // seconds; dawn and dusk blend inside these
     MPH: 2.237,                         // units/s -> mph

@@ -1,11 +1,28 @@
-// tokyo-driver1 v2 — the train. A railway runs the length of the route on the ground to the
-// left of the freeway, with a station at every city. Press T (or the TRAIN button) near the
-// train (stopped at a station) to board: it runs to a timetable, T again gets off beside the track.
+// tokyo-driver1 v2 — the trains. One railway line per freeway (the Peninsula line beside
+// US-101, the East Bay line beside I-880) runs on the ground on the city side of the freeway,
+// with a station at every city. Press T (or the TRAIN button) near a train stopped at a
+// station to board: it runs to a timetable, T again gets off beside the track.
 window.Train = (function () {
-    // Two tracks on the left of the freeway with an island platform between them: forward (dir +1)
-    // trains run on LAT, the ones coming back on LAT2; the platform centre is PLAT.
-    const T = { LAT: -60, LAT2: -74, PLAT: -67, chunks: {}, riding: false, speed: 0, s: 0, stations: [] };
+    // Two tracks beside the freeway with an island platform between them: forward (dir +1)
+    // trains run on LAT, the ones coming back on LAT2; the platform centre is PLAT. These are
+    // distances from the freeway centreline; each line puts them on its cities' side.
+    const LAT = 60, LAT2 = 74, PLAT = 67;
+    const T = { chunks: {}, riding: false, speed: 0, s: 0, stations: [], lines: [] };
     let scene, railTex, railMat;
+
+    // the line that runs beside a freeway (made on first use): its side, lateral offsets, trains
+    T.lineOf = function (fw) {
+        let line = T.lines.find(l => l.fw === fw);
+        if (line) return line;
+        const sign = fw.cities && fw.cities.length ? fw.cities[0].side : -1;
+        const last = fw.cities && fw.cities.length ? Math.max(...fw.cities.map(c => c.s)) : fw.length;
+        line = { fw, sign, lat: sign * LAT, lat2: sign * LAT2, plat: sign * PLAT, trains: [],
+                 name: fw === World.freeway ? 'PENINSULA LINE' : 'EAST BAY LINE',
+                 // the rails stop a little past the last station (I-880 sweeps on to join 101)
+                 sEnd: fw === World.freeway ? fw.length : last + 700 };
+        T.lines.push(line);
+        return line;
+    };
 
     T.init = function (sc) {
         scene = sc;
@@ -87,11 +104,13 @@ window.Train = (function () {
 
     // one track chunk per freeway chunk key (world.js calls these alongside the freeway)
     T.buildRange = function (fw, s0, s1, key) {
+        key = fw.index + ':' + key;
         if (T.chunks[key]) return;
-        const fr = fw.frames.filter(f => { const s = f.t * fw.length; return s >= s0 - fw.segLen && s <= s1 + fw.segLen; });
+        const line = T.lineOf(fw);
+        const fr = fw.frames.filter(f => { const s = f.t * fw.length; return s >= s0 - fw.segLen && s <= Math.min(s1, line.sEnd) + fw.segLen; });
         if (fr.length < 2) return;
         const g = new THREE.Group();
-        [T.LAT, T.LAT2].forEach(lat => {
+        [line.lat, line.lat2].forEach(lat => {
             const geom = Road.strip(fr, { x: lat - 2.2, y: 0 }, { x: lat + 2.2, y: 0 }, 6, fw.length, 0, 1, Road.DRAPE + 0.05);
             const pos = geom.attributes.position, tan = fr[Math.floor(fr.length / 2)].tan;
             for (let i = 0; i < pos.count; i++) pos.setY(i, T.railHeight(pos.getX(i), pos.getZ(i), tan));
@@ -100,12 +119,12 @@ window.Train = (function () {
         });
         scene.add(g); T.chunks[key] = g;
     };
-    T.dropRange = function (key) { const g = T.chunks[key]; if (!g) return; scene.remove(g); g.children.forEach(m => m.geometry.dispose()); delete T.chunks[key]; };
+    T.dropRange = function (fw, key) { key = fw.index + ':' + key; const g = T.chunks[key]; if (!g) return; scene.remove(g); g.children.forEach(m => m.geometry.dispose()); delete T.chunks[key]; };
 
     // station: platform + sign beside the track at a city
     T.station = function (city) {
-        const fw = World.freeway, group = [];
-        const f = Road.at(fw, city.s, T.PLAT);
+        const fw = city.fw, line = T.lineOf(fw), group = [];
+        const f = Road.at(fw, city.s, line.plat);
         const g0 = Terrain.height(f.p.x, f.p.z), yaw = Road.yawOf(f.tan);
         const add = (m) => { m.castShadow = m.receiveShadow = true; group.push(m); return m; };
         const stn = new THREE.Group(); stn.position.set(f.p.x, g0, f.p.z); stn.rotation.y = yaw; group.push(stn);
@@ -143,7 +162,7 @@ window.Train = (function () {
         const vend = place(new THREE.BoxGeometry(1.0, 1.9, 0.8), new THREE.MeshStandardMaterial({ color: 0xd8dde3, roughness: 0.5 }), 0, 1.85, -10);
         const vendFront = place(new THREE.BoxGeometry(0.02, 1.2, 0.7), new THREE.MeshStandardMaterial({ color: 0x1b3e8a, emissive: 0x2a60d0, emissiveIntensity: 0.5 }), -0.52, 2.1, -10);
         // hanging name boards (city name, with the stops either side) — the real-station look
-        const idx = fw.cities.indexOf(city), prev = fw.cities[idx - 1], next = fw.cities[idx + 1];
+        const stops = fw.cities.filter(c => !c.town), idx = stops.indexOf(city), prev = stops[idx - 1], next = stops[idx + 1];   // (trains stop only at cities)
         const boardTex = Tex.textCanvas(1024, 256, (ctx, W, H) => {
             ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
             ctx.fillStyle = '#17336b'; ctx.fillRect(0, 0, W, 26); ctx.fillRect(0, H - 26, W, 26);
@@ -152,7 +171,7 @@ window.Train = (function () {
             ctx.font = '600 34px Helvetica, Arial, sans-serif'; ctx.fillStyle = '#444';
             ctx.textAlign = 'left'; ctx.fillText(prev ? '◀ ' + prev.name : '', 40, H * 0.8);
             ctx.textAlign = 'right'; ctx.fillText(next ? next.name + ' ▶' : '', W - 40, H * 0.8);
-            ctx.textAlign = 'center'; ctx.fillStyle = '#17336b'; ctx.font = 'bold 30px Helvetica, Arial, sans-serif'; ctx.fillText('I-80 LINE  ·  TRAINS EVERY MINUTE', W / 2, H * 0.95);
+            ctx.textAlign = 'center'; ctx.fillStyle = '#17336b'; ctx.font = 'bold 30px Helvetica, Arial, sans-serif'; ctx.fillText(line.name + '  ·  TRAINS EVERY MINUTE', W / 2, H * 0.95);
         });
         const boardMat = new THREE.MeshStandardMaterial({ map: boardTex, roughness: 0.6, side: THREE.DoubleSide });
         [-16, 16].forEach(z => {
@@ -163,22 +182,22 @@ window.Train = (function () {
         place(new THREE.BoxGeometry(6, 3.2, 5), new THREE.MeshStandardMaterial({ color: 0xe8e2d6, map: Tex.facade, roughness: 0.8 }), 0, 2.5, LEN / 2 - 3);
         place(new THREE.BoxGeometry(6.4, 0.3, 5.4), roofMat, 0, 4.2, LEN / 2 - 3);
         place(new THREE.BoxGeometry(1.4, 2.2, 0.1), new THREE.MeshStandardMaterial({ color: 0x2a3a4a }), 0, 2.0, LEN / 2 - 5.56);
-        const sp = Road.at(fw, city.s + 20, T.PLAT); sp.p.y = g0 + 0.9;
+        const sp = Road.at(fw, city.s + 20, line.plat); sp.p.y = g0 + 0.9;
         group.push(Signs.plain(sp.p, Signs.facingFrom(f.tan) + Math.PI / 2, 'STATION', city.name.toUpperCase(), 5, 2.2));
-        // stairs down from the freeway's left shoulder, then a footpath over to the platform
-        const hw = fw.width / 2;
-        const top = Road.at(fw, city.s - 30, -(hw + 1.0)).p.clone();
-        const bot = Road.at(fw, city.s - 30, -(hw + 24)).p.clone(); bot.y = Terrain.height(bot.x, bot.z) + 0.1;
+        // stairs down from the freeway's shoulder on the rails side, then a footpath over to the platform
+        const hw = fw.width / 2, sg = line.sign;
+        const top = Road.at(fw, city.s - 30, sg * (hw + 1.0)).p.clone();
+        const bot = Road.at(fw, city.s - 30, sg * (hw + 24)).p.clone(); bot.y = Terrain.height(bot.x, bot.z) + 0.1;
         const stairMat = new THREE.MeshStandardMaterial({ color: 0xa9adb3, map: Tex.concrete, roughness: 0.9 });
         const len = top.distanceTo(bot);
         const stair = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.3, len), stairMat);
         stair.position.copy(top).add(bot).multiplyScalar(0.5); stair.position.y -= 0.12; stair.lookAt(bot.x, bot.y - 0.12, bot.z); stair.castShadow = stair.receiveShadow = true;
         group.push(stair);
         [-1.4, 1.4].forEach(x => { const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.0, len), new THREE.MeshStandardMaterial({ color: 0x6f7780, metalness: 0.6 })); rail.position.copy(stair.position); rail.position.y += 0.6; rail.lookAt(bot.x, bot.y + 0.6 - 0.12, bot.z); rail.translateX(x); group.push(rail); });
-        const pathLen = Math.abs(T.PLAT - (-(hw + 24)));
-        const pathMid = Road.at(fw, city.s - 30, (-(hw + 24) + T.PLAT) / 2);
+        const pathLen = Math.abs(line.plat - sg * (hw + 24));
+        const pathMid = Road.at(fw, city.s - 30, (sg * (hw + 24) + line.plat) / 2);
         group.push(Road.drapedQuad(pathMid.p.x, pathMid.p.z, pathLen, Road.yawOf(pathMid.tan), stairMat, Road.DRAPE + 0.03, 2, 2.4));
-        if (window.Walk) { Walk.addSurface(top, bot, 1.5, city); Walk.addSurface(bot, Road.at(fw, city.s - 30, T.PLAT).p, 1.5, city); }
+        if (window.Walk) { Walk.addSurface(top, bot, 1.5, city); Walk.addSurface(bot, Road.at(fw, city.s - 30, line.plat).p, 1.5, city); }
         if (window.Peds) Peds.spawnPlatform(city, f.p, f.tan);
         // a tall blue beacon so the stop can be seen from the freeway when you are on foot
         const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 40, 8), new THREE.MeshBasicMaterial({ color: 0x3fa9ff, transparent: true, opacity: 0.55 }));
@@ -187,33 +206,34 @@ window.Train = (function () {
         // you can stand on the platform slab
         if (window.Walk) Walk.addSurface(f.p.clone().addScaledVector(f.tan, -LEN / 2).setY(platform.y), f.p.clone().addScaledVector(f.tan, LEN / 2).setY(platform.y), 5, city);
         group.forEach(m => { if (!m.parent) scene.add(m); });            // signs and draped quads add themselves; the rest go in here
-        T.stations.push({ city, s: city.s, meshes: group, platform });
+        T.stations.push({ city, s: city.s, line, meshes: group, platform });
         return group;
     };
 
-    T.pose = function (s, lat) { return Road.at(World.freeway, s, lat === undefined ? T.LAT : lat); };
+    T.pose = function (line, s, lat) { return Road.at(line.fw, s, lat === undefined ? line.lat : lat); };
     // Rails are laid on a smoothed ground line (the land is averaged over 60 m along the track),
     // so the train glides instead of bobbing over every bump in the terrain.
     T.railHeight = function (x, z, tan) {
         let sum = 0; for (let k = -30; k <= 30; k += 15) sum += Terrain.height(x + tan.x * k, z + tan.z * k);
         return sum / 5 + Road.DRAPE + 0.05;
     };
-    T.groundAt = function (s, lat) { const f = T.pose(s, lat); f.p.y = T.railHeight(f.p.x, f.p.z, f.tan); return f; };
+    T.groundAt = function (line, s, lat) { const f = T.pose(line, s, lat); f.p.y = T.railHeight(f.p.x, f.p.z, f.tan); return f; };
 
     // ---- timetable ----
-    // Stations are the I-80 cities. Trains run out and back along the line as one big loop of
+    // Stations are a line's cities. Trains run out and back along the line as one big loop of
     // "nodes" (0,1,...,last,...,1): every minute each train moves one node on; it waits DWELL
     // seconds at the station, then takes the rest of the minute to reach the next one. One train
     // per node means every stop sees a train each minute (the middle stops: one each way).
     const SLOT = 60, DWELL = 15;
-    T.clock = 0; T.trains = [];
-    function stationS() { return World.freeway.cities.map(c => c.s).sort((a, b) => a - b); }
-    function nodes() { const st = stationS(); const out = st.slice(); for (let i = st.length - 2; i >= 1; i--) out.push(st[i]); return out; }
-    function ensureTrains(n) {
-        while (T.trains.length < n) { const m = buildTrain(); m.visible = false; scene.add(m); T.trains.push({ mesh: m, s: 0, speed: 0, dir: 1, atStation: false, node: -1 }); }
+    T.clock = 0;
+    function stationS(line) { return line.fw.cities.filter(c => !c.town).map(c => c.s).sort((a, b) => a - b); }   // towns have no stop
+    function nodes(line) { const st = stationS(line); const out = st.slice(); for (let i = st.length - 2; i >= 1; i--) out.push(st[i]); return out; }
+    function ensureTrains(line, n) {
+        while (line.trains.length < n) { const m = buildTrain(); m.visible = false; scene.add(m); line.trains.push({ mesh: m, line, s: 0, speed: 0, dir: 1, atStation: false, node: -1 }); }
     }
+    function allTrains() { return T.lines.reduce((a, l) => a.concat(l.trains), []); }
     // where train p is right now
-    function placeTrain(p, tr, nd, playerPos) {
+    function placeTrain(line, p, tr, nd, playerPos) {
         const N = nd.length, slot = Math.floor(T.clock / SLOT), phase = T.clock - slot * SLOT;
         const node = (p + slot) % N, next = (node + 1) % N;
         const s0 = nd[node], s1 = nd[next];
@@ -223,31 +243,31 @@ window.Train = (function () {
             const f = (phase - DWELL) / (SLOT - DWELL), ease = f * f * (3 - 2 * f);          // smooth start and stop
             tr.s = s0 + (s1 - s0) * ease; tr.speed = Math.abs(s1 - s0) * 6 * f * (1 - f) / (SLOT - DWELL); tr.atStation = false; tr.arrivesIn = (1 - f) * (SLOT - DWELL);
         }
-        const fr = T.groundAt(tr.s, tr.dir === 1 ? T.LAT : T.LAT2);    // each direction on its own track
+        const fr = T.groundAt(line, tr.s, tr.dir === 1 ? line.lat : line.lat2);    // each direction on its own track
         tr.mesh.position.copy(fr.p);
         tr.mesh.rotation.set(0, Road.yawOf(fr.tan) + (tr.dir === 1 ? 0 : Math.PI), 0);
         tr.mesh.visible = tr.mesh.position.distanceTo(playerPos) < 1500;
         if (tr.mesh.visible) tr.mesh.userData.wheels.forEach(w => { w.rotation.x += tr.speed * tr.dir / 0.42 * (1 / 60); });
         tr.frame = fr;
     }
-    // seconds until the next train stops at the station at arc length sSt (and whether one is there now)
-    T.nextAt = function (sSt) {
+    // seconds until the next train stops at a station (and whether one is there now)
+    T.nextAt = function (station) {
         const slot = Math.floor(T.clock / SLOT), phase = T.clock - slot * SLOT;
-        const here = T.trains.find(tr => tr.atStation && Math.abs(tr.s - sSt) < 1);
+        const here = station.line.trains.find(tr => tr.atStation && Math.abs(tr.s - station.s) < 1);
         return here ? { here: true, leavesIn: Math.ceil(here.leavesIn) } : { here: false, inSeconds: Math.ceil(SLOT - phase) };
     };
     // the train you can board: stopped at a station within 40 m of you
-    T.near = function (pos) { return T.trains.find(tr => tr.mesh.visible && tr.atStation && tr.mesh.position.distanceTo(pos) < 40) || null; };
+    T.near = function (pos) { return allTrains().find(tr => tr.mesh.visible && tr.atStation && tr.mesh.position.distanceTo(pos) < 40) || null; };
     T.toggleView = function () { T.inside = !T.inside; UI.toast(T.inside ? 'Inside the train' : 'Outside view'); };
     T.toggle = function () {
         if (T.riding) {
             const tr = T.ride; T.riding = false; T.ride = null;
             tr.mesh.userData.inside.visible = false;
-            const f = tr.frame || T.groundAt(tr.s);
-            const station = tr.atStation ? T.stations.find(st => Math.abs(st.s - tr.s) < 1) : null;
+            const f = tr.frame || T.groundAt(tr.line, tr.s);
+            const station = tr.atStation ? T.stations.find(st => st.line === tr.line && Math.abs(st.s - tr.s) < 1) : null;
             if (station) {
                 // at a stop: the car goes in the station car park, you step onto the platform
-                const bay = Road.at(World.freeway, station.s + 40, T.LAT + 10 - 4.8);     // the rails-side row, middle bay (kept free)
+                const bay = Road.at(tr.line.fw, station.s + 40, tr.line.sign * (LAT - 10 + 4.8));     // the rails-side row, middle bay (kept free)
                 Car.teleport(bay.p.x, Terrain.height(bay.p.x, bay.p.z) + 1.2, bay.p.z, Road.yawOf(bay.tan) + Math.PI / 2);
             } else {
                 const side = f.p.clone().addScaledVector(f.right, -8);
@@ -270,7 +290,7 @@ window.Train = (function () {
         const tr = T.near(who);
         if (!tr) {
             const st = T.stations.filter(x => x.city.loaded).sort((a, b) => a.platform.distanceTo(who) - b.platform.distanceTo(who))[0];
-            const when = st ? T.nextAt(st.s) : null;
+            const when = st ? T.nextAt(st) : null;
             UI.toast(when ? 'No train here yet — next one stops at ' + st.city.name + ' in ' + when.inSeconds + ' s. Wait on the platform.' : 'Walk up to a train stopped at a station (stops are beside the freeway at every city)', 3500);
             return;
         }
@@ -283,8 +303,11 @@ window.Train = (function () {
     T.update = function (dt, playerPos) {
         if (!World.freeway) return;
         T.clock += dt;
-        const nd = nodes(); ensureTrains(nd.length);
-        for (let p = 0; p < nd.length; p++) placeTrain(p, T.trains[p], nd, playerPos);
+        (World.freeways || [World.freeway]).forEach(fw => {
+            if (!fw.cities || fw.cities.length < 2) return;
+            const line = T.lineOf(fw), nd = nodes(line); ensureTrains(line, nd.length);
+            for (let p = 0; p < nd.length; p++) placeTrain(line, p, line.trains[p], nd, playerPos);
+        });
         if (!T.riding) return;
         const tr = T.ride, f = tr.frame;
         T.s = tr.s; T.speed = tr.speed;
@@ -293,7 +316,7 @@ window.Train = (function () {
         Car.body.quaternion.setFromAxisAngle(new CANNON.Vec3(0, 1, 0), Road.yawOf(f.tan));
         Car.mph = tr.speed * CFG.MPH;
         // announce stops
-        if (tr.atStation && !T.announced) { T.announced = true; const city = World.freeway.cities.find(c => Math.abs(c.s - tr.s) < 1); if (city) UI.toast('This stop: ' + city.name + '. Doors open for ' + DWELL + ' s — press T to get off.', 4000); }
+        if (tr.atStation && !T.announced) { T.announced = true; const city = tr.line.fw.cities.find(c => Math.abs(c.s - tr.s) < 1); if (city) UI.toast('This stop: ' + city.name + '. Doors open for ' + DWELL + ' s — press T to get off.', 4000); }
         if (!tr.atStation) T.announced = false;
         const cam = game.camera;
         tr.mesh.userData.inside.visible = !!T.inside;

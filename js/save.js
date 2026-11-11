@@ -24,12 +24,14 @@
     const SESSION_KEY = 'td_login';     // sessionStorage: who is signed in in this tab
     const ACCT_KEY = 'td_accounts';     // localStorage: { email: code } made on this browser
     const PAY_LINK_KEY = 'td_pay_link'; // localStorage: payment link, set by the creator
+    const REMEMBER_KEY = 'td_remember'; // localStorage: a login installed by a #play link (your own phone): stays signed in
     // Keep in sync with the old game: the hash is the SHA-256 of the normalised unlock code.
-    // The creator signs in with the owner email plus the money code. Only the SHA-256 of the
-    // email is kept here (the code's hash is UNLOCK_HASH below), so the page shows no secrets.
-    const CREATOR_EMAIL_HASH = '40ae3a159522376a6cbe9153ca3cb8b826fa99605b91e8c9242d32c14062fa10';
+    // The creator signs in with the owner email plus the creator password (players need the
+    // money code instead). Only SHA-256 hashes are kept here, so the page shows no secrets.
+    const CREATOR_EMAIL_HASH = '6ee032b5ef8ee117025d16bb28a092236b878467917535b29b3d6fac1f25fb8a';   // of the owner email with only its letters and digits kept (see norm)
     const OWNER_EMAIL = 'yugveer.18@gmail.com';  // "Contact Owner" emails this address
-    const UNLOCK_HASH = '4f84719d0fa3c300fe55c8b1bc6a8b0732310093030ce0d90d370101464fdf56';
+    const CREATOR_PASS_HASH = '490218043cd686f8b85d564602af99bfb4dfeb9b2e94876c96395f0f9e797322';   // the creator's own password, kept only as its SHA-256
+    const UNLOCK_HASH = '63640264849a87c90356129d99ea165e37aa5fabc1fea46906df1a7ca50db492';
 
     // ---------- CSS (copied from the old index.html) ----------
     const CSS = `
@@ -189,6 +191,18 @@
             color: #04120b;
         }
         #paid-btn { background: linear-gradient(135deg, #ffb347, #ff8c00); color: #201400; }
+        #pay-gate .pay-row { display: flex; gap: 8px; }
+        #pay-gate .pay-row #pay-btn { flex: 1; }
+        #pay-more { width: 54px; border: none; border-radius: 10px; font-size: 1.3rem; cursor: pointer; background: #1c2a3c; color: #00e5ff; border: 1px solid rgba(0, 229, 255, 0.35); }
+        #pay-plans, #pay-more-box { display: none; margin-top: 14px; }
+        #pay-plans.on, #pay-more-box.on { display: block; }
+        #pay-plans .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+        #pay-plans .plan { background: #101a2e; border: 1px solid rgba(0, 229, 255, 0.25); border-radius: 12px; padding: 12px 6px; }
+        #pay-plans .plan b { display: block; font-size: 1.5rem; color: #00ff88; }
+        #pay-plans .plan span { display: block; font-size: 0.72rem; color: #8aa; margin: 4px 0 8px; }
+        #pay-plans .plan a { display: inline-block; font-size: 0.7rem; padding: 6px 8px; border-radius: 8px; background: #00e5ff22; color: #00e5ff; text-decoration: none; border: 1px solid #00e5ff55; }
+        #trial7, #free3 { width: 100%; margin-top: 10px; padding: 12px; border: 1px solid #ffb34766; border-radius: 10px; font-family: monospace; font-weight: bold; letter-spacing: 1px; cursor: pointer; background: #2a2010; color: #ffb347; }
+        #free3 { background: #10261a; color: #7fe0a0; border-color: #7fe0a066; }
         #pay-after { display: none; margin-top: 18px; }
         #pay-after .pay-sub { margin: 0 0 10px; }
         #pay-note { color: #ff5d6c; font-size: 0.76rem; min-height: 1em; margin-top: 12px; }
@@ -224,7 +238,7 @@
         #unlock-err { color: #ff5d6c; font-size: 0.72rem; min-height: 1em; margin-top: 6px; }
 
         /* Creator sign on the side */
-        #creator-side { position: fixed; right: 22px; top: 50%; transform: translateY(-50%); text-align: right; }
+        #creator-side { position: fixed; right: 22px; bottom: 22px; text-align: right; }
         #creator-btn {
             background: rgba(255, 255, 255, 0.06);
             border: 1px solid rgba(255, 255, 255, 0.25);
@@ -264,7 +278,7 @@
 
     const LOGIN_HTML = `
         <div class="lg-card">
-            <h2>tokyo-driver1</h2>
+            <h2>Bay Area Driver</h2>
             <p class="lg-sub">Enter your email and create a code to play.<br>You'll only do this once.</p>
             <label for="lg-email">Email</label>
             <input id="lg-email" type="email" autocomplete="email" placeholder="you@example.com" />
@@ -276,7 +290,7 @@
     `;
 
     const SPLASH_HTML = `
-        <h1>tokyo-driver1</h1>
+        <h1>Bay Area Driver</h1>
         <p>Drive the Bay Area: San Francisco to San Jose, Oakland to Fremont, three bridges over the water.<br>You need money to play: email <b>${OWNER_EMAIL}</b> to get it.</p>
         <button id="splash-play">PLAY</button>
         <small>Questions and money: ${OWNER_EMAIL}</small>
@@ -284,17 +298,26 @@
 
     const PAY_HTML = `
         <div class="pay-card">
-            <h2>tokyo-driver1</h2>
-            <div class="pay-price">YOU NEED MONEY</div>
-            <p class="pay-sub">You can't play yet — you need money from the owner.<br>
-               Open your Gmail and send an email to<br>
-               <b style="color:#fff;font-size:1.1em">${OWNER_EMAIL}</b><br>
-               Say you want to play tokyo-driver1, pay the $1, and write your game login:<br>
-               <b id="pay-login" style="color:#7fa"></b><br>
-               The owner emails you back a money code. Type it below and you can play.</p>
-            <button id="pay-btn">PAY $1</button>
+            <h2>Bay Area Driver</h2>
+            <div class="pay-price">PAY $1</div>
+            <p class="pay-sub">A week of Bay Area Driver is $1. Pay the owner by email and you get a money code that opens the game.</p>
+            <div class="pay-row"><button id="pay-btn">PAY $1</button><button id="pay-more" title="more choices">&#9662;</button></div>
+            <div id="pay-plans">
+                <div class="plans">
+                    <div class="plan"><b>$1</b><span>a week</span><a id="mail-week" href="#">EMAIL TO PAY</a></div>
+                    <div class="plan"><b>$10</b><span>a month</span><a id="mail-month" href="#">EMAIL TO PAY</a></div>
+                    <div class="plan"><b>$100</b><span>a year</span><a id="mail-year" href="#">EMAIL TO PAY</a></div>
+                </div>
+                <p class="pay-sub" style="margin-bottom:8px">To play you have to email the owner at<br>
+                   <b style="color:#fff;font-size:1.1em">${OWNER_EMAIL}</b><br>
+                   Say which plan you want and write your game login:<br>
+                   <b id="pay-login" style="color:#7fa"></b><br>
+                   The owner emails you back your money code. Type it below and you can play.</p>
+                <button id="copy-owner" class="toggle-btn">COPY THE OWNER'S EMAIL ADDRESS</button>
+            </div>
+            <div id="pay-more-box"><button id="free3">HAVE THE GAME FREE FOR 3 DAYS</button></div>
+            <button id="trial7">HAVE A 7-DAY FREE TRIAL</button>
             <div id="pay-note"></div>
-            <button id="copy-owner" class="toggle-btn" style="margin-top:8px">COPY THE OWNER'S EMAIL ADDRESS</button>
             <div id="unlock-row">
                 <label for="unlock-input">Got your money code?</label>
                 <div class="unlock-line">
@@ -309,8 +332,8 @@
             <div id="creator-box">
                 <label for="creator-input">Owner email</label>
                 <input id="creator-input" type="email" placeholder="owner email" autocomplete="off" />
-                <label for="creator-code" style="margin-top:8px">Money code</label>
-                <input id="creator-code" type="password" placeholder="the money code" autocomplete="off" />
+                <label for="creator-pass" style="margin-top:8px">Password</label>
+                <input id="creator-pass" type="password" placeholder="creator password" autocomplete="off" />
                 <button id="creator-go">ENTER</button>
                 <div id="creator-err"></div>
             </div>
@@ -330,7 +353,9 @@
     function account() {
         const s = session.get();
         if (!s) return 'guest';
-        return s.type === 'creator' ? 'creator' : (s.email || 'guest');
+        if (s.type === 'creator') return 'creator';
+        const e = s.email || 'guest';
+        return e === 'creator' ? 'guest' : e;                                 // (only a creator session is the creator, whatever its email says)
     }
     function isCreator() { return account() === 'creator'; }
     function nsKey(name) { return 'td:' + account() + ':' + name; }
@@ -383,10 +408,19 @@
 
     function runUrlSwitches() {
         const where = location.hash + location.search;
+        // #creator — while developing on your own machine, sign in as the creator straight
+        // away (skips the title, login and money screens). Only honoured on localhost, so
+        // the public site never has a password-free door.
+        const local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+        if (local && /[#?&]creator\b/i.test(where)) {
+            session.set({ type: 'creator', ts: Date.now() });
+            try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+        }
         // #reset — just sign out. Accounts and saved games are kept.
         if (/[#?&]reset\b/i.test(where)) {
             session.clear();
-            try { history.replaceState(null, '', location.pathname); } catch (e) {}
+            try { localStorage.removeItem(REMEMBER_KEY); } catch (e) {}
+            try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
         }
         // #wipe — erase EVERYTHING for a totally fresh start: every account (emails +
         // codes), every saved game, every paid flag, and the payment link.
@@ -405,13 +439,7 @@
                 session.clear();
                 Save.wiped = doomed.length;
             } catch (e) {}
-            try { history.replaceState(null, '', location.pathname); } catch (e) {}
-        }
-        // #creator / ?creator (bookmark it): sign in as creator, skipping both gates — even if
-        // someone else is signed in on this device.
-        if (/[#?&]creator\b/i.test(where)) {
-            const cur = session.get();
-            if (!cur || cur.type !== 'creator') session.set({ type: 'creator', ts: Date.now() });
+            try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
         }
     }
 
@@ -479,8 +507,10 @@
         });
     }
 
-    // 'paid2': the money gate was re-armed on 2026-10-24, so old 'paid' flags no longer count
-    function isPaid() { return readRaw(nsKey('paid2'), null) === 'yes'; }
+    // 'paid2': the money gate was re-armed on 2026-10-24, so old 'paid' flags no longer count.
+    // A free trial counts as paid until its day runs out (one trial per account).
+    function trialLeftMs() { const until = Number(readRaw(nsKey('trialUntil'), 0)) || 0; return until - Date.now(); }
+    function isPaid() { return readRaw(nsKey('paid2'), null) === 'yes' || trialLeftMs() > 0; }
 
     // $1 pay gate. Payment happens on the payment company's own secure site --
     // this page never asks for card details.
@@ -510,16 +540,33 @@
                 if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(OWNER_EMAIL).then(done, done); else done();
             });
 
-            gate.querySelector('#pay-btn').addEventListener('click', function () {
-                const link = String(getGlobal(PAY_LINK_KEY, '') || '').trim();
-                if (!link) {
-                    // No payment link set by the owner yet: the email is the way to pay
-                    noteEl.textContent = 'Email ' + OWNER_EMAIL + ' from your Gmail with your login and the $1; you get your money code back.';
-                    return;
-                }
-                window.open(link, '_blank', 'noopener');
-                noteEl.textContent = 'After paying, email ' + OWNER_EMAIL + ' your game login to get your money code.';
+            // PAY $1 opens the plans; each plan's EMAIL TO PAY drafts the email to the owner
+            const plans = gate.querySelector('#pay-plans'), more = gate.querySelector('#pay-more-box');
+            const login = account() || '(not signed in)';
+            [['mail-week', '$1 for a week'], ['mail-month', '$10 for a month'], ['mail-year', '$100 for a year']].forEach(function (pair) {
+                const a = gate.querySelector('#' + pair[0]);
+                a.href = 'mailto:' + OWNER_EMAIL + '?subject=' + encodeURIComponent('Bay Area Driver: ' + pair[1]) + '&body=' + encodeURIComponent('Hi, I want to play Bay Area Driver: ' + pair[1] + '.\nMy game login: ' + login + '\nPlease send me my money code.');
             });
+            gate.querySelector('#pay-btn').addEventListener('click', function () {
+                plans.classList.toggle('on'); more.classList.remove('on');
+                const link = String(getGlobal(PAY_LINK_KEY, '') || '').trim();
+                if (link) window.open(link, '_blank', 'noopener');
+                noteEl.textContent = plans.classList.contains('on') ? 'Pick a plan, email ' + OWNER_EMAIL + ', and type the money code you get back.' : '';
+            });
+            gate.querySelector('#pay-more').addEventListener('click', function () { more.classList.toggle('on'); });
+            // the free trials: one per account; the gate comes back when the days are up
+            function startTrial(days) {
+                if (readRaw(nsKey('trialUsed'), null) === 'yes') { noteEl.textContent = 'You already had your free trial. Email ' + OWNER_EMAIL + ' for a money code.'; return; }
+                writeRaw(nsKey('trialUsed'), 'yes');
+                writeRaw(nsKey('trialUntil'), String(Date.now() + days * 86400000));
+                gate.remove(); resolve();
+            }
+            gate.querySelector('#trial7').addEventListener('click', function () { startTrial(7); });
+            gate.querySelector('#free3').addEventListener('click', function () { startTrial(3); });
+            if (readRaw(nsKey('trialUsed'), null) === 'yes') {                    // one trial per account: the buttons go grey
+                ['#trial7', '#free3'].forEach(function (sel) { var b = gate.querySelector(sel); b.disabled = true; b.style.opacity = '0.45'; b.textContent = 'FREE TRIAL ALREADY USED'; });
+                if (trialLeftMs() <= 0) noteEl.textContent = 'Your free trial has ended. $1 keeps you driving for a week.';
+            }
 
             // Unlock code the owner emails to people who've paid. Only its SHA-256 fingerprint
             // is stored here, so reading the page source doesn't reveal it. Honor system:
@@ -545,33 +592,34 @@
             gate.querySelector('#unlock-btn').addEventListener('click', tryUnlockCode);
             unlockInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') tryUnlockCode(); });
 
-            // Creator sign-in: the owner email plus the money code, both checked by hash.
+            // Creator sign-in: the owner email plus the creator password, both checked by hash.
             const box = gate.querySelector('#creator-box');
             const input = gate.querySelector('#creator-input');
-            const codeInput = gate.querySelector('#creator-code');
+            const passInput = gate.querySelector('#creator-pass');
             const err = gate.querySelector('#creator-err');
             gate.querySelector('#creator-btn').addEventListener('click', function () {
                 box.style.display = (box.style.display === 'block') ? 'none' : 'block';
                 if (box.style.display === 'block') input.focus();
             });
-            // Be forgiving: ignore spaces and capitals (phone keyboards slip them in).
-            function norm(s) { return String(s).replace(/\s+/g, '').toLowerCase(); }
+            // Be forgiving: only the letters and digits count, so capitals, spaces, the dots
+            // Gmail ignores anyway and even a missing @ (autofill drops it) all still sign in.
+            function norm(s) { return String(s).toLowerCase().replace(/[^a-z0-9]/g, ''); }
             async function tryCreator() {
                 if (!window.crypto || !crypto.subtle) { err.textContent = 'This browser can\'t check the sign-in.'; return; }
                 const emailOk = await sha256Hex(norm(input.value)) === CREATOR_EMAIL_HASH;
-                const codeOk = await sha256Hex(codeInput.value.toUpperCase().replace(/[\s-]+/g, '')) === UNLOCK_HASH;
-                if (emailOk && codeOk) {
+                const passOk = await sha256Hex(passInput.value.replace(/\s+/g, '')) === CREATOR_PASS_HASH;
+                if (emailOk && passOk) {
                     session.set({ type: 'creator', ts: Date.now() });
                     gate.remove();
                     resolve();
                 } else {
-                    err.textContent = emailOk ? 'That money code isn\'t right.' : 'That is not the owner email.';
-                    (emailOk ? codeInput : input).select();
+                    err.textContent = emailOk ? 'That password isn\'t right.' : 'That is not the owner email.';
+                    (emailOk ? passInput : input).select();
                 }
             }
             gate.querySelector('#creator-go').addEventListener('click', tryCreator);
-            input.addEventListener('keydown', function (e) { if (e.key === 'Enter') codeInput.focus(); });
-            codeInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') tryCreator(); });
+            input.addEventListener('keydown', function (e) { if (e.key === 'Enter') passInput.focus(); });
+            passInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') tryCreator(); });
         });
     }
 
@@ -581,11 +629,60 @@
     function getGlobal(key, fallback) { return readRaw(key, fallback); }
     function setGlobal(key, value) { writeRaw(key, value); }
 
+    // #play=<token> — a link (or QR code) made on the owner's machine that carries a login and
+    // a saved game: {t:'creator', p:password} or {e:email, c:code}, plus s: the account's save
+    // keys. It signs that account in, writes the save over this browser's copy, and remembers
+    // the login on this device (REMEMBER_KEY), so the phone it was scanned on never sees the
+    // login screen again (#reset forgets it). The creator password is checked against its
+    // hash, the same as typing it in.
+    async function sha256HexOf(text) {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+        return Array.from(new Uint8Array(buf)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+    }
+    async function applyPlayLink() {
+        const m = (location.hash + location.search).match(/[#?&]play=([A-Za-z0-9_-]+)/);
+        if (!m) return;
+        // (drop the token from the address so a reload never applies the save again; keep ?room=)
+        const q = location.search.replace(/([?&])play=[^&]*&?/, '$1').replace(/[?&]$/, '');
+        try { history.replaceState(null, '', location.pathname + q); } catch (e) {}
+        let tok = null;
+        try { tok = JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, '+').replace(/_/g, '/'))))); } catch (e) { return; }
+        if (!tok || !window.crypto || !crypto.subtle) return;
+        let login = null, acct = null;
+        if (tok.t === 'creator' && tok.p && await sha256HexOf(String(tok.p).replace(/\s+/g, '')) === CREATOR_PASS_HASH) { login = { type: 'creator', ts: Date.now() }; acct = 'creator'; }
+        else if (tok.e && tok.c) {
+            // a player's link: a real email, never 'creator'/'guest', and never another player's
+            // account on this device with a different code
+            acct = String(tok.e).trim().toLowerCase();
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(acct)) return;
+            const accts = readAccounts();
+            if (Object.prototype.hasOwnProperty.call(accts, acct) && accts[acct] !== tok.c) return;
+            login = { type: 'player', email: acct, code: tok.c, ts: Date.now() };
+            accts[acct] = tok.c;
+            try { localStorage.setItem(ACCT_KEY, JSON.stringify(accts)); } catch (e) {}
+        }
+        if (!login) return;
+        // (a player's link carries the save, never the paid/trial flags: those come from the money code)
+        const blocked = login.type === 'creator' ? [] : ['paid2', 'trialUntil', 'trialUsed'];
+        if (tok.s && typeof tok.s === 'object') Object.keys(tok.s).forEach(function (k) { if (blocked.indexOf(k) === -1) writeRaw('td:' + acct + ':' + k, tok.s[k]); });
+        session.set(login);
+        try { localStorage.setItem(REMEMBER_KEY, JSON.stringify(login)); } catch (e) {}
+    }
+    function rememberedLogin() {
+        try { return JSON.parse(localStorage.getItem(REMEMBER_KEY) || 'null'); } catch (e) { return null; }
+    }
+
     let bootPromise = null;
     function boot() {
         if (bootPromise) return bootPromise;
         bootPromise = new Promise(function (resolve) { whenBody(resolve); }).then(async function () {
             runUrlSwitches();
+            await applyPlayLink();
+            if (!session.get() && rememberedLogin()) {                         // this device was set up with a #play link
+                session.set(rememberedLogin());
+                // (an unpaid remembered player would trap the device on the money screen: forget them)
+                if (!isCreator() && !isPaid()) { session.clear(); try { localStorage.removeItem(REMEMBER_KEY); } catch (e) {} }
+            }
             migrateOldKeys();
             if (!isCreator()) await showSplash();
             if (!session.get()) await showLoginGate();
@@ -598,6 +695,7 @@
     // Sign out so someone else can play their own game on this device (old SWITCH PLAYER).
     function signOut() {
         session.clear();
+        try { localStorage.removeItem(REMEMBER_KEY); } catch (e) {}   // (a login installed by a #play link is forgotten too)
         location.reload();
     }
 

@@ -9,6 +9,8 @@
     try { soundEnabled = (localStorage.getItem('td_sound') !== 'off'); } catch (e) {}
 
     let engineOsc1 = null, engineOsc2 = null, engineOsc3 = null;
+
+    let evOsc1, evOsc2, evGain;                 // the electric motor whine
     let engineGain = null, engineGain2 = null, engineGain3 = null;
     let tireScreechNoise = null, tireScreechGain = null;
     let windNoise = null, windFilter = null, windGain = null;
@@ -96,6 +98,17 @@
         engineOsc2.start();
         engineOsc3.start();
 
+        // Electric motor: a smooth whine that rises with speed (a sine plus a quiet overtone
+        // through a bandpass), used instead of the engine oscillators in electric cars
+        evOsc1 = audioCtx.createOscillator(); evOsc1.type = 'sine'; evOsc1.frequency.value = 90;
+        evOsc2 = audioCtx.createOscillator(); evOsc2.type = 'triangle'; evOsc2.frequency.value = 270;
+        evGain = audioCtx.createGain(); evGain.gain.value = 0;
+        const evGain2 = audioCtx.createGain(); evGain2.gain.value = 0.35;
+        const evFilter = audioCtx.createBiquadFilter(); evFilter.type = 'bandpass'; evFilter.frequency.value = 600; evFilter.Q.value = 0.7;
+        evOsc1.connect(evGain); evOsc2.connect(evGain2); evGain2.connect(evGain);
+        evGain.connect(evFilter); evFilter.connect(audioCtx.destination);
+        evOsc1.start(); evOsc2.start();
+
         // Tire screech: bandpass-filtered white noise
         tireScreechNoise = audioCtx.createBufferSource();
         tireScreechNoise.buffer = makeNoiseBuffer();
@@ -144,12 +157,20 @@
         const speedMph = Math.max(0, state.mph || 0);
         const throttle = state.throttle || 0;
 
-        // Mute engine sound for electric cars
+        // Electric cars: no engine, just the motor whine climbing with speed
         if (currentCar && currentCar.isElectric) {
             engineGain.gain.setTargetAtTime(0, now, 0.1);
             engineGain2.gain.setTargetAtTime(0, now, 0.1);
             engineGain3.gain.setTargetAtTime(0, now, 0.1);
+            if (evOsc1) {
+                const k = Math.min(1, speedMph / 200);
+                evOsc1.frequency.setTargetAtTime(90 + k * 900, now, 0.08);
+                evOsc2.frequency.setTargetAtTime((90 + k * 900) * 3.02, now, 0.08);
+                const vol = speedMph < 1 ? 0.004 : (throttle > 0 ? 0.03 + k * 0.05 : 0.015 + k * 0.03);
+                evGain.gain.setTargetAtTime(vol, now, 0.12);
+            }
         } else {
+            if (evGain) evGain.gain.setTargetAtTime(0, now, 0.1);
             const profile = getEngineProfile();
 
             // RPM simulation: idle at ~800 RPM, scales with speed

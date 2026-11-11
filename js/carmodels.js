@@ -94,6 +94,18 @@
                 bodyColor: 0x2255aa,
                 isTruck: true
             },
+            robber: {
+                // the crew's getaway lorry: only for sale (and only drivable) in ROBBERY mode
+                name: "Robber's Car",
+                price: 300,
+                maxSpeed: 140,
+                acceleration: 32,
+                handling: 0.008,
+                color: 0x141414,
+                bodyColor: 0x141414,
+                isTruck: true,
+                robberyOnly: true
+            },
             gtbh: {
                 name: 'GT BH',
                 price: 20,
@@ -346,8 +358,8 @@
             waymo: {
                 name: 'Waymo (self-driving)',
                 price: 400,
-                maxSpeed: 140,
-                acceleration: 40,
+                maxSpeed: 300,           // flat out by hand; self-drive holds 200 on the freeway
+                acceleration: 70,
                 handling: 0.013,
                 color: 0xf4f4f4,
                 bodyColor: 0xf4f4f4,
@@ -849,6 +861,7 @@
             },
             // -- Trucks / commercial --
             trailer: (g, d) => carVisuals._builtinTrailer(g, d),
+            robber: (g, d) => carVisuals._builtinTrailer(g, d),
             gtbh: (g, d) => {
                 // Box truck. The cab now sits over the front wheels (z 2.8) and the cargo box
                 // reaches past the rear wheels (z -4.0) — they used to hang out the back.
