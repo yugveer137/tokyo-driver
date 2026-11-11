@@ -153,8 +153,7 @@ window.World = (function () {
         W.water = { x: -BAY_W / 2, z: (BAY_Z1 - 600) / 2, w: BAY_W - 2 * SHORE + 60, d: BAY_Z1 + 600, y: -2 };
 
         // ---- I-880 up the east bay, then a long sweep in to join US-101 ----
-        const e = [], L = cityS880[cityS880.length - 1];
-        for (let z = -400; z <= L + 1100; z += 400) e.push([-BAY_W, 0, z]);
+        const e = [];
         // the sweep across the bay heads east-south-east, then one 320 m arc lands it beside 101
         // (48 m east of the centreline) pointing the same way, so the merge on-ramp starts straight
         const E = Road.at(fw0, sJoin - 500, COLLECTOR_LAT), hE = Math.atan2(E.tan.x, E.tan.z);   // (500: the merge ramp gets room to swing in and climb)
@@ -162,8 +161,15 @@ window.World = (function () {
         const C = [E.p.x + R * Math.sin(hE - Math.PI / 2), E.p.z + R * Math.cos(hE - Math.PI / 2)];   // the arc's centre
         const arc = (h) => [C[0] - R * Math.sin(h - Math.PI / 2), 0, C[1] - R * Math.cos(h - Math.PI / 2)];
         const S = arc(hA);
-        e.push([-BAY_W + 150, 0, L + 1550], [-BAY_W + 600, 0, L + 1950]);
-        e.push([S[0] - 900 * Math.sin(hA), 0, S[2] - 900 * Math.cos(hA)], [S[0] - 450 * Math.sin(hA), 0, S[2] - 450 * Math.cos(hA)]);
+        // 880 runs dead straight until it is past the Dumbarton interchange (whose ramps reach
+        // 720 m south of the bridge), then one wide 1200 m bend turns it onto the sweep's line.
+        // It used to start turning 700 m before the bridge, which left those ramps folded up.
+        const TURN = 1200, toLine = (-BAY_W - S[0]) / Math.sin(hA);            // along the sweep's line from S back to x = -BAY_W (negative)
+        const z0 = S[2] + toLine * Math.cos(hA) - TURN * Math.tan(hA / 2);      // the bend starts here
+        for (let z = -400; z < z0 - 200; z += 400) e.push([-BAY_W, 0, z]);
+        for (let k = 0; k <= 6; k++) { const h = hA * k / 6; e.push([-BAY_W + TURN * (1 - Math.cos(h)), 0, z0 + TURN * Math.sin(h)]); }
+        const left = -toLine - TURN * Math.tan(hA / 2);                         // straight run left between the bend and S
+        [900, 450].forEach(d => { if (d < left - 100) e.push([S[0] - d * Math.sin(hA), 0, S[2] - d * Math.cos(hA)]); });
         for (let k = 0; k <= 5; k++) e.push(arc(hA + (hE - hA) * k / 5));
         e.push([E.p.x + E.tan.x * 60, 0, E.p.z + E.tan.z * 60]);
         const fw1 = defineFreeway('I-880', e, eastBay.map(x => x.spec), k => eastBay[k].s, { groundEnds: true, gapsLeft: gapsLeftE, gapsRight: gapsRightE });

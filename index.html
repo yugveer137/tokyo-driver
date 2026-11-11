@@ -56,6 +56,10 @@
         #race-btn { background: linear-gradient(135deg, #e0202a, #a8121a); } #fwrace-btn { background: linear-gradient(135deg, #ff6a2f, #d6471c); }
         #race-hud { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--hud); border-radius: 10px; padding: 8px 16px; font-weight: 800; color: #ffd21e; pointer-events: none; }
         #race-hud:empty { display: none; }
+        #mp-invite { position: fixed; left: 50%; top: 132px; transform: translateX(-50%); display: none; align-items: center; flex-wrap: wrap; justify-content: center; gap: 10px; max-width: 92vw; box-sizing: border-box; padding: 10px 14px; border-radius: 12px; background: rgba(18,24,38,0.95); border: 1px solid #00e5ff88; color: #fff; font-weight: 700; z-index: 46; }
+        #mp-invite button, #mp-chip button { border: 0; border-radius: 8px; padding: 6px 12px; font-weight: 800; cursor: pointer; color: #fff; background: #ffffff22; }
+        #mp-invite #mp-invite-yes { background: #00a03c; }
+        #mp-chip { position: fixed; left: 50%; top: 52px; transform: translateX(-50%); display: none; align-items: center; gap: 8px; padding: 4px 6px 4px 12px; border-radius: 999px; background: rgba(0,114,255,0.85); color: #fff; font-weight: 700; font-size: 0.8rem; z-index: 44; white-space: nowrap; }
         #mp-status { position: fixed; left: 50%; top: 90px; transform: translateX(-50%); display: none; padding: 8px 16px; border-radius: 10px; font-weight: 700; color: #fff; z-index: 45; }
         .mp-box { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; flex-direction: column; gap: 10px; background: #121826; border: 1px solid #ffffff22; border-radius: 16px; padding: 20px 24px; width: min(460px, 92vw); z-index: 55; }
         .mp-box h3 { margin: 0; color: var(--cyan); letter-spacing: 2px; } .mp-box p { margin: 0; color: #c9d2e0; font-size: 0.9rem; }
@@ -235,8 +239,9 @@
                 <button id="multiplayer-btn" class="menu-btn menu-btn-mp">MULTIPLAYER</button>
             </div>
             <div id="mp-panel" style="display:none">
-                <p>Play with a friend: share a link, they open it, and you both drive in the same world.</p>
-                <button id="mp-share" class="menu-btn menu-btn-mp">SHARE INVITE LINK</button>
+                <p>Open a room and everyone who is playing right now is asked to join. You also get a link to send. Lots of players can drive in one room.</p>
+                <button id="mp-join-open" class="menu-btn" style="display:none">JOIN THE OPEN ROOM</button>
+                <button id="mp-share" class="menu-btn menu-btn-mp">OPEN A ROOM</button>
                 <button id="mp-back" class="menu-btn menu-btn-ghost">BACK</button>
             </div>
             <div id="settings-panel">
@@ -258,9 +263,11 @@
     <button id="drive-btn">&#9654; DRIVE</button>
 
     <div id="mp-status"></div>
+    <div id="mp-invite"><span>Somebody opened a multiplayer room. Want to play together?</span><button id="mp-invite-yes">JOIN</button><button id="mp-invite-no">NO THANKS</button></div>
+    <div id="mp-chip"><span id="mp-count"></span><button id="mp-leave">LEAVE</button></div>
     <div id="mp-waiting" class="mp-box">
         <h3>ROOM READY</h3>
-        <p>Send this link to your friend. You can keep driving while you wait.</p>
+        <p>Everyone who is playing right now has been asked to join. You can also send this link to friends. Keep driving while you wait.</p>
         <input id="mp-link" type="text" readonly />
         <div style="display:flex;gap:8px"><button id="mp-copy" class="toggle-btn">COPY LINK</button><button id="mp-skip" class="toggle-btn">PLAY WHILE WAITING</button></div>
     </div>

@@ -1,6 +1,8 @@
 // tokyo-driver1 v2 — shared constants. Plain globals, no modules.
 window.CFG = {
     TITLE: 'Bay Area Driver',
+    SITE: 'https://yugveer137.github.io/tokyo-driver/',   // where the game is hosted: invite links point here
+    TRAIN_FARE: 5,                    // coins for a train ticket, paid when you board
     GRAVITY: -30,                       // ~3x real, keeps the car planted (same as the old game)
     CYCLE: { day: 60, night: 60 },      // seconds; dawn and dusk blend inside these
     MPH: 2.237,                         // units/s -> mph

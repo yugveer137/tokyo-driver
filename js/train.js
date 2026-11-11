@@ -291,13 +291,17 @@ window.Train = (function () {
         if (!tr) {
             const st = T.stations.filter(x => x.city.loaded).sort((a, b) => a.platform.distanceTo(who) - b.platform.distanceTo(who))[0];
             const when = st ? T.nextAt(st) : null;
-            UI.toast(when ? 'No train here yet — next one stops at ' + st.city.name + ' in ' + when.inSeconds + ' s. Wait on the platform.' : 'Walk up to a train stopped at a station (stops are beside the freeway at every city)', 3500);
+            UI.toast(when ? 'No train here yet — next one stops at ' + st.city.name + ' in ' + when.inSeconds + ' s. Wait on the platform. A ticket is ' + CFG.TRAIN_FARE + ' coins.' : 'Walk up to a train stopped at a station (stops are beside the freeway at every city)', 3500);
             return;
         }
+        // a ticket is paid for at the door: no coins, no ride
+        const fare = CFG.TRAIN_FARE, coins = Game.state.coins;
+        if (coins < fare) { UI.toast('A train ticket costs ' + fare + ' coins and you have ' + coins + '. Pick up coins on the road or do a delivery first.', 4000); return; }
+        Game.addCoins(-fare);
         if (onFoot) { Walk.leaveForTrain(); T.onFoot = true; }
         T.riding = true; T.ride = tr; T.inside = true; Car.frozen = true;
         Car.group.visible = false; Car.wheels.forEach(w => w.visible = false);
-        UI.toast('All aboard! Trains run to a timetable — C inside/outside, T to get off at a stop', 3000);
+        UI.toast('Ticket bought for ' + fare + ' coins. All aboard! C inside/outside, T to get off at a stop', 3500);
     };
 
     T.update = function (dt, playerPos) {
