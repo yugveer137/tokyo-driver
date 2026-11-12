@@ -17,38 +17,23 @@ window.SelfDrive = (function () {
     };
 
     // ---------- map ----------
-    // Two views. The overview lays each freeway out as a strip, arc length left -> right and
-    // lateral offset up -> down (exaggerated so cities are visible beside the road); clicking a
-    // city opens its street map, a top-down plan of the grid where a click picks the street
-    // corner to drive to. Only the Waymo drives itself; the map is still there to look at.
-    const LAT_SCALE = 6;
+    // Two views. The overview is a plan of the whole Bay Area turned on its side so it fits the
+    // wide canvas: north is to the left (the freeways run left to right, the way their exits
+    // count), the Pacific along the top and the east bay along the bottom. Clicking a city opens
+    // its street map, a top-down plan of the grid where a click picks the street corner to drive
+    // to. Only the Waymo drives itself; the map is still there to look at.
     S.view = { kind: 'overview' };
     let hits = [];                                                     // city boxes on the overview, for clicks
-    function toMap(p) {
-        const n = Road.nearest(World.freeway, p), f = n.frame;
-        const dx = p.x - f.p.x, dz = p.z - f.p.z;
-        const lat = dx * f.right.x + dz * f.right.z;
-        return { x: PAD + n.s / World.freeway.length * (W - 2 * PAD), y: H / 2 + lat * LAT_SCALE * (H / 2 - PAD) / 900, s: n.s, lat };
-    }
+    const MAP = { z0: -900, z1: 29100, x0: -3300, x1: 5100, top: 22, bottom: 36 };   // the world rectangle shown, and the canvas margins
+    const mapX = (z) => PAD + (z - MAP.z0) / (MAP.z1 - MAP.z0) * (W - 2 * PAD);
+    const mapY = (x) => MAP.top + (MAP.x1 - x) / (MAP.x1 - MAP.x0) * (H - MAP.top - MAP.bottom);
+    const toMap = (p) => ({ x: mapX(p.z), y: mapY(p.x) });
+    // a click on open ground means the nearest spot on a freeway (cities are caught before this)
     function fromMap(mx, my) {
-        const s = (mx - PAD) / (W - 2 * PAD) * World.freeway.length;
-        const lat = (my - H / 2) / (LAT_SCALE * (H / 2 - PAD) / 900);
-        return Road.at(World.freeway, Math.max(0, Math.min(World.freeway.length, s)), lat).p;
-    }
-    // the I-880 strip is drawn below US-101
-    const ROW2 = H - 90;
-    function toMap2(p) {
-        const fw = World.freeways[1]; if (!fw) return null;
-        const n = Road.nearest(fw, p), f = n.frame;
-        const dx = p.x - f.p.x, dz = p.z - f.p.z;
-        const lat = dx * f.right.x + dz * f.right.z;
-        return { x: PAD + n.s / fw.length * (W - 2 * PAD), y: ROW2 + lat * LAT_SCALE * 40 / 900, s: n.s, lat, dist: n.dist };
-    }
-    function fromMap2(mx, my) {
-        const fw = World.freeways[1];
-        const s = (mx - PAD) / (W - 2 * PAD) * fw.length;
-        const lat = (my - ROW2) / (LAT_SCALE * 40 / 900);
-        return Road.at(fw, Math.max(0, Math.min(fw.length, s)), lat).p;
+        const p = new THREE.Vector3(MAP.x1 - (my - MAP.top) / (H - MAP.top - MAP.bottom) * (MAP.x1 - MAP.x0), 8, MAP.z0 + (mx - PAD) / (W - 2 * PAD) * (MAP.z1 - MAP.z0));
+        let best = null;
+        World.freeways.forEach(fw => { const n = Road.nearest(fw, p); if (!best || n.dist < best.n.dist) best = { fw, n }; });
+        return Road.at(best.fw, best.n.s, 0).p;
     }
     const canSelfDrive = () => !!(Car.data && Car.data.isWaymo);
     S.showOverview = function () { S.view = { kind: 'overview' }; S.draw(); };
@@ -61,50 +46,52 @@ window.SelfDrive = (function () {
     };
     function drawOverview() {
         hits = [];
-        ctx.fillStyle = '#0f1522'; ctx.fillRect(0, 0, W, H);
-        // the train lines (one beside each freeway, on its cities' side) and US-101
-        ctx.strokeStyle = '#6b6257'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
-        if (window.Train) {
-            const l1 = Train.lineOf(World.freeway);
-            [l1.lat, l1.lat2].forEach(lat => { const y = H / 2 + lat * LAT_SCALE * (H / 2 - PAD) / 900; ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W - PAD, y); ctx.stroke(); });
-            if (World.freeways[1]) { const l2 = Train.lineOf(World.freeways[1]); [l2.lat, l2.lat2].forEach(lat => { const y = ROW2 + lat * LAT_SCALE * 40 / 900; ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W - PAD, y); ctx.stroke(); }); }
-        }
-        ctx.setLineDash([]);
-        ctx.strokeStyle = '#cfd3d8'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(PAD, H / 2); ctx.lineTo(W - PAD, H / 2); ctx.stroke();
-        ctx.fillStyle = '#9ab'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'left'; ctx.fillText(World.freeway.name, PAD, H / 2 - 10);
-        // I-880 strip
-        if (World.freeways[1]) {
-            ctx.strokeStyle = '#b9bec4'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(PAD, ROW2); ctx.lineTo(W - PAD, ROW2); ctx.stroke();
-            ctx.fillStyle = '#9ab'; ctx.fillText(World.freeways[1].name + ' (east bay, joins ' + World.freeway.name + ' before San Jose)', PAD, ROW2 - 10);
-        }
-        // cities: box + name + exit number (click one for its street map)
+        ctx.fillStyle = '#16241a'; ctx.fillRect(0, 0, W, H);                              // land
+        // water: the bay between US-101 and I-880, and the Pacific west of Highway 1
+        ctx.fillStyle = '#143a5c';
+        const bay = World.water;
+        if (bay) ctx.fillRect(mapX(bay.z - bay.d / 2), mapY(bay.x + bay.w / 2), mapX(bay.z + bay.d / 2) - mapX(bay.z - bay.d / 2), mapY(bay.x - bay.w / 2) - mapY(bay.x + bay.w / 2));
+        if (World.ocean) ctx.fillRect(0, 0, W, mapY(World.ocean.x0));
+        ctx.fillStyle = '#5d8fb5'; ctx.font = 'italic 12px sans-serif'; ctx.textAlign = 'center';
+        if (bay) ctx.fillText('San Francisco Bay', mapX(bay.z + 2500), mapY(bay.x) + 4);
+        if (World.ocean) ctx.fillText('Pacific Ocean', W / 2, 15);
+        // the country roads and the bay bridges, thin; then the freeways, thick, with their names
+        const line = (pts, colour, width) => { ctx.strokeStyle = colour; ctx.lineWidth = width; ctx.beginPath(); pts.forEach((q, k) => { const x = mapX(q[1]), y = mapY(q[0]); if (k) ctx.lineTo(x, y); else ctx.moveTo(x, y); }); ctx.stroke(); };
+        (World.connectors || []).forEach(k => line(k.points.map(q => [q[0], q[2]]), '#8f9aa6', 2));
         World.cities.forEach(c => {
-            const onLoop = c.fw && c.fw.index === 1;
-            const m = onLoop ? toMap2(new THREE.Vector3(c.center.x, 0, c.center.z)) : toMap(new THREE.Vector3(c.center.x, 0, c.center.z));
-            const w = Math.max(26, c.D / c.fw.length * (W - 2 * PAD)), h = Math.max(14, c.W * LAT_SCALE * (onLoop ? 40 : (H / 2 - PAD)) / 900);
-            ctx.fillStyle = c.loaded ? 'rgba(124,247,168,0.25)' : 'rgba(90,110,140,0.35)';
+            if (!c.bridge || !World.freeways[1]) return;
+            const z = Road.at(c.fw, c.s + 2200, 0).p.z;                                    // (a bridge lies 2200 past its city, world.js BR.q)
+            line([[0, z], [Road.at(World.freeways[1], Road.nearest(World.freeways[1], new THREE.Vector3(-2400, 8, z)).s, 0).p.x, z]], '#c9b98a', 2);
+        });
+        World.freeways.forEach(fw => {
+            const pts = []; for (let k = 0; k < fw.frames.length; k += 20) pts.push([fw.frames[k].p.x, fw.frames[k].p.z]);
+            const end = fw.frames[fw.frames.length - 1].p; pts.push([end.x, end.z]);
+            line(pts, '#cfd3d8', 4);
+            ctx.fillStyle = '#9ab'; ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'left';
+            ctx.fillText(fw.name, mapX(fw.frames[0].p.z) - 34, mapY(fw.frames[0].p.x) - 7);
+        });
+        // cities: box + name (click one for its street map)
+        World.cities.forEach(c => {
+            const m = toMap(new THREE.Vector3(c.center.x, 0, c.center.z));
+            const w = Math.max(14, c.D / (MAP.z1 - MAP.z0) * (W - 2 * PAD)), h = Math.max(10, c.W / (MAP.x1 - MAP.x0) * (H - MAP.top - MAP.bottom));
+            ctx.fillStyle = c.loaded ? 'rgba(124,247,168,0.35)' : 'rgba(120,140,170,0.45)';
             ctx.fillRect(m.x - w / 2, m.y - h / 2, w, h);
             ctx.strokeStyle = '#7cf7a8'; ctx.lineWidth = 1; ctx.strokeRect(m.x - w / 2, m.y - h / 2, w, h);
-            ctx.fillStyle = '#fff'; ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
-            ctx.fillText(c.name, m.x, m.y + h / 2 + 16);
-            if (c.exitNumber) { ctx.fillStyle = '#ffd21e'; ctx.font = '11px sans-serif'; ctx.fillText('Exit ' + c.exitNumber, m.x - w / 2 - 10, (onLoop ? ROW2 : H / 2) + 16); }
-            ctx.textAlign = 'left';
-            hits.push({ city: c, x0: m.x - w / 2 - 8, x1: m.x + w / 2 + 8, y0: m.y - h / 2 - 8, y1: m.y + h / 2 + 20 });
+            // (the name goes on the side away from the city's freeway, where there is room)
+            const above = c.center.x > Road.nearest(c.fw, new THREE.Vector3(c.center.x, 8, c.center.z)).frame.p.x;
+            ctx.fillStyle = '#fff'; ctx.font = (c.town ? '10px' : 'bold 12px') + ' sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText(c.name, m.x, above ? m.y - h / 2 - 4 : m.y + h / 2 + 12);
+            hits.push({ city: c, x0: m.x - w / 2 - 6, x1: m.x + w / 2 + 6, y0: m.y - h / 2 - 6, y1: m.y + h / 2 + 6 });
         });
-        // player (on whichever strip is closer)
+        // player
         if (Car.body) {
-            const m2 = toMap2(Car.body.position), m1 = toMap(Car.body.position);
-            const m = (m2 && m2.dist < Road.nearest(World.freeway, Car.body.position).dist) ? m2 : m1;
+            const m = toMap(Car.body.position);
             ctx.fillStyle = '#7cf7a8'; ctx.beginPath(); ctx.arc(m.x, m.y, 6, 0, 6.3); ctx.fill();
             ctx.strokeStyle = '#000'; ctx.lineWidth = 2; ctx.stroke();
         }
-        if (S.dest) drawCross(destOnOverview(S.dest));
-        ctx.fillStyle = '#9ab'; ctx.font = '12px sans-serif';
-        ctx.fillText(canSelfDrive() ? 'Click a city for its street map, or anywhere on a freeway to self-drive there.' : 'Click a city for its street map. Only the Waymo drives itself (GARAGE).', PAD, H - 12);
-    }
-    function destOnOverview(p) {
-        const m2 = toMap2(p);
-        return (m2 && m2.dist < Road.nearest(World.freeway, p).dist) ? m2 : toMap(p);
+        if (S.dest) drawCross(toMap(S.dest));
+        ctx.fillStyle = '#9ab'; ctx.font = '12px sans-serif'; ctx.textAlign = 'left';
+        ctx.fillText(canSelfDrive() ? 'North is left. Click a city for its street map, or near a freeway to self-drive there.' : 'North is left. Click a city for its street map. Only the Waymo drives itself (GARAGE).', PAD, H - 12);
     }
     function drawCross(m) {
         ctx.strokeStyle = '#ff5d7a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(m.x - 7, m.y - 7); ctx.lineTo(m.x + 7, m.y + 7); ctx.moveTo(m.x + 7, m.y - 7); ctx.lineTo(m.x - 7, m.y + 7); ctx.stroke();
@@ -197,7 +184,7 @@ window.SelfDrive = (function () {
             const hit = hits.find(h => mx >= h.x0 && mx <= h.x1 && my >= h.y0 && my <= h.y1);
             if (hit) { S.showCity(hit.city); return; }
             if (!canSelfDrive()) { UI.toast('Only the Waymo drives itself — pick it in the GARAGE. Click a city to see its streets.', 3000); return; }
-            S.goTo(World.freeways[1] && my > ROW2 - 45 ? fromMap2(mx, my) : fromMap(mx, my));
+            S.goTo(fromMap(mx, my));
             UI.closeModals();
             return;
         }
@@ -335,6 +322,23 @@ window.SelfDrive = (function () {
         return best;
     }
     function viaScore(fw, s, dir) { return viaBest(fw, s, dir).d; }
+    // A city exit gets us to a destination on another freeway only if country roads lead on
+    // from that city to it (World.connectors): CA-92 runs from San Mateo to I-280 and on to
+    // Highway 1, but nothing crosses the bay except the bridges.
+    function byLand(ramp) {
+        const dest = destCity();
+        if (!dest || !World.connectors || !S.road.cities) return false;
+        const end = Road.at(ramp, ramp.length, 0).p, gap = (c) => Math.hypot(c.center.x - end.x, c.center.z - end.z);
+        const here = S.road.cities.reduce((a, c) => !a || gap(c) < gap(a) ? c : a, null);
+        if (!here) return false;
+        const seen = new Set([here]), queue = [here];
+        while (queue.length) {
+            const c = queue.shift();
+            if (c.fw === dest.fw) return true;                                  // (once on its freeway, the freeway does the rest)
+            World.connectors.forEach(k => { const o = k.from === c ? k.to : k.to === c ? k.from : null; if (o && !seen.has(o)) { seen.add(o); queue.push(o); } });
+        }
+        return false;
+    }
     S._dbg = { viaBest, leadsTo, joinOf, rampScore };                       // (console access for testing routes)
     // an on-ramp's worth: by what its freeway reaches, else by its own end
     function rampScore(o) {
@@ -365,13 +369,31 @@ window.SelfDrive = (function () {
             if (ps.distanceTo(endP) < 36) opts.push({ road: o, dir: 1, far: pe });
             else if (pe.distanceTo(endP) < 36 && o.typeDef.twoWay) opts.push({ road: o, dir: -1, far: ps });
             else if (o.type !== 'freeway' && Road.nearest(o, endP).dist < 20) {            // we land part-way along it (ramp onto a frontage road)
-                opts.push({ road: o, dir: 1, far: pe });
-                if (o.typeDef.twoWay) opts.push({ road: o, dir: -1, far: ps });
+                // (which way along it is judged by what that way leads to, not just by the road's
+                // own two ends: a frontage road's ends are nowhere, its side roads are the way on)
+                const at = Road.nearest(o, endP).s;
+                opts.push({ road: o, dir: 1, far: pe, score: leadScore(o, 1, at) });
+                if (o.typeDef.twoWay) opts.push({ road: o, dir: -1, far: ps, score: leadScore(o, -1, at) });
             }
         });
         if (!opts.length) return null;
-        opts.sort((a, b) => a.far.distanceTo(S.dest) - b.far.distanceTo(S.dest));
+        const score = (c) => c.score !== undefined ? c.score : c.far.distanceTo(S.dest);
+        opts.sort((a, b) => score(a) - score(b));
         return opts[0];
+    }
+    // How close to the destination road `o` gets us going `dir` from arc length `s`: its own far
+    // end, or the far end of any road that leaves it further along that way (a country road off
+    // a frontage road; an on-ramp counts as where its freeway leads).
+    function leadScore(o, dir, s) {
+        let best = Road.at(o, dir === 1 ? o.length : 0, 0).p.distanceTo(S.dest);
+        Road.all.forEach(q => {
+            if (q === o || q.type === 'freeway' || q.isExit || !Object.keys(q.chunks).length) return;
+            const start = Road.at(q, 0, 0).p, at = Road.nearest(o, start);
+            if (at.dist > 12 || (at.s - s) * dir < 5) return;                    // it does not leave this road, or not ahead of us that way
+            const d = q.type === 'ramp' ? rampScore(q) : Road.at(q, q.length, 0).p.distanceTo(S.dest);
+            if (d < best) best = d;
+        });
+        return best;
     }
     // Waymo mode: with no destination picked it just drives the road it is on at the limit, taking
     // the next road at the end, like the real ones cruising for a fare. Touch the wheel and it
@@ -471,7 +493,7 @@ window.SelfDrive = (function () {
                 let bestD = Infinity;
                 links.forEach(l => {
                     if (l.to.isUturn) return;
-                    if (S.offFw && !S.anyExit && !joinOf(l.to, l.from)) return;   // a city exit is no way across the bay
+                    if (S.offFw && !S.anyExit && !joinOf(l.to, l.from) && !byLand(l.to)) return;   // a city exit is no way across the bay
                     const d = leadsTo(l).distanceTo(S.dest);
                     if ((S.anyExit || d < pos.distanceTo(S.dest)) && d < bestD) { bestD = d; link = l; }
                 });

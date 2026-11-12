@@ -308,7 +308,7 @@ window.Train = (function () {
         if (!World.freeway) return;
         T.clock += dt;
         (World.freeways || [World.freeway]).forEach(fw => {
-            if (!fw.cities || fw.cities.length < 2) return;
+            if (!fw.cities || fw.cities.length < 2 || fw.noRail) return;
             const line = T.lineOf(fw), nd = nodes(line); ensureTrains(line, nd.length);
             for (let p = 0; p < nd.length; p++) placeTrain(line, p, line.trains[p], nd, playerPos);
         });

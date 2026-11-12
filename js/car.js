@@ -15,7 +15,7 @@ window.Car = (function () {
 
     // Chassis + suspension per car variant (old createCar, index.html ~10353-10448)
     function tuning(d) {
-        const truckish = d.isTruck || d.isPickup;
+        const truckish = d.isTruck || d.isPickup || d.isBoxTruck;
         // Suspension rides a little longer and stiffer than the old game so the chassis box
         // clears rough terrain (it used to scrape heightfield seams and stop dead).
         const t = {
@@ -28,6 +28,7 @@ window.Car = (function () {
         if (d.isOffroad) { t.half.set(1.2, 0.5, 2.2); t.mass = 380; t.stiffness = 45; t.rest = 0.55; t.slip = 3.5; t.roll = 0.03; t.radius = 0.55; t.linDamp = 0.15; t.angDamp = 0.7; }
         if (d.isPickup) { t.half.set(1.2, 0.5, 2.5); t.mass = 350; }
         if (d.isTruck) { t.half.set(1.3, 0.7, 4.5); t.mass = 250; }
+        if (d.isBoxTruck) { t.half.set(1.35, 0.9, 3.0); t.mass = 300; }
         if (truckish) { t.stiffness = 50; t.rest = 0.5; t.slip = 2.5; t.roll = 0.05; t.radius = 0.5; t.linDamp = 0.15; t.angDamp = 0.7; }
         if (d.heavyCar) { t.mass = 400; t.stiffness = 65; t.relax = 3.0; t.comp = 6.0; t.roll = 0.001; t.angDamp = 0.95; }
         t.offsetY += 0.25;   // collision box sits higher than the visual body: never touches the road

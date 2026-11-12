@@ -361,6 +361,51 @@ window.CITIES = (function () {
             skyline: () => [5, 14],
             palette: [0xefe6d4, 0xe0d4bc, 0xd2c6b0, 0xc2ccd6, 0xf6f2ea],
             landmarks: [], exitNumber: 19, parks: [[2, 2]]
+        },
+        // --- the towns on I-280 (fw: 2) and Highway 1 (fw: 3), west of the peninsula. Each sits
+        // level with the US-101 city named in `beside`, on the side of its freeway that faces
+        // US-101; world.js joins the pairs with country roads. ---
+        {
+            id: 'dalycity', name: 'Daly City', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, fw: 2, side: 1, beside: 'sf',
+            streets: { ns: ['Mission St', 'Junipero Serra Blvd', 'Hillside Blvd', 'Southgate Ave', 'Skyline Blvd'], ew: ['John Daly Blvd', 'Westlake Ave', 'Eastmoor Ave', 'School St'] },
+            skyline: () => [5, 10],
+            palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
+            landmarks: [], exitNumber: 47
+        },
+        {
+            id: 'crystalsprings', name: 'Crystal Springs', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, fw: 2, side: 1, beside: 'sanmateo',
+            streets: { ns: ['Skyline Blvd', 'Polhemus Rd', 'Bunker Hill Dr', 'Parrott Dr', 'Canada Rd'], ew: ['Crystal Springs Rd', 'Hayne Rd', 'Black Mountain Rd', 'Ralston Ave'] },
+            skyline: () => [5, 10],
+            palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
+            landmarks: [], exitNumber: 34
+        },
+        {
+            id: 'woodside', name: 'Woodside', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, fw: 2, side: 1, beside: 'paloalto',
+            streets: { ns: ['Canada Rd', 'Mountain Home Rd', 'Kings Mountain Rd', 'Albion Ave', 'Whiskey Hill Rd'], ew: ['Woodside Rd', 'Tripp Rd', 'Raymundo Dr', 'Glenwood Ave'] },
+            skyline: () => [5, 10],
+            palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
+            landmarks: [], exitNumber: 25
+        },
+        {
+            id: 'cupertino', name: 'Cupertino', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, fw: 2, side: 1, beside: 'sanjose',
+            streets: { ns: ['De Anza Blvd', 'Stelling Rd', 'Wolfe Rd', 'Blaney Ave', 'Bubb Rd'], ew: ['Stevens Creek Blvd', 'Homestead Rd', 'McClellan Rd', 'Bollinger Rd'] },
+            skyline: () => [5, 10],
+            palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
+            landmarks: [], exitNumber: 12
+        },
+        {
+            id: 'pacifica', name: 'Pacifica', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, fw: 3, side: 1, beside: 'sf',
+            streets: { ns: ['Palmetto Ave', 'Oceana Blvd', 'Francisco Blvd', 'Esplanade Ave', 'Monterey Rd'], ew: ['Paloma Ave', 'Clarendon Rd', 'Sharp Park Rd', 'Manor Dr'] },
+            skyline: () => [5, 10],
+            palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
+            landmarks: [], exitNumber: 505
+        },
+        {
+            id: 'halfmoonbay', name: 'Half Moon Bay', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, fw: 3, side: 1, beside: 'sanmateo',
+            streets: { ns: ['Main St', 'Purissima St', 'Church St', 'Johnston St', 'Cabrillo Hwy'], ew: ['Kelly Ave', 'Mill St', 'Correas St', 'Filbert St'] },
+            skyline: () => [5, 10],
+            palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
+            landmarks: [], exitNumber: 29
         }
     ];
 })();

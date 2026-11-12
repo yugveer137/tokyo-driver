@@ -90,6 +90,8 @@ window.World = (function () {
     }
 
     const BAY_W = 2400;               // between US-101 and I-880; the water starts 230 m from each
+    const X280 = 2000, X1 = 4200;     // I-280 and Highway 1 run north-south at these x, west of the peninsula cities
+    const BEACH = 120;                // the sea starts this far west of Highway 1 (its far-side ramps run 62 m out)
     const SHORE = 230;
     const BRIDGE_Y = 12;              // bridge decks above the water
     // Each bridge interchange, measured from its peninsula city's s (the east-bay city shares
@@ -176,6 +178,52 @@ window.World = (function () {
         W.junctions = [{ from: fw0, s: sJoin, to: fw1, kind: 'join' }];
         W.junctions.forEach(j => { j.city = fw0.cities.reduce((a, c) => Math.abs(c.s - j.s) < Math.abs(a.s - j.s) ? c : a); j.city.loadPad = 900; });
 
+        // ---- I-280 and Highway 1: two more freeways west of the peninsula cities, each a straight
+        // run south from level with San Francisco. They carry only towns, every one level with a
+        // US-101 city (`beside`) and on the side facing it, and they are reached by the country
+        // roads below rather than by interchanges: every stretch of US-101 already has a ramp on it.
+        const westFreeway = (name, x, id) => {
+            const specs = CITIES.filter(c => c.fw === id);
+            const zOf = (spec) => fw0.cities.find(c => c.id === spec.beside).center.z;
+            const z1 = Math.max(...specs.map(zOf)) + 1600;                       // (room for the last town's ramps and signs)
+            const p = []; for (let z = -400; z < z1; z += 400) p.push([x, 0, z]); p.push([x, 0, z1]);
+            const fw = defineFreeway(name, p, specs, k => zOf(specs[k]) + 400, { groundEnds: true });   // (it starts at z -400, so s = z + 400)
+            fw.noRail = true;                                                   // (no stations out here, so no railway)
+            return fw;
+        };
+        const fw280 = westFreeway('I-280', X280, 2), fwCoast = westFreeway('Highway 1', X1, 3);
+        // the Pacific: west of Highway 1 the land flattens into a beach strip and drops to the sea
+        Terrain.shapers.push((x, z, h) => {
+            if (x < X1 + 20) return h;
+            const beach = Math.min(1, (x - X1 - 20) / 80), sea = Math.max(0, Math.min(1, (x - X1 - BEACH) / 120));
+            return (h * (1 - beach) + 1.0 * beach) * (1 - sea) - 8 * sea;
+        });
+        W.ocean = { x0: X1 + BEACH - 30, y: -2 };
+        // ---- the country roads between them: from the far edge of a US-101 city west to its town
+        // on I-280, and from two of those towns on (under the I-280 deck) to the coast ----
+        const byId = (id) => W.cities.find(c => c.id === id);
+        const farEdge = (c, row) => c.toWorld(-c.W / 2 - c.street / 2 - 2, c.streetZ(row));          // (local -x is away from its freeway)
+        W.connectors = [];
+        const connect = (name, a, b, from, to, under) => {
+            const dx = b.x - a.x;
+            // (straight out of each end, the two joined by a gentle S)
+            const points = [[a.x, 0, a.z], [a.x + dx * 0.3, 0, a.z], [a.x + dx * 0.7, 0, b.z], [b.x, 0, b.z]];
+            W.connectors.push({ name, a, b, points, from, to, under, road: null, signs: [] });
+        };
+        [['John Daly Blvd', 'sf', 'dalycity'], ['CA-92', 'sanmateo', 'crystalsprings'], ['CA-84 Woodside Rd', 'paloalto', 'woodside'], ['Stevens Creek Blvd', 'sanjose', 'cupertino']].forEach(([name, cityId, townId]) => {
+            const c = byId(cityId), t = byId(townId);
+            connect(name, farEdge(c, Math.round(c.rows / 2)), farEdge(t, 1), c, t, null);
+        });
+        [['Sharp Park Rd', 'dalycity', 'pacifica'], ['CA-92', 'crystalsprings', 'halfmoonbay']].forEach(([name, townId, coastId]) => {
+            const t = byId(townId), c = byId(coastId);
+            // it leaves the town's frontage road 38 m before the town centre: clear of the police
+            // station (centre +12..+28) and of the far-side ramps that land at +60 and leave at -100
+            const start = Road.at(fw280, t.s - 38, t.side * COLLECTOR_LAT).p;
+            connect(name, start, farEdge(c, 1), t, c, fw280);
+            const k = W.connectors[W.connectors.length - 1];
+            k.points.splice(1, 1, [X280 + 70, 0, start.z], [start.x + (k.b.x - start.x) * 0.45, 0, start.z]);   // (straight under the deck first)
+        });
+
         // Spawn on US-101 just north of San Francisco, in the right lane
         const sp = Road.at(fw0, 200, LANE_R());
         W.spawn.set(sp.p.x, sp.p.y + 1.2, sp.p.z);
@@ -186,10 +234,41 @@ window.World = (function () {
     W.buildWater = function () {
         if (!W.water || W.waterMesh) return;
         const w = W.water;
-        const m = new THREE.Mesh(new THREE.PlaneGeometry(w.w, w.d), new THREE.MeshStandardMaterial({ color: 0x2b6f9c, roughness: 0.12, metalness: 0.35, transparent: true, opacity: 0.92 }));
+        // (matt rather than mirror-like: a shiny sheet just copies the pale sky and looks washed out)
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(w.w, w.d), new THREE.MeshStandardMaterial({ color: 0x1d5f92, roughness: 0.6, metalness: 0, envMapIntensity: 0.3, transparent: true, opacity: 0.94 }));
         m.rotation.x = -Math.PI / 2; m.position.set(w.x, w.y, w.z); m.receiveShadow = true;
         game.scene.add(m); W.waterMesh = m;
+        // the Pacific, from the beach west of Highway 1 out past the horizon
+        const sea = new THREE.Mesh(new THREE.PlaneGeometry(4000, 40000), m.material);
+        sea.rotation.x = -Math.PI / 2; sea.position.set(W.ocean.x0 + 2000, W.ocean.y, 13000); sea.receiveShadow = true;
+        game.scene.add(sea);
     };
+
+    // The country roads stream by themselves (they belong to no one city): built when the
+    // player is within 1800 m of one, dropped beyond 2600.
+    function updateConnectors(pos) {
+        W.connectors.forEach(k => {
+            // distance from the straight line between its ends (the S between them strays little)
+            const dx = k.b.x - k.a.x, dz = k.b.z - k.a.z;
+            const t = Math.max(0, Math.min(1, ((pos.x - k.a.x) * dx + (pos.z - k.a.z) * dz) / (dx * dx + dz * dz)));
+            const d = Math.hypot(pos.x - k.a.x - dx * t, pos.z - k.a.z - dz * t);
+            if (!k.road && d < 1800) {
+                k.road = Road.build({ type: 'avenue', name: k.name, conform: true, points: k.points });
+                k.road.isConnector = true;
+                if (k.under) { k.road.underFreeway = true; Road.removePiersNear(k.under, k.road); }
+                // a sign at each end says where the road goes
+                [[0, 1, k.to], [k.road.length, -1, k.from]].forEach(([sAt, dir, town]) => {
+                    const f = Road.at(k.road, sAt + dir * 14, dir * (k.road.width / 2 + 2.5));
+                    f.p.y = Terrain.height(f.p.x, f.p.z) + 0.3;
+                    const sign = Signs.plain(f.p, Signs.facingFrom(f.tan.clone().multiplyScalar(dir)), k.name.toUpperCase(), town.name.toUpperCase(), 5, 2.4);
+                    k.signs.push(sign);
+                });
+            } else if (k.road && d > 2600) {
+                Road.remove(k.road); k.road = null;
+                k.signs.forEach(sg => game.scene.remove(sg)); k.signs = [];
+            }
+        });
+    }
 
     // Where I-880 merges into US-101: the on-ramp is built (and dropped) with San Jose
     function loadJunctions(city) {
@@ -556,11 +635,11 @@ window.World = (function () {
             if (active) for (let c = Math.max(0, c0); c <= c1; c++) {
                 const s0 = c * CHUNK, s1 = Math.min(fw.length, (c + 1) * CHUNK);
                 if (s0 >= fw.length) break;
-                if (!fw.streamChunks[c]) { fw.streamChunks[c] = Road.buildRange(fw, s0, s1, 'c' + c); if (window.Train) Train.buildRange(fw, s0, s1, 'c' + c); }
+                if (!fw.streamChunks[c]) { fw.streamChunks[c] = Road.buildRange(fw, s0, s1, 'c' + c); if (window.Train && !fw.noRail) Train.buildRange(fw, s0, s1, 'c' + c); }
             }
             Object.keys(fw.streamChunks).forEach(k => {
                 const c = +k, mid = (c + 0.5) * CHUNK;
-                if (!active || Math.abs(mid - fw.lastS) > DROP_DIST) { Road.dropRange(fw, 'c' + c); if (window.Train) Train.dropRange(fw, 'c' + c); delete fw.streamChunks[k]; }
+                if (!active || Math.abs(mid - fw.lastS) > DROP_DIST) { Road.dropRange(fw, 'c' + c); if (window.Train && !fw.noRail) Train.dropRange(fw, 'c' + c); delete fw.streamChunks[k]; }
             });
             fw.cities.forEach(city => {
                 // towns are small and close together: they come and go over a shorter range
@@ -570,6 +649,7 @@ window.World = (function () {
                 else if (city.loaded && !holds && (!active || d > DROP_DIST + 1700 + pad)) { City.unload(city); if (city.satellite) City.unload(city.satellite); }
             });
         });
+        if (force || frame % 10 === 1) updateConnectors(pos);
     };
 
     // Fast travel: drop the player on the city's freeway half a mile before its exit, on the

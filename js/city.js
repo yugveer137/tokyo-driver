@@ -181,7 +181,7 @@ window.City = (function () {
     function buildBlocks(city) {
         const half = city.street / 2, B = city.block;
         const walkMat = new THREE.MeshStandardMaterial({ color: 0xb5b5b0, map: Tex.concrete, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-        const parkMat = new THREE.MeshStandardMaterial({ color: 0x4f8a3a, map: Tex.grass, roughness: 1 });
+        const parkMat = new THREE.MeshStandardMaterial({ color: 0x3a8030, map: Tex.grass, roughness: 1 });
         const downtown = city.downtown || { lx: 0, lz: 0 };
         for (let i = 0; i < city.rows; i++) for (let j = 0; j < city.cols; j++) {
             const cx = (city.streetX(j) + city.streetX(j + 1)) / 2, cz = (city.streetZ(i) + city.streetZ(i + 1)) / 2;
@@ -204,11 +204,12 @@ window.City = (function () {
             const isPark = city.parks && city.parks.some(p => p[0] === j && p[1] === i);
             if (isPark) {
                 city.meshes.push(Road.drapedQuad(c.x, c.z, B - 8, city.heading, parkMat, 0.32, 4));
-                buildTrees(city, cx, cz, B - 12, 10);
+                buildTrees(city, cx, cz, B - 12, 14);
                 continue;
             }
             if (j < city.suburbCols) { buildHouses(city, i, j, cx, cz, B); continue; }
             buildLots(city, cx, cz, B, dNorm);
+            streetTrees(city, cx, cz, B);
         }
     }
 
@@ -226,13 +227,16 @@ window.City = (function () {
         }
     }
 
+    // The city palettes are all near-white; nearly half the buildings take one of these instead
+    // (brick, sandstone, terracotta, slate, sage) so a street is not one pale wall.
+    const WARM_WALLS = [0xb5694f, 0xc9a37a, 0xd08a5c, 0x8fa1b3, 0xa9b08c, 0x9c7b68, 0xd9b98f];
     function buildBuilding(city, lx, lz, w, h, d, dNorm) {
         const p = city.toWorld(lx, lz);
         const ground = Terrain.height(p.x, p.z) + 0.3;
         const tall = h > 45;
         const set = pick(windowSets);
         const mat = new THREE.MeshStandardMaterial({
-            color: tall && Math.random() < 0.5 ? 0x6a8fb0 : pick(city.palette),
+            color: tall && Math.random() < 0.5 ? 0x6a8fb0 : Math.random() < 0.45 ? pick(WARM_WALLS) : pick(city.palette),
             map: set.map, emissiveMap: set.emissive, emissive: 0xffffff, emissiveIntensity: 0,
             roughness: tall ? 0.45 : 0.8, metalness: tall ? 0.35 : 0.05
         });
@@ -543,16 +547,22 @@ window.City = (function () {
         };
     };
 
+    // Trees are collected as spots while the blocks are laid out and planted in one go at the
+    // end of C.load (Trees.plant: two draw calls for the whole city).
+    function treeAt(city, lx, lz, size) {
+        const p = city.toWorld(lx, lz);
+        city.treeSpots.push({ x: p.x, y: Terrain.height(p.x, p.z) + 0.3, z: p.z, size });
+    }
+    // a park: trees scattered over the lawn
     function buildTrees(city, cx, cz, span, count) {
-        const trunk = new THREE.MeshStandardMaterial({ color: 0x5b3f2a, roughness: 1 });
-        const leaf = new THREE.MeshStandardMaterial({ color: 0x2f7a2f, roughness: 1 });
-        for (let k = 0; k < count; k++) {
-            const lx = cx + (Math.random() - 0.5) * span, lz = cz + (Math.random() - 0.5) * span;
-            const p = city.toWorld(lx, lz); const g = Terrain.height(p.x, p.z) + 0.3;
-            const t = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.35, 3, 6), trunk); t.position.set(p.x, g + 1.5, p.z); addMesh(city, t, false);
-            const s = rnd(2, 3.5);
-            const l = new THREE.Mesh(new THREE.SphereGeometry(s, 8, 6), leaf); l.position.set(p.x, g + 3 + s * 0.7, p.z); addMesh(city, l, false);
-        }
+        for (let k = 0; k < count; k++) treeAt(city, cx + (Math.random() - 0.5) * span, cz + (Math.random() - 0.5) * span, rnd(0.9, 1.5));
+    }
+    // a downtown block: two small trees on the sidewalk along each of its four sides
+    function streetTrees(city, cx, cz, B) {
+        const e = B / 2 - 1.5;
+        [-0.27, 0.27].forEach(f => {
+            [[f * B, -e], [f * B, e], [-e, f * B], [e, f * B]].forEach(([dx, dz]) => treeAt(city, cx + dx, cz + dz, rnd(0.5, 0.72)));
+        });
     }
 
     function buildLamps(city) {
@@ -571,9 +581,11 @@ window.City = (function () {
 
     C.load = function (city) {
         if (city.loaded) return; city.loaded = true;
+        city.treeSpots = [];
         buildStreets(city);
         buildBlocks(city);
         buildLamps(city);
+        city.trees = Trees.plant(city.treeSpots);
         city.landmarks.forEach(fn => { try { fn(city, { addMesh: (m, s) => addMesh(city, m, s), addBox: (...a) => addBox(city, ...a), glassMat, poleMat }); } catch (e) { console.error('landmark failed in ' + city.name, e); } });
     };
 
@@ -587,6 +599,7 @@ window.City = (function () {
         city.bodies.forEach(b => world.removeBody(b));
         city.roads.forEach(r => { if (window.Traffic) Traffic.unlinkRoad(r); Road.remove(r); });
         city.signs.forEach(s => scene.remove(s));
+        Trees.remove(city.trees); city.trees = null;
         C.lights = C.lights.filter(l => l.city !== city);
         C.nightMats = C.nightMats.filter(m => city.mats.indexOf(m) === -1);
         city.mats.forEach(m => m.dispose());

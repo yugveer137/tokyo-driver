@@ -173,6 +173,13 @@ window.Robbery = (function () {
     }
     // the way to the level's city from where you are: which freeway, north or south, how far,
     // and the exit number off the city's own sign boards
+    // how each freeway is reached from the others (world.js: the I-880 merge, the bay bridges, the country roads)
+    const WAY_ONTO = {
+        'US-101': 'I-880 merges into it before San Jose, or cross a bridge, or take a country road east from an I-280 town',
+        'I-880': 'cross a bridge',
+        'I-280': 'take the country road west from San Francisco, San Mateo, Palo Alto or San Jose',
+        'Highway 1': 'take the country road west from Daly City or Crystal Springs on I-280'
+    };
     R.wayToCity = function () {
         const c = R.city; if (!c || !c.fw || !c.fw.frames) return '';
         const me = (window.Walk && Walk.active) ? Walk.pos : Car.body.position;
@@ -182,7 +189,7 @@ window.Robbery = (function () {
         const far = dist > 2000 ? (dist / 1000).toFixed(1) + ' km' : Math.round(dist) + ' m';
         if (n.dist > 400) {                                                 // off the city's freeway (the other one, or deep in a city)
             const other = (window.World && World.freeways || []).find(f => f !== c.fw && Road.nearest(f, me).dist < 400);
-            return 'Get onto ' + c.fw.name + (other ? ' (' + (c.fw.name === 'US-101' ? 'I-880 merges into it before San Jose, or cross a bridge' : 'cross a bridge') + ')' : '') + ', then Exit ' + c.exitNumber + ' for ' + c.name;
+            return 'Get onto ' + c.fw.name + (other && WAY_ONTO[c.fw.name] ? ' (' + WAY_ONTO[c.fw.name] + ')' : '') + ', then Exit ' + c.exitNumber + ' for ' + c.name;
         }
         return c.fw.name + ' ' + (along > 0 ? 'south' : 'north') + ' ' + far + ', then Exit ' + c.exitNumber + ' for ' + c.name;
     };

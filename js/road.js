@@ -128,7 +128,7 @@ window.Road = (function () {
     function surfMat(type, conform) {
         const k = type + (conform ? '_c' : '');
         const strip = stripTexture(type);
-        return mats[k] || (mats[k] = new THREE.MeshStandardMaterial({ map: strip, bumpMap: bumpCache[type], bumpScale: 0.025, roughness: 0.9, metalness: 0.05,
+        return mats[k] || (mats[k] = new THREE.MeshStandardMaterial({ color: 0x9a9aa0, map: strip, bumpMap: bumpCache[type], bumpScale: 0.025, roughness: 0.9, metalness: 0.05,   // (the asphalt photo is pale: the tint brings it down to road grey)
             polygonOffset: !!conform, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
     }
 

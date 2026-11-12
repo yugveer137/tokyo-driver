@@ -103,7 +103,7 @@
                 handling: 0.008,
                 color: 0x141414,
                 bodyColor: 0x141414,
-                isTruck: true,
+                isBoxTruck: true,                // a 6.5 m box truck (the kit's delivery model, all black), not the 9.6 m lorry chassis
                 robberyOnly: true
             },
             gtbh: {
@@ -1486,7 +1486,7 @@
     function builderKey(id) { return cars[id] ? id : 'starter'; }
 
     function variant(d) {
-        return d.isRaceCar ? 'race' : d.isOffroad ? 'offroad' : d.isPickup ? 'pickup' : d.isTruck ? 'truck' : 'default';
+        return d.isRaceCar ? 'race' : d.isOffroad ? 'offroad' : d.isPickup ? 'pickup' : d.isTruck ? 'truck' : d.isBoxTruck ? 'boxtruck' : 'default';
     }
 
     const LAYOUTS = {
@@ -1494,6 +1494,8 @@
         offroad: { radius: 0.55, width: 0.45, rest: 0.5, travel: 0.5, points: [[-1.2, 0.5, 1.6], [1.2, 0.5, 1.6], [-1.2, 0.5, -1.6], [1.2, 0.5, -1.6]] },
         pickup:  { radius: 0.5,  width: 0.4,  rest: 0.4, travel: 0.4, points: [[-1.1, 0.4, 2.0], [1.1, 0.4, 2.0], [-1.1, 0.4, -2.0], [1.1, 0.4, -2.0]] },
         truck:   { radius: 0.5,  width: 0.4,  rest: 0.4, travel: 0.4, points: [[-1.1, 0.4, 2.8], [1.1, 0.4, 2.8], [-1.1, 0.4, -4.0], [1.1, 0.4, -4.0]] },
+        // (the wheels sit in the delivery model's arches: it is scaled 2x, its axles at z 1.01 and -0.61)
+        boxtruck: { radius: 0.6, width: 0.5,  rest: 0.4, travel: 0.4, points: [[-0.95, 0.4, 2.07], [0.95, 0.4, 2.07], [-0.95, 0.4, -1.17], [0.95, 0.4, -1.17]] },
         default: { radius: 0.4,  width: 0.3,  rest: 0.3, travel: 0.3, points: [[-0.9, 0.3, 1.3], [0.9, 0.3, 1.3], [-0.9, 0.3, -1.3], [0.9, 0.3, -1.3]] }
     };
 
@@ -1502,6 +1504,7 @@
         offroad: { half: [1.2, 0.5, 2.2],  offset: [0, 0.8, 0] },
         pickup:  { half: [1.2, 0.5, 2.5],  offset: [0, 0.7, 0] },
         truck:   { half: [1.3, 0.7, 4.5],  offset: [0, 0.9, -0.8] },
+        boxtruck: { half: [1.35, 0.9, 3.0], offset: [0, 1.1, 0] },
         default: { half: [1, 0.4, 2],      offset: [0, 0.6, 0] }
     };
 

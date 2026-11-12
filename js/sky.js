@@ -139,19 +139,22 @@ window.Sky = (function () {
 
         sun.position.copy(focus).addScaledVector(S.sunDir, 300);
         sun.target.position.copy(focus);
-        sun.intensity = 1.1 * dl;
+        // Daylight is a strong sun and little fill light, with the exposure held down: bright fill
+        // light at full exposure washed every colour out to pale grey (ACES tone mapping brightens
+        // by 1/0.6 before it compresses). The night keeps its own softer balance.
+        sun.intensity = 1.5 * dl;
         sun.color.copy(col.sunLow).lerp(col.sunHigh, smooth(0, 0.45, elev));
         sun.visible = dl > 0.02;
 
         hemi.color.copy(col.hemiSkyNight).lerp(col.hemiSkyDay, dl);
         hemi.groundColor.copy(col.hemiGroundNight).lerp(col.hemiGroundDay, dl);
-        hemi.intensity = 0.22 + 0.28 * dl;
-        ambient.intensity = 0.1 + 0.12 * dl;
+        hemi.intensity = 0.22 + 0.08 * dl;
+        ambient.intensity = 0.1 - 0.04 * dl;
 
         scene.fog.color.copy(u.uHorizon.value);
-        scene.fog.density = (0.0025 - 0.0013 * dl) * (S.rain ? 1.8 : 1) * (S.fogBoost || 1);
+        scene.fog.density = (0.0025 - 0.0017 * dl) * (S.rain ? 1.8 : 1) * (S.fogBoost || 1);
         if (S.rain) { u.uTop.value.multiplyScalar(0.55); u.uHorizon.value.multiplyScalar(0.7); sun.intensity *= 0.5; }
-        if (renderer) renderer.toneMappingExposure = 0.8 + 0.25 * dl;
+        if (renderer) renderer.toneMappingExposure = 0.8 - 0.2 * dl;
         if (S.envDay) { const want = dl > 0.4 ? S.envDay : S.envNight; if (scene.environment !== want) scene.environment = want; }
     };
 

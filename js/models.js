@@ -10,7 +10,7 @@ window.Models = (function () {
     // chosen to match the real car's body style (a Mach-E is a crossover, a Cybertruck a pickup)
     const BY_ID = {
         starter: 'sedan', sport: 'sedan-sports', muscle: 'sedan-sports', super: 'race', hyper: 'race-future', legend: 'race-future', electric: 'sedan-sports',
-        trailer: 'truck', gtbh: 'truck', robber: 'truck',
+        trailer: 'truck', gtbh: 'truck', robber: 'delivery',
         supra: 'hatchback-sports', ferrari: 'race', mclaren: 'race', m4supra: 'sedan-sports', lec: 'race-future', f550: 'truck-flat', wrangler: 'suv',
         porsche: 'sedan-sports', gv60: 'suv-luxury', sonata: 'sedan', mustangev: 'suv', genesisveet: 'sedan', gv70veet: 'suv-luxury', nes2451: 'race-future',
         gr4: 'race', genesisi5: 'sedan', aventador: 'race', raptor: 'truck-flat',
@@ -35,7 +35,7 @@ window.Models = (function () {
         loader.load('assets/cars/' + name + '.glb', (gltf) => {
             const src = gltf.scene;
             src.traverse(o => { if (o.isMesh) { o.castShadow = true; o.material.metalness = 0.5; o.material.roughness = 0.3; o.material.envMapIntensity = 1.0; } });   // car paint: glossy, reflecting the sky
-            src.traverse(o => { if (o.isMesh && !(/wheel/i.test(o.name) || /wheel/i.test(o.parent.name))) markPaint(o); });
+            src.traverse(o => { if (o.isMesh && !(/wheel/i.test(o.name) || /wheel/i.test(o.parent.name))) markPaint(o, name); });
             M.cache[name] = src;
             M.pending[name].forEach(f => f(src)); delete M.pending[name];
         }, undefined, (err) => { console.warn('car model failed: ' + name, err); delete M.pending[name]; });
@@ -50,13 +50,16 @@ window.Models = (function () {
     // painted area are the paintwork. Tail and head lights are saturated too but tiny, so they
     // fall below the area cut.
     let palette = null;
-    function markPaint(mesh) {
+    // A box truck is drawn mostly white, so on these models the white bodywork is paintwork too
+    // (the Robber's Car is one of them, all black; the delivery vans in traffic keep the kit's colours).
+    const WHITE_IS_PAINT = { delivery: true };
+    function markPaint(mesh, name) {
         const img = mesh.material.map && mesh.material.map.image;
         if (!img || !img.width) return;
         if (!palette) { const c = document.createElement('canvas'); c.width = img.width; c.height = img.height; c.getContext('2d').drawImage(img, 0, 0); palette = c.getContext('2d'); }
         const geo = mesh.geometry, uv = geo.attributes.uv, pos = geo.attributes.position, idx = geo.index;
         if (!uv) return;
-        if (idx) { mesh.geometry = geo.toNonIndexed(); return markPaint(mesh); }   // one vertex per corner, so a flag per vertex is a flag per face
+        if (idx) { mesh.geometry = geo.toNonIndexed(); return markPaint(mesh, name); }   // one vertex per corner, so a flag per vertex is a flag per face
         const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
         const tris = pos.count / 3, texel = [], area = {}, colours = {};
         const sampled = {};
@@ -84,6 +87,7 @@ window.Models = (function () {
         const total = clusters.reduce((s, q) => s + q.area, 0);
         const paintKeys = {};
         clusters.filter(q => q.area > total * 0.08).forEach(q => q.keys.forEach(k => { paintKeys[k] = true; }));
+        if (WHITE_IS_PAINT[name]) Object.keys(area).forEach(k => { if (chroma(colours[k]) < 0.12 && hsl[k].l > 0.7) paintKeys[k] = true; });
         const flags = new Float32Array(pos.count);
         texel.forEach((k, t) => { if (paintKeys[k]) flags[t * 3] = flags[t * 3 + 1] = flags[t * 3 + 2] = 1; });
         mesh.geometry.setAttribute('paint', new THREE.BufferAttribute(flags, 1));

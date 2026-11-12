@@ -105,6 +105,7 @@
         Tex.build(renderer);
         Sky.init(scene, renderer);
         Terrain.init(scene, world);
+        Trees.init(scene);
         Road.init(scene, world);
         Signs.init(scene);
         Train.init(scene);
@@ -133,9 +134,15 @@
         requestAnimationFrame(loop);
     }
 
-    // Adaptive quality: drop the render resolution first; if it is still slow, switch the
-    // shadows off and pull the view distance in. Steps back up when the frame rate recovers.
-    let lowFrames = 0, quality = 2;   // 2 = shadows on, 1 = shadows off, 0 = shadows off + short view
+    // Adaptive quality. A slow frame is either the graphics card (too many pixels: a lower
+    // resolution helps) or the processor (too many objects: it does not, and the picture only
+    // turns blurry and flat for nothing, which is what Safari on a Retina Mac was doing). So
+    // every step down is a trial: if the frame rate is not clearly better a second later the
+    // step is undone and that kind of step is left alone for a minute. The resolution never
+    // goes below one pixel per screen point.
+    let quality = 2;                  // 2 = shadows on, 1 = shadows off, 0 = shadows off + short view
+    let trial = null, goodSamples = 0;
+    const hold = { res: 0, quality: 0 };
     function setQuality(q) {
         if (q === quality) return; quality = q;
         renderer.shadowMap.enabled = q >= 2;
@@ -150,12 +157,26 @@
         if (fpsSamples.length < 60) return;
         fps = fpsSamples.reduce((a, b) => a + b, 0) / fpsSamples.length;
         fpsSamples = [];
-        const maxPR = Math.min(window.devicePixelRatio, 2);
-        if (fps < 42 && pixelRatio > 0.6) pixelRatio = Math.max(0.6, pixelRatio - 0.2);
-        else if (fps > 57 && pixelRatio < maxPR && quality === 2) pixelRatio = Math.min(maxPR, pixelRatio + 0.15);
+        const now = performance.now(), maxPR = Math.min(window.devicePixelRatio, 2), minPR = Math.min(1, maxPR);
+        if (trial) {                                                   // did the last step down help?
+            if (fps < trial.before * 1.12) { trial.undo(); hold[trial.kind] = now + 60000; }
+            trial = null;
+        } else if (fps < 42) {
+            goodSamples = 0;
+            if (pixelRatio > minPR + 0.01 && now > hold.res) {
+                const was = pixelRatio;
+                pixelRatio = Math.max(minPR, pixelRatio - 0.25);
+                trial = { kind: 'res', before: fps, undo: () => { pixelRatio = was; } };
+            } else if (fps < 36 && quality > 0 && now > hold.quality) {
+                const was = quality;
+                setQuality(quality - 1);
+                trial = { kind: 'quality', before: fps, undo: () => setQuality(was) };
+            }
+        } else if (fps > 57) {                                         // room to spare: step back up, resolution first
+            if (pixelRatio < maxPR) pixelRatio = Math.min(maxPR, pixelRatio + 0.15);
+            else if (quality < 2 && ++goodSamples >= 6) { setQuality(quality + 1); goodSamples = 0; }
+        }
         if (Math.abs(renderer.getPixelRatio() - pixelRatio) > 0.01) renderer.setPixelRatio(pixelRatio);
-        if (fps < 36 && pixelRatio <= 0.61) { if (++lowFrames >= 2) { setQuality(Math.max(0, quality - 1)); lowFrames = 0; } }
-        else if (fps > 55) { if (--lowFrames <= -6) { setQuality(Math.min(2, quality + 1)); lowFrames = 0; } }
     }
 
     // One simulation step without rendering (also callable from the console for testing)

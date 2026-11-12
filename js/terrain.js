@@ -27,7 +27,7 @@ window.Terrain = (function () {
 
     T.init = function (sc, w) {
         scene = sc; world = w;
-        material = new THREE.MeshStandardMaterial({ color: 0x5f8c3c, map: Tex.grass, roughness: 0.95, metalness: 0 });
+        material = new THREE.MeshStandardMaterial({ color: 0x3f7a26, map: Tex.grass, roughness: 0.95, metalness: 0 });
     };
 
     function key(i, j) { return i + ',' + j; }
@@ -74,7 +74,7 @@ window.Terrain = (function () {
         body.position.set(x0 - C / 2 - PAD * es, 0, z0 + C / 2 + PAD * es);
         world.addBody(body);
 
-        return { mesh, body, geom };
+        return { mesh, body, geom, trees: Trees.wild(x0, z0, C) };
     }
 
     T.update = function (focus) {
@@ -89,7 +89,7 @@ window.Terrain = (function () {
         chunks.forEach((ch, k) => {
             const [i, j] = k.split(',').map(Number);
             if (Math.abs(i - ci) > T.RADIUS + 1 || Math.abs(j - cj) > T.RADIUS + 1) {
-                scene.remove(ch.mesh); ch.geom.dispose(); world.removeBody(ch.body);
+                scene.remove(ch.mesh); ch.geom.dispose(); world.removeBody(ch.body); Trees.remove(ch.trees);
                 chunks.delete(k);
             }
         });
@@ -97,7 +97,7 @@ window.Terrain = (function () {
 
     // Rebuild everything (after shapers change, e.g. a city registers its plateau)
     T.rebuild = function (focus) {
-        chunks.forEach(ch => { scene.remove(ch.mesh); ch.geom.dispose(); world.removeBody(ch.body); });
+        chunks.forEach(ch => { scene.remove(ch.mesh); ch.geom.dispose(); world.removeBody(ch.body); Trees.remove(ch.trees); });
         chunks.clear();
         T.update(focus);
     };
