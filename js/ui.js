@@ -6,7 +6,41 @@ window.UI = (function () {
 
     const keyMap = { KeyW: 'fwd', ArrowUp: 'fwd', KeyS: 'back', ArrowDown: 'back', KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right', Space: 'drift' };
 
+    // ---------- the free trial: a button that tells how long is left, and the end of it ----------
+    // Only someone playing on a free trial sees the button. When the time is up the game stops
+    // for them: their coins and cars are saved, a notice covers the screen, and the page loads
+    // again, where Save's money screen is waiting.
+    function timeLeft(ms) {
+        const s = Math.max(0, Math.floor(ms / 1000)), d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+        const n = (count, word) => count + ' ' + word + (count === 1 ? '' : 's');
+        if (d > 0) return n(d, 'day') + ' and ' + n(h, 'hour');
+        if (h > 0) return n(h, 'hour') + ' and ' + n(m, 'minute');
+        return m > 0 ? n(m, 'minute') + ' and ' + n(s % 60, 'second') : n(s, 'second');
+    }
+    function initTrial() {
+        const btn = $('trial-btn');
+        let showing = 0, ended = false;
+        function refresh() {
+            const t = Save.trial();
+            btn.style.display = t && Game.started ? 'block' : 'none';
+            if (!t || ended) return;
+            if (t.leftMs <= 0) {
+                ended = true;
+                try { Game.save(); } catch (e) { /* (nothing to save yet) */ }
+                $('trial-over').style.display = 'flex';
+                setTimeout(() => location.reload(), 4000);
+                return;
+            }
+            const ask = 'SEE YOUR ' + (t.days ? t.days + '-DAY' : 'FREE') + ' TRIAL: HOW MUCH TIME IS LEFT?';
+            // (the last five minutes it counts down by itself, so the end is no surprise)
+            btn.textContent = showing > Date.now() || t.leftMs < 300000 ? 'FREE TRIAL: ' + timeLeft(t.leftMs) + ' left' : ask;
+        }
+        btn.onclick = () => { btn.blur(); showing = Date.now() + 8000; refresh(); };
+        setInterval(refresh, 1000); refresh();
+    }
+
     U.init = function () {
+        initTrial();
         speedEl = $('hud-speed'); gearEl = $('hud-gear'); clockEl = $('hud-clock'); areaEl = $('hud-area');
         carEl = $('hud-car'); fpsEl = $('hud-fps'); coinsEl = $('hud-coins'); limitEl = $('hud-limit-v');
 

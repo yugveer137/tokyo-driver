@@ -509,6 +509,13 @@
     // A free trial counts as paid until its day runs out (one trial per account).
     function trialLeftMs() { const until = Number(readRaw(nsKey('trialUntil'), 0)) || 0; return until - Date.now(); }
     function isPaid() { return readRaw(nsKey('paid2'), null) === 'yes' || trialLeftMs() > 0; }
+    // The free trial this player is on: how many days it was for (0 if started before that was
+    // kept) and how long is left. null for the creator, for someone who has paid, and for
+    // someone who never took a trial.
+    function trial() {
+        if (isCreator() || readRaw(nsKey('paid2'), null) === 'yes' || readRaw(nsKey('trialUsed'), null) !== 'yes') return null;
+        return { days: Number(readRaw(nsKey('trialDays'), 0)) || 0, leftMs: trialLeftMs() };
+    }
 
     // $1 pay gate. Payment happens on the payment company's own secure site --
     // this page never asks for card details.
@@ -557,6 +564,7 @@
                 if (readRaw(nsKey('trialUsed'), null) === 'yes') { noteEl.textContent = 'You already had your free trial. Email ' + OWNER_EMAIL + ' for a money code.'; return; }
                 writeRaw(nsKey('trialUsed'), 'yes');
                 writeRaw(nsKey('trialUntil'), String(Date.now() + days * 86400000));
+                writeRaw(nsKey('trialDays'), String(days));
                 gate.remove(); resolve();
             }
             gate.querySelector('#trial7').addEventListener('click', function () { startTrial(7); });
@@ -661,7 +669,7 @@
         }
         if (!login) return;
         // (a player's link carries the save, never the paid/trial flags: those come from the money code)
-        const blocked = login.type === 'creator' ? [] : ['paid2', 'trialUntil', 'trialUsed'];
+        const blocked = login.type === 'creator' ? [] : ['paid2', 'trialUntil', 'trialUsed', 'trialDays'];
         if (tok.s && typeof tok.s === 'object') Object.keys(tok.s).forEach(function (k) { if (blocked.indexOf(k) === -1) writeRaw('td:' + acct + ':' + k, tok.s[k]); });
         session.set(login);
         try { localStorage.setItem(REMEMBER_KEY, JSON.stringify(login)); } catch (e) {}
@@ -701,6 +709,7 @@
         boot: boot,
         account: account,
         isCreator: isCreator,
+        trial: trial,
         get: get,
         set: set,
         getGlobal: getGlobal,
