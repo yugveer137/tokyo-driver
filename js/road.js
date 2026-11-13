@@ -280,7 +280,6 @@ window.Road = (function () {
             mesh(strip(fr, { x: -halfW, y: -1.4 }, { x: -halfW, y: 0 }, 4, length, 0, 0.35), dm, false, chunk);
             mesh(strip(fr, { x: halfW, y: 0 }, { x: halfW, y: -1.4 }, 4, length, 0, 0.35), dm, false, chunk);
             mesh(strip(fr, { x: halfW, y: -1.4 }, { x: -halfW, y: -1.4 }, 4, length), dm, false, chunk);
-            const pierGeom = new THREE.CylinderGeometry(1.1, 1.3, 1, 12);
             chunk.piers = [];
             for (let i = 1; i < fr.length; i += Math.max(1, Math.round(24 / rec.segLen))) {
                 const f = fr[i];
@@ -290,10 +289,7 @@ window.Road = (function () {
                     if (h2 < 1.2) return;
                     if (pierBlocked(px, pz)) return;               // a U-turn loop passes under here
                     if (overAnotherDeck(px, pz, rec)) return;      // a bridge crossing a freeway: no pier on the road below
-                    const pier = new THREE.Mesh(pierGeom, pierMat());
-                    pier.scale.y = h2; pier.position.set(px, g2 - 0.5 + h2 / 2, pz);
-                    pier.castShadow = true; pier.receiveShadow = true;
-                    scene.add(pier); chunk.meshes.push(pier); chunk.piers.push(pier);
+                    chunk.piers.push({ x: px, y: g2 - 0.5 + h2 / 2, z: pz, h: h2 });
                 });
             }
         }
@@ -301,10 +297,15 @@ window.Road = (function () {
         // Barriers: concrete walls on both edges, plus a median wall on freeways
         if (type.barriers && !spec.noBarriers) {
             const bm = concreteMat();
-            const wall = (lat, w, h, gaps) => {
+            // where a wall is left out: the gaps asked for, and the open ends
+            const withEnds = (gaps) => {
                 gaps = (gaps || []).slice();
                 if (spec.openStart) gaps.push([0, spec.openStart]);
                 if (spec.openEnd) gaps.push([length - spec.openEnd, length]);
+                return gaps;
+            };
+            const gapsLeft = withEnds(spec.gapsLeft), gapsRight = withEnds(spec.gapsRight);
+            const wall = (lat, w, h, gaps) => {
                 const runs = []; let run = [];
                 fr.forEach(f => {
                     const s = f.t * length;
@@ -319,53 +320,140 @@ window.Road = (function () {
                     physicsChain(r, rec.segLen, lat, w / 2, h / 2, h / 2, chunk);
                 });
             };
-            if (!spec.openLeft) wall(-halfW + 0.35, 0.6, 1.1, spec.gapsLeft);
-            if (!spec.openRight) wall(halfW - 0.35, 0.6, 1.1, spec.gapsRight);
-            if (type.median > 0 && type.twoWay) wall(0, 0.6, 1.0);
-            if (rec.type === 'freeway') furniture(fr, halfW, length, spec, chunk);
+            if (!spec.openLeft) wall(-halfW + 0.35, 0.6, 1.1, gapsLeft);
+            if (!spec.openRight) wall(halfW - 0.35, 0.6, 1.1, gapsRight);
+            if (type.median > 0 && type.twoWay) wall(0, 0.6, 1.0, []);
+            furniture(rec, fr, spec.openLeft ? null : gapsLeft, spec.openRight ? null : gapsRight, chunk);
         }
+        // Join the chunk's still parts into one mesh per material (batch.js): a 400 m stretch of
+        // freeway was 140 meshes (every reflector, lamp and pier its own) and is now about eight.
+        const still = new THREE.Group();
+        chunk.meshes.forEach(m => still.add(m));
+        Batch.merge(still); scene.add(still);
+        chunk.meshes = [still];
+        raisePiers(chunk);
         return key;
     };
 
-    // What a real freeway has along it: reflectors on the barriers, and tall light poles on the
-    // median every 50 m whose heads glow at night (City.nightMats drives the glow).
-    let poleGeom, armGeom, headGeom, reflGeom;
-    function furniture(fr, halfW, length, spec, chunk) {
+    // The piers are one mesh of their own, built from the chunk's list of spots, since a ramp
+    // built later may have to take some of them out (R.removePiersNear) and they are raised again.
+    let pierGeom;
+    function raisePiers(chunk) {
+        if (chunk.pierMesh) { scene.remove(chunk.pierMesh); chunk.pierMesh.traverse(o => { if (o.geometry) o.geometry.dispose(); }); chunk.meshes.splice(chunk.meshes.indexOf(chunk.pierMesh), 1); chunk.pierMesh = null; }
+        if (!chunk.piers || !chunk.piers.length) return;
+        pierGeom = pierGeom || new THREE.CylinderGeometry(1.1, 1.3, 1, 12);
+        const g = new THREE.Group();
+        chunk.piers.forEach(p => { const pier = new THREE.Mesh(pierGeom, pierMat()); pier.scale.y = p.h; pier.position.set(p.x, p.y, p.z); pier.castShadow = pier.receiveShadow = true; g.add(pier); });
+        Batch.merge(g); scene.add(g);
+        chunk.pierMesh = g; chunk.meshes.push(g);
+    }
+
+    // What a real road has along it. A freeway: reflectors on the barriers and tall light poles
+    // on the median every 48 m, an arm over each carriageway. A ramp: reflectors, a lamp on its
+    // right-hand wall every 48 m, a row of yellow chevron boards round the outside of every tight
+    // bend, and yellow crash barrels where a wall starts in the open (the nose of an exit).
+    // Lamp heads glow at night (City.nightMats) and each throws a pool of light on the road
+    // (Tex.lightPool). gapsLeft / gapsRight: where that wall is left out (null: no wall at all).
+    let poleGeom, armGeom, headGeom, reflGeom, boardGeom, faceGeom, barrelGeom, lidGeom;
+    function chevronMat(left) {
+        const k = left ? 'chevL' : 'chevR';
+        return mats[k] || (mats[k] = new THREE.MeshBasicMaterial({ map: Tex.textCanvas(64, 80, (ctx, W, H) => {
+            ctx.fillStyle = '#f2c200'; ctx.fillRect(0, 0, W, H);
+            ctx.strokeStyle = '#111'; ctx.lineWidth = 15; ctx.lineJoin = 'miter';
+            ctx.beginPath();
+            if (left) { ctx.moveTo(W * 0.68, H * 0.1); ctx.lineTo(W * 0.3, H / 2); ctx.lineTo(W * 0.68, H * 0.9); }
+            else { ctx.moveTo(W * 0.32, H * 0.1); ctx.lineTo(W * 0.7, H / 2); ctx.lineTo(W * 0.32, H * 0.9); }
+            ctx.stroke();
+        }) }));
+    }
+    function furniture(rec, fr, gapsLeft, gapsRight, chunk) {
+        const halfW = rec.halfW, length = rec.length, freeway = rec.type === 'freeway';
         poleGeom = poleGeom || new THREE.CylinderGeometry(0.14, 0.2, 12, 8);
         armGeom = armGeom || new THREE.BoxGeometry(0.16, 0.16, 3.2);
         headGeom = headGeom || new THREE.BoxGeometry(0.5, 0.18, 1.1);
         reflGeom = reflGeom || new THREE.BoxGeometry(0.1, 0.08, 0.04);
+        boardGeom = boardGeom || new THREE.BoxGeometry(0.8, 1.0, 0.06);
+        faceGeom = faceGeom || new THREE.PlaneGeometry(0.8, 1.0);
+        barrelGeom = barrelGeom || new THREE.CylinderGeometry(0.42, 0.46, 1.0, 10);
+        lidGeom = lidGeom || new THREE.CylinderGeometry(0.44, 0.44, 0.1, 10);
         const poleMat = mats.pole || (mats.pole = new THREE.MeshStandardMaterial({ color: 0x8e9398, metalness: 0.7, roughness: 0.4 }));
         if (!mats.lampHead) { mats.lampHead = new THREE.MeshStandardMaterial({ color: 0xfff1d0, emissive: 0xffd080, emissiveIntensity: 0 }); if (window.City) City.nightMats.push(mats.lampHead); }
         const reflMat = mats.refl || (mats.refl = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffe9a0, emissiveIntensity: 0.6 }));
-        const inGap = (s, gaps) => (gaps || []).some(g => s >= g[0] && s <= g[1]);
+        const backMat = mats.signBack || (mats.signBack = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.8 }));
+        const barrelMat = mats.barrel || (mats.barrel = new THREE.MeshStandardMaterial({ color: 0xd9a000, roughness: 0.7 }));
+        const lidMat = mats.lid || (mats.lid = new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.8 }));
+        const inGap = (s, gaps) => !gaps || gaps.some(g => s >= g[0] && s <= g[1]);
+        const put = (geom, mat, f, lat, up, yaw) => {
+            const m = new THREE.Mesh(geom, mat);
+            m.position.copy(f.p).addScaledVector(f.right, lat); m.position.y += up;
+            m.rotation.y = yaw === undefined ? Math.atan2(f.tan.x, f.tan.z) : yaw;
+            scene.add(m); chunk.meshes.push(m);
+            return m;
+        };
+        // the light a lamp throws: a patch `wide` x `long` lying on the road around lateral `lat`
+        const pool = (f, lat, wide, long) => {
+            const c = f.p.clone().addScaledVector(f.right, lat); c.y += 0.06;
+            const g = new THREE.BufferGeometry(), pos = [];
+            [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([a, b]) => { const p = c.clone().addScaledVector(f.right, a * wide / 2).addScaledVector(f.tan, b * long / 2); pos.push(p.x, p.y, p.z); });
+            g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 1, 1], 2));
+            g.setIndex([0, 1, 2, 1, 3, 2]); g.computeVertexNormals();          // (wound to face up, as Road.strip is)
+            const m = new THREE.Mesh(g, Tex.lightPool()); scene.add(m); chunk.meshes.push(m);
+        };
+        const every = (s, step) => Math.round(s) % step === 0;
         fr.forEach((f, i) => {
             const s = f.t * length;
-            if (Math.round(s) % 16 === 0) {                              // reflectors on both outer walls
-                [[-halfW + 0.35, spec.gapsLeft], [halfW - 0.35, spec.gapsRight]].forEach(([lat, gaps]) => {
-                    if (inGap(s, gaps)) return;
-                    const m = new THREE.Mesh(reflGeom, reflMat);
-                    m.position.copy(f.p).addScaledVector(f.right, lat); m.position.y += 0.95;
-                    m.rotation.y = Math.atan2(f.tan.x, f.tan.z);
-                    scene.add(m); chunk.meshes.push(m);
-                });
+            if (every(s, 16) || (!freeway && i % 3 === 0)) {              // reflectors on the outer walls
+                [[-halfW + 0.35, gapsLeft], [halfW - 0.35, gapsRight]].forEach(([lat, gaps]) => { if (!inGap(s, gaps)) put(reflGeom, reflMat, f, lat, 0.95); });
             }
-            if (Math.round(s) % 48 === 0) {                               // a light pole on the median, arms over both carriageways
-                const pole = new THREE.Mesh(poleGeom, poleMat); pole.position.copy(f.p); pole.position.y += 6.5; pole.castShadow = true;
-                scene.add(pole); chunk.meshes.push(pole);
+            if (freeway && every(s, 48)) {                                // a light pole on the median, an arm over each carriageway
+                put(poleGeom, poleMat, f, 0, 6.5).castShadow = true;
                 [-1, 1].forEach(sd => {
-                    const arm = new THREE.Mesh(armGeom, poleMat); arm.position.copy(f.p).addScaledVector(f.right, sd * 1.5); arm.position.y += 12.3;
-                    arm.rotation.y = Math.atan2(f.tan.x, f.tan.z) + Math.PI / 2; scene.add(arm); chunk.meshes.push(arm);
-                    const head = new THREE.Mesh(headGeom, mats.lampHead); head.position.copy(f.p).addScaledVector(f.right, sd * 3.0); head.position.y += 12.2;
-                    head.rotation.y = arm.rotation.y; scene.add(head); chunk.meshes.push(head);
+                    const yaw = Math.atan2(f.tan.x, f.tan.z) + Math.PI / 2;
+                    put(armGeom, poleMat, f, sd * 1.5, 12.3, yaw);
+                    put(headGeom, mats.lampHead, f, sd * 3.0, 12.2, yaw);
+                    pool(f, sd * (halfW / 2 + 0.5), halfW - 1, 30);
                 });
             }
+            if (!freeway && i % 8 === 4 && !inGap(s, gapsRight)) {        // a ramp's lamps stand on its right-hand wall (every 48 m)
+                const yaw = Math.atan2(f.tan.x, f.tan.z) + Math.PI / 2, lat = halfW - 0.35;
+                const pole = put(poleGeom, poleMat, f, lat, 5.5); pole.scale.y = 0.75; pole.castShadow = true;
+                put(armGeom, poleMat, f, lat - 1.5, 9.9, yaw);
+                put(headGeom, mats.lampHead, f, lat - 3.0, 9.8, yaw);
+                pool(f, 0, halfW * 2 - 1.5, 26);
+            }
+            // chevron boards round the outside of a tight bend: how far the road turns over the
+            // frames either side gives the radius
+            if (!freeway && i > 0 && i < fr.length - 1 && i % 2 === 0) {
+                const a = fr[i - 1].tan, b = fr[i + 1].tan;
+                const turn = Math.atan2(a.z * b.x - a.x * b.z, a.x * b.x + a.z * b.z);      // > 0: bending to the driver's left
+                const radius = 2 * rec.segLen / Math.max(1e-6, Math.abs(turn));
+                const left = turn > 0, gaps = left ? gapsRight : gapsLeft;
+                if (radius < 95 && !inGap(s, gaps)) {
+                    const lat = (left ? 1 : -1) * (halfW - 0.35), facing = Math.atan2(-f.tan.x, -f.tan.z);
+                    put(boardGeom, backMat, f, lat, 1.7, facing);
+                    const face = put(faceGeom, chevronMat(left), f, lat, 1.7, facing);
+                    face.position.addScaledVector(f.tan, -0.04);
+                }
+            }
+        });
+        // crash barrels in front of a wall that starts in the open, part-way along the road
+        if (!freeway) [[-halfW + 0.35, gapsLeft], [halfW - 0.35, gapsRight]].forEach(([lat, gaps]) => {
+            (gaps || []).forEach(g => {
+                if (g[1] <= 1 || g[1] >= length - 1) return;                  // (a gap that runs to the road's end: no wall follows it)
+                [3.6, 2.4, 1.2].forEach(back => {
+                    const sAt = g[1] - back; if (sAt < fr[0].t * length || sAt > fr[fr.length - 1].t * length) return;
+                    const f = fr.reduce((best, x) => Math.abs(x.t * length - sAt) < Math.abs(best.t * length - sAt) ? x : best);   // (the frames, not the curve: a ramp's deck is lifted clear of the land)
+                    put(barrelGeom, barrelMat, f, lat, 0.5, 0).castShadow = true;
+                    put(lidGeom, lidMat, f, lat, 1.05, 0);
+                });
+            });
         });
     }
 
     R.dropRange = function (rec, key) {
         const c = rec.chunks[key]; if (!c) return;
-        c.meshes.forEach(m => { scene.remove(m); if (m.geometry) m.geometry.dispose(); });
+        c.meshes.forEach(m => { scene.remove(m); m.traverse(o => { if (o.geometry) o.geometry.dispose(); }); });
         setLive(c, false);
         delete rec.chunks[key];
     };
@@ -424,11 +512,9 @@ window.Road = (function () {
     R.removePiersNear = function (fw, ramp) {
         Object.values(fw.chunks).forEach(chunk => {
             if (!chunk.piers) return;
-            chunk.piers = chunk.piers.filter(pier => {
-                const hit = ramp.frames.some(f => Math.hypot(f.p.x - pier.position.x, f.p.z - pier.position.z) < 8);
-                if (hit) { scene.remove(pier); chunk.meshes.splice(chunk.meshes.indexOf(pier), 1); }
-                return !hit;
-            });
+            const before = chunk.piers.length;
+            chunk.piers = chunk.piers.filter(pier => !ramp.frames.some(f => Math.hypot(f.p.x - pier.x, f.p.z - pier.z) < 8));
+            if (chunk.piers.length !== before) raisePiers(chunk);
         });
     };
 

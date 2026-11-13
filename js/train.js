@@ -99,6 +99,10 @@ window.Train = (function () {
         const cabWin = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.9), new THREE.MeshBasicMaterial({ color: 0x9fc4ff, transparent: true, opacity: 0.25 })); cabWin.position.set(0, 2.9, carLen / 2 - 0.36); cabWin.rotation.y = Math.PI; inside.add(cabWin);
         inside.visible = false; g.add(inside); g.userData.inside = inside;
         g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+        // A train was 248 separate meshes: join them (batch.js). The wheels go in too: they are
+        // plain discs, so nobody could see them turn, and there are 32 to a train.
+        g.userData.wheels = [];
+        Batch.merge(g); Batch.merge(inside);
         return g;
     }
 
@@ -205,6 +209,7 @@ window.Train = (function () {
         const platform = f.p.clone(); platform.y = Terrain.height(f.p.x, f.p.z) + 0.9;
         // you can stand on the platform slab
         if (window.Walk) Walk.addSurface(f.p.clone().addScaledVector(f.tan, -LEN / 2).setY(platform.y), f.p.clone().addScaledVector(f.tan, LEN / 2).setY(platform.y), 5, city);
+        Batch.merge(stn);                                               // (the platform's 80-odd parts as one mesh per material)
         group.forEach(m => { if (!m.parent) scene.add(m); });            // signs and draped quads add themselves; the rest go in here
         T.stations.push({ city, s: city.s, line, meshes: group, platform });
         return group;

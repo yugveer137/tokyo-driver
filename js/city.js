@@ -13,7 +13,8 @@ window.City = (function () {
     C.init = function (sc, w) { scene = sc; world = w; buildTextures(); };
 
     // ---------- textures ----------
-    let windowSets = [], patchTex, lampMat, poleMat, glassMat;
+    let windowSets = [], patchTex, lampMat, poleMat, glassMat, shopMat, trimMat, beaconMat, headMat;
+    const SHOP_W = 8, SHOPS = 4;                     // one shopfront is 8 units wide; the texture holds four in a row
     function buildTextures() {
         // 4 window layouts: a facade map (concrete with dark glass) + an emissive map (lit panes)
         for (let v = 0; v < 4; v++) {
@@ -53,6 +54,37 @@ window.City = (function () {
             ctx.fillRect(band + 14, 0, 6, H); ctx.fillRect(W - band - 20, 0, 6, H);
         });
         patchTex.anisotropy = 4;
+        // Shopfronts for the ground floor: four shops side by side, each a sign band in its own
+        // colour over two panes of glass and a door, on a low plinth. A second canvas is what
+        // glows at night: the lit windows and the signs.
+        const shop = document.createElement('canvas'), shopLit = document.createElement('canvas');
+        shop.width = shopLit.width = 1024; shop.height = shopLit.height = 160;
+        const sc = shop.getContext('2d'), sl = shopLit.getContext('2d');
+        sc.fillStyle = '#2b2e34'; sc.fillRect(0, 0, 1024, 160);
+        sl.fillStyle = '#000'; sl.fillRect(0, 0, 1024, 160);
+        ['#b23a2e', '#1f7a6d', '#d9a521', '#27408b'].forEach((sign, k) => {
+            const x0 = k * 256, open = k !== 2;                              // (one of the four is shut for the night)
+            sc.fillStyle = sign; sc.fillRect(x0 + 6, 6, 244, 30);
+            sc.fillStyle = 'rgba(255,255,255,0.85)'; sc.fillRect(x0 + 60, 15, 136, 5); sc.fillRect(x0 + 84, 25, 88, 3);   // the lettering, too small to read
+            sl.fillStyle = sign; sl.globalAlpha = 0.7; sl.fillRect(x0 + 6, 6, 244, 30); sl.globalAlpha = 1;
+            [[14, 92], [150, 92]].forEach(([x, w]) => {
+                sc.fillStyle = '#22384d'; sc.fillRect(x0 + x, 44, w, 82);
+                sc.fillStyle = 'rgba(255,255,255,0.10)'; sc.fillRect(x0 + x, 44, w, 22);
+                if (open) { sl.fillStyle = '#ffd9a0'; sl.fillRect(x0 + x, 44, w, 82); sl.fillStyle = 'rgba(0,0,0,0.35)'; sl.fillRect(x0 + x, 96, w, 30); }
+            });
+            sc.fillStyle = '#15181c'; sc.fillRect(x0 + 112, 50, 32, 78);    // the door
+            sc.fillStyle = '#c9ccd0'; sc.fillRect(x0 + 137, 88, 3, 10);
+            if (open) { sl.fillStyle = '#806a48'; sl.fillRect(x0 + 114, 52, 28, 74); }
+        });
+        sc.fillStyle = '#5c5f63'; sc.fillRect(0, 128, 1024, 32);            // the plinth: the bottom fifth
+        const shopTex = new THREE.CanvasTexture(shop), shopLitTex = new THREE.CanvasTexture(shopLit);
+        [shopTex, shopLitTex].forEach(t => { t.wrapS = THREE.RepeatWrapping; t.anisotropy = 4; });
+        shopMat = new THREE.MeshStandardMaterial({ map: shopTex, emissiveMap: shopLitTex, emissive: 0xffffff, emissiveIntensity: 0, roughness: 0.6, metalness: 0.1 });
+        C.nightMats.push(shopMat);
+        // plain painted parts in any colour (roof slabs, rooftop machinery): see batch.js for how one material carries many colours
+        trimMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
+        beaconMat = new THREE.MeshStandardMaterial({ color: 0x400808, emissive: 0xff2a1a, emissiveIntensity: 1.6 });   // the red light on top of a tower
+        headMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
         lampMat = new THREE.MeshStandardMaterial({ color: 0xfff2cc, emissive: 0xffe6a0, emissiveIntensity: 0 });
         C.nightMats.push(lampMat);
         poleMat = new THREE.MeshStandardMaterial({ color: 0x555a60, roughness: 0.5, metalness: 0.7 });
@@ -143,15 +175,15 @@ window.City = (function () {
             buildTrafficLight(city, j, i);
             const corner = city.toWorld(city.streetX(j) + half + 1.2, city.streetZ(i) + half + 1.2);
             corner.y = Terrain.height(corner.x, corner.z) + 0.3;
-            city.signs.push(Signs.streetBlade(corner, city.heading, ns[j % ns.length]));
-            const b2 = Signs.streetBlade(corner.clone().setY(corner.y - 0.6), city.heading + Math.PI / 2, ew[i % ew.length]);
-            city.signs.push(b2);
+            // (the name blades go in with the city's still parts, not its signs: they merge by street name)
+            city.meshes.push(Signs.streetBlade(corner, city.heading, ns[j % ns.length]));
+            city.meshes.push(Signs.streetBlade(corner.clone().setY(corner.y - 0.6), city.heading + Math.PI / 2, ew[i % ew.length]));
         }
     }
 
     function buildTrafficLight(city, j, i) {
         // two mast arms per intersection: one facing NS traffic, one facing EW traffic
-        const half = city.street / 2;
+        const half = city.street / 2, phase = ((i + j) % 2) * 4;
         const heads = { ns: [], ew: [] };
         const armGeom = new THREE.CylinderGeometry(0.07, 0.07, 1, 6), poleGeom = new THREE.CylinderGeometry(0.12, 0.14, 1, 8);
         const headGeom = new THREE.BoxGeometry(0.5, 1.4, 0.4), lensGeom = new THREE.CircleGeometry(0.16, 10);
@@ -162,18 +194,19 @@ window.City = (function () {
             const g = new THREE.Group();
             const pole = new THREE.Mesh(poleGeom, poleMat); pole.scale.y = 6; pole.position.y = 3; g.add(pole);
             const arm = new THREE.Mesh(armGeom, poleMat); arm.scale.y = 7; arm.rotation.z = Math.PI / 2; arm.position.set(3.5, 5.8, 0); g.add(arm);
-            const head = new THREE.Mesh(headGeom, new THREE.MeshStandardMaterial({ color: 0x1a1a1a })); head.position.set(6.3, 5.0, 0); g.add(head);
-            const lenses = [0xff2020, 0xffb000, 0x20ff40].map((col, n) => {
-                const m = new THREE.MeshStandardMaterial({ color: 0x202020, emissive: col, emissiveIntensity: 0 });
-                const lens = new THREE.Mesh(lensGeom, m); lens.position.set(6.3, 5.5 - n * 0.45, 0.21); g.add(lens);
-                return m;
-            });
+            const head = new THREE.Mesh(headGeom, headMat); head.position.set(6.3, 5.0, 0); g.add(head);
+            // every light of the city on the same timing shows the same colours, so they share
+            // their three lenses (and the whole city's lights then draw as a handful of meshes)
+            const lenses = city.lenses[phase + axis] || (city.lenses[phase + axis] = [0xff2020, 0xffb000, 0x20ff40].map(col => {
+                const m = new THREE.MeshStandardMaterial({ color: 0x202020, emissive: col, emissiveIntensity: 0 }); city.mats.push(m); return m;
+            }));
+            lenses.forEach((m, n) => { const lens = new THREE.Mesh(lensGeom, m); lens.position.set(6.3, 5.5 - n * 0.45, 0.21); g.add(lens); });
             heads[axis].push(lenses);
             g.position.set(base.x, gy, base.z);
             g.rotation.y = city.heading + rot;
             scene.add(g); city.meshes.push(g);
         });
-        const L = { city, heads, phase: ((i + j) % 2) * 4, nsGreen: true, ewGreen: false };
+        const L = { city, heads, phase, nsGreen: true, ewGreen: false };
         C.lights.push(L);
         city.lightMap[i + ',' + j] = L;
     }
@@ -230,35 +263,82 @@ window.City = (function () {
     // The city palettes are all near-white; nearly half the buildings take one of these instead
     // (brick, sandstone, terracotta, slate, sage) so a street is not one pale wall.
     const WARM_WALLS = [0xb5694f, 0xc9a37a, 0xd08a5c, 0x8fa1b3, 0xa9b08c, 0x9c7b68, 0xd9b98f];
+    // Walls of every colour share one material per window layout: the colour goes into the
+    // vertices (batch.js), so a whole downtown's walls are a few meshes, not one per building.
+    const wallMats = {};
+    function wallMat(set, tall) {
+        const key = set + (tall ? 't' : 'l');
+        if (!wallMats[key]) {
+            wallMats[key] = new THREE.MeshStandardMaterial({ vertexColors: true, map: windowSets[set].map, emissiveMap: windowSets[set].emissive, emissive: 0xffffff, emissiveIntensity: 0,
+                roughness: tall ? 0.45 : 0.8, metalness: tall ? 0.35 : 0.05 });
+            C.nightMats.push(wallMats[key]);
+        }
+        return wallMats[key];
+    }
+    const shade = (hex, k) => new THREE.Color(hex).multiplyScalar(k).getHex();
+    // a shopfront band: every wall shows a whole number of shops, starting at a random one of the four
+    function shopBand(w, h, d) {
+        const geom = new THREE.BoxGeometry(w, h, d), uv = geom.attributes.uv, start = Math.floor(Math.random() * SHOPS);
+        [d, d, 0, 0, w, w].forEach((across, f) => {
+            const shops = Math.max(1, Math.round(across / SHOP_W));
+            for (let k = 0; k < 4; k++) {
+                const i = f * 4 + k;
+                if (across) uv.setX(i, (start + f + uv.getX(i) * shops) / SHOPS); else uv.setXY(i, 0.01, 0.02);   // (top and bottom: plain plinth grey)
+            }
+        });
+        return geom;
+    }
+
+    const FOUND = 3;                                                         // walls go this far into the ground, which hides slopes
     function buildBuilding(city, lx, lz, w, h, d, dNorm) {
         const p = city.toWorld(lx, lz);
         const ground = Terrain.height(p.x, p.z) + 0.3;
-        const tall = h > 45;
-        const set = pick(windowSets);
-        const mat = new THREE.MeshStandardMaterial({
-            color: tall && Math.random() < 0.5 ? 0x6a8fb0 : Math.random() < 0.45 ? pick(WARM_WALLS) : pick(city.palette),
-            map: set.map, emissiveMap: set.emissive, emissive: 0xffffff, emissiveIntensity: 0,
-            roughness: tall ? 0.45 : 0.8, metalness: tall ? 0.35 : 0.05
+        const tall = h > 45, glassy = tall && Math.random() < 0.5;
+        const color = glassy ? 0x6a8fb0 : Math.random() < 0.45 ? pick(WARM_WALLS) : pick(city.palette);
+        const roofColor = glassy ? 0x39424d : shade(color, 0.6);
+        const mat = wallMat(Math.floor(Math.random() * windowSets.length), tall);
+        const cosH = Math.cos(city.heading), sinH = Math.sin(city.heading);
+        // one part of the building: `y` above the ground, moved (ox, oz) in the building's own axes
+        const part = (geom, material, y, col, ox, oz) => {
+            const m = new THREE.Mesh(geom, material);
+            ox = ox || 0; oz = oz || 0;
+            m.position.set(p.x + ox * cosH + oz * sinH, ground + y, p.z - ox * sinH + oz * cosH);
+            m.rotation.y = city.heading;
+            if (col !== undefined) m.userData.color = col;
+            return addMesh(city, m, true);
+        };
+        // A tower steps back twice on its way up; anything lower is one block. Every step ends
+        // in a roof slab a little wider than its walls, so each roof line has an edge.
+        const tiers = tall && Math.random() < 0.6 ? [[1, 0.58], [0.78, 0.85], [0.56, 1]] : [[1, 1]];   // [share of the footprint, top as a share of the height]
+        let from = -FOUND, tw = w, td = d;
+        tiers.forEach(([share, top]) => {
+            const to = h * top, hh = to - from; tw = w * share; td = d * share;
+            const geom = Tex.scaleBoxUVs(new THREE.BoxGeometry(tw, hh, td), tw, hh, td, 8);
+            const uv = geom.attributes.uv;                                   // windows: 7-unit floors, so v repeats by height/7 instead of /8
+            for (let k = 0; k < uv.count; k++) uv.setY(k, uv.getY(k) * 8 / 7);
+            part(geom, mat, (from + to) / 2, color);
+            part(new THREE.BoxGeometry(tw + 0.5, 0.5, td + 0.5), trimMat, to + 0.1, roofColor);
+            from = to;
         });
-        C.nightMats.push(mat); city.mats.push(mat);
-        const found = 3;                                                     // sunk foundation hides slopes
-        const geom = Tex.scaleBoxUVs(new THREE.BoxGeometry(w, h + found, d), w, h + found, d, 8);
-        // windows: 7-unit floors -> v repeat uses height/7 instead of /8
-        const uv = geom.attributes.uv;
-        for (let k = 0; k < uv.count; k++) uv.setY(k, uv.getY(k) * 8 / 7);
-        const m = new THREE.Mesh(geom, mat);
-        m.position.set(p.x, ground + (h - found) / 2, p.z);
-        m.rotation.y = city.heading;
-        addMesh(city, m, true);
+        // the ground floor: shops, standing a hand's width proud of the wall
+        if (h > 9) part(shopBand(w + 0.3, 5, d + 0.3), shopMat, 1.5);
         addBox(city, w, h, d, p.x, ground + h / 2, p.z, city.heading);
-        // roof clutter / spire
+        // what stands on the roof
+        const spot = () => [(Math.random() - 0.5) * tw * 0.45, (Math.random() - 0.5) * td * 0.45];
         if (tall) {
-            const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.3, h * 0.12, 6), poleMat);
-            spire.position.set(p.x, ground + h + h * 0.06, p.z); addMesh(city, spire, true);
-        } else if (Math.random() < 0.5) {
-            const ac = new THREE.Mesh(new THREE.BoxGeometry(w * 0.3, 1.2, d * 0.3), new THREE.MeshStandardMaterial({ color: 0x8a8f94 }));
-            ac.position.set(p.x + (Math.random() - 0.5) * w * 0.4, ground + h + 0.6, p.z + (Math.random() - 0.5) * d * 0.4);
-            ac.rotation.y = city.heading; addMesh(city, ac, true);
+            const mast = h * 0.12;
+            part(new THREE.BoxGeometry(tw * 0.4, 2.2, td * 0.4), trimMat, h + 1.4, shade(roofColor, 1.3));   // the lift machinery
+            part(new THREE.CylinderGeometry(0.15, 0.3, mast, 6), poleMat, h + 2.5 + mast / 2);
+            part(new THREE.SphereGeometry(0.45, 8, 6), beaconMat, h + 2.5 + mast);
+        } else {
+            if (Math.random() < 0.6) { const [x, z] = spot(); part(new THREE.BoxGeometry(w * 0.28, 1.2, d * 0.28), trimMat, h + 0.95, 0x8a8f94, x, z); }      // air conditioning
+            if (Math.random() < 0.3) { const [x, z] = spot(); part(new THREE.BoxGeometry(3, 2.4, 3), trimMat, h + 1.55, shade(color, 0.85), x, z); }           // the door to the stairs
+            if (h > 14 && Math.random() < 0.25) {                                                                                                                // a water tank on its stand
+                const [x, z] = spot();
+                part(new THREE.BoxGeometry(2.2, 1.2, 2.2), trimMat, h + 0.95, 0x55585c, x, z);
+                part(new THREE.CylinderGeometry(1.3, 1.3, 2.4, 10), trimMat, h + 2.75, 0x7a5a40, x, z);
+                part(new THREE.ConeGeometry(1.45, 0.7, 10), trimMat, h + 4.3, 0x5a4230, x, z);
+            }
         }
     }
 
@@ -268,7 +348,11 @@ window.City = (function () {
     // Every house is listed in city.houses with its address, for the robbery mode.
     const HOUSE_COLORS = [0xd9c9a6, 0xc9b490, 0xa9bdc9, 0xd4b4a4, 0xb7c6a4, 0xdcd3bd, 0xc4ae9c, 0x9fb0bd, 0xd8b8a0, 0xb5a98f];
     const ROOF_COLORS = [0x5a3d2e, 0x3c3c44, 0x6a4a3a, 0x334050, 0x4c3a32];
-    let houseWindowMat = null, houseDoorMat = null, houseTrimMat = null, housePathMat = null, houseChimneyMat = null;
+    // The colours above are written as they should look. The renderer takes a hex colour as
+    // light, not as paint, and shows it paler (every house came out near-white with a pink
+    // roof): asPainted gives the colour that ends up on screen as the one written.
+    const asPainted = (hex) => new THREE.Color(hex).convertSRGBToLinear().getHex();
+    let houseWindowMat = null, houseDoorMat = null, houseTrimMat = null, housePathMat = null, houseChimneyMat = null, houseWallMat = null, houseRoofMat = null;
     // Where house k on `side` of block (i, j) stands, with its address: the same maths whether
     // or not the city is built, so the robbery can pick houses in a city that is not loaded yet.
     C.housesPerBlock = (city) => Math.max(2, Math.floor(city.block / 14));
@@ -296,14 +380,14 @@ window.City = (function () {
         }
         const { w, d, h, facing, ground } = plan, p = plan.centre;
         const yaw = city.heading;
-        const wall = new THREE.MeshStandardMaterial({ color: pick(HOUSE_COLORS), roughness: 0.9 });   // painted stucco
-        city.mats.push(wall);
+        // (painted stucco and roof tiles: one material each for every house, the colour goes into the vertices)
+        if (!houseWallMat) { houseWallMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }); houseRoofMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }); }
         if (!houseTrimMat) { houseTrimMat = new THREE.MeshStandardMaterial({ color: 0xf7f7f2, roughness: 0.7 }); housePathMat = new THREE.MeshStandardMaterial({ color: 0x9a9a94, roughness: 1 }); houseChimneyMat = new THREE.MeshStandardMaterial({ color: 0x8a5a48, roughness: 0.95 }); }
         const g = new THREE.Group(); g.position.set(p.x, ground, p.z); g.rotation.y = yaw;
         const put = (geom, mat, x, y, z) => { const m = new THREE.Mesh(geom, mat); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; g.add(m); return m; };
-        put(new THREE.BoxGeometry(d, h + 1, w), wall, 0, h / 2 - 0.5, 0);      // the house (local x = toward the street side)
+        put(new THREE.BoxGeometry(d, h + 1, w), houseWallMat, 0, h / 2 - 0.5, 0).userData.color = asPainted(pick(HOUSE_COLORS));   // the house (local x = toward the street side)
         put(new THREE.BoxGeometry(d + 0.5, 0.18, w + 0.5), houseTrimMat, 0, h + 0.05, 0);   // the eaves
-        const roof = put(new THREE.ConeGeometry(Math.hypot(d, w) / 2 + 0.6, 2.6, 4), new THREE.MeshStandardMaterial({ color: pick(ROOF_COLORS), roughness: 0.9 }), 0, h + 1.3, 0);
+        const roof = put(new THREE.ConeGeometry(Math.hypot(d, w) / 2 + 0.6, 2.6, 4), houseRoofMat, 0, h + 1.3, 0); roof.userData.color = asPainted(pick(ROOF_COLORS));
         roof.rotation.y = Math.PI / 4; roof.scale.set(d / Math.hypot(d, w) * 1.42, 1, w / Math.hypot(d, w) * 1.42);
         put(new THREE.BoxGeometry(0.7, 1.6, 0.7), houseChimneyMat, -facing * 1.2, h + 1.6, w / 2 - 1.4);   // chimney
         const fx = facing * (d / 2 + 0.03);                                      // the street-facing wall
@@ -565,15 +649,24 @@ window.City = (function () {
         });
     }
 
+    // Street lamps along the avenues: a post with an arm out over the road and, at night, the
+    // pool of light it throws on the asphalt (a glowing patch laid on the road: real lights for
+    // every lamp would be far too many).
     function buildLamps(city) {
-        const bulbGeom = new THREE.SphereGeometry(0.22, 8, 6), poleGeom = new THREE.CylinderGeometry(0.08, 0.1, 1, 6);
+        const poleGeom = new THREE.CylinderGeometry(0.08, 0.11, 7.4, 6), armGeom = new THREE.BoxGeometry(2.4, 0.1, 0.1), headGeom = new THREE.BoxGeometry(0.9, 0.14, 0.36);
+        const put = (g, geom, mat, x, y) => { const m = new THREE.Mesh(geom, mat); m.position.set(x, y, 0); g.add(m); };
         for (let j = 0; j <= city.cols; j += 3) {
             for (let s = -city.D / 2 + 20; s < city.D / 2; s += 40) {
                 [-1, 1].forEach(side => {
                     const p = city.toWorld(city.streetX(j) + side * (city.street / 2 + 1.0), s);
-                    const g = Terrain.height(p.x, p.z) + 0.3;
-                    const pole = new THREE.Mesh(poleGeom, poleMat); pole.scale.y = 7; pole.position.set(p.x, g + 3.5, p.z); addMesh(city, pole, false);
-                    const bulb = new THREE.Mesh(bulbGeom, lampMat); bulb.position.set(p.x, g + 7.1, p.z); addMesh(city, bulb, false);
+                    const post = new THREE.Group();
+                    post.position.set(p.x, Terrain.height(p.x, p.z) + 0.3, p.z); post.rotation.y = city.heading;
+                    put(post, poleGeom, poleMat, 0, 3.7);
+                    put(post, armGeom, poleMat, -side * 1.15, 7.3);            // (the road is toward -side)
+                    put(post, headGeom, lampMat, -side * 2.2, 7.22);
+                    addMesh(city, post, false);
+                    const c = city.toWorld(city.streetX(j) + side * 4.4, s);
+                    city.meshes.push(Road.drapedQuad(c.x, c.z, 9, city.heading, Tex.lightPool(), Road.DRAPE + 0.05, 2, 18));
                 });
             }
         }
@@ -581,12 +674,19 @@ window.City = (function () {
 
     C.load = function (city) {
         if (city.loaded) return; city.loaded = true;
-        city.treeSpots = [];
+        city.treeSpots = []; city.lenses = {};
+        const first = city.meshes.length;
         buildStreets(city);
         buildBlocks(city);
         buildLamps(city);
         city.trees = Trees.plant(city.treeSpots);
         city.landmarks.forEach(fn => { try { fn(city, { addMesh: (m, s) => addMesh(city, m, s), addBox: (...a) => addBox(city, ...a), glassMat, poleMat }); } catch (e) { console.error('landmark failed in ' + city.name, e); } });
+        // Everything built above stands still: join it into one mesh per material (batch.js).
+        // A city was 3,000 separate meshes before this, and that, not its triangles, was the cost.
+        const still = new THREE.Group();
+        city.meshes.splice(first).forEach(m => still.add(m));
+        Batch.merge(still);
+        scene.add(still); city.meshes.push(still);
     };
 
     C.unload = function (city) {
@@ -611,6 +711,7 @@ window.City = (function () {
     C.update = function (dt) {
         const night = window.Sky ? Sky.night : 0;
         for (let i = 0; i < C.nightMats.length; i++) C.nightMats[i].emissiveIntensity = night * 1.3;
+        const pool = Tex.lightPool(); pool.opacity = night * 0.5; pool.visible = night > 0.03;   // the lamps' light on the road
         cycleT = (cycleT + dt) % 8;
         for (let i = 0; i < C.lights.length; i++) {
             const L = C.lights[i], t = (cycleT + L.phase) % 8;

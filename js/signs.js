@@ -10,11 +10,16 @@ window.Signs = (function () {
     S.init = function (sc) { scene = sc; };
     S.facingFrom = (tan) => Math.atan2(-tan.x, -tan.z);
 
-    function board(w, h, draw) {
-        const tex = Tex.textCanvas(Math.round(w * 64), Math.round(h * 64), draw);
-        const front = new THREE.MeshBasicMaterial({ map: tex });
+    // A board is a grey slab with its painted face laid on the front. `key`: boards that say the
+    // same thing (a street's name blades) share one face, so it is painted once and the city can
+    // join them into one mesh (batch.js).
+    const faces = {};
+    function board(w, h, draw, key) {
+        const front = (key && faces[key]) || new THREE.MeshBasicMaterial({ map: Tex.textCanvas(Math.round(w * 64), Math.round(h * 64), draw) });
+        if (key) faces[key] = front;
         const g = new THREE.Group();
-        g.add(new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.12), [backMat, backMat, backMat, backMat, front, backMat]));
+        g.add(new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.12), backMat));
+        const face = new THREE.Mesh(new THREE.PlaneGeometry(w, h), front); face.position.z = 0.065; g.add(face);
         return g;
     }
 
@@ -39,7 +44,10 @@ window.Signs = (function () {
             ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             let y = 70;
             lines.forEach(l => { const sz = l.size || 58; ctx.font = `bold ${sz}px Helvetica, Arial, sans-serif`; ctx.fillText(l.text, W / 2, y); y += sz + 18; });
-            if (sub) { ctx.font = 'bold 48px Helvetica, Arial, sans-serif'; ctx.fillText(sub, W / 2, H - 50); }
+            if (sub === 'EXIT ONLY') {                                    // the yellow panel a real exit-only sign ends in
+                ctx.fillStyle = '#f2c200'; ctx.fillRect(18, H - 88, W - 36, 70);
+                ctx.fillStyle = '#111'; ctx.font = 'bold 46px Helvetica, Arial, sans-serif'; ctx.fillText('EXIT  \u279A  ONLY', W / 2, H - 51);
+            } else if (sub) { ctx.font = 'bold 48px Helvetica, Arial, sans-serif'; ctx.fillText(sub, W / 2, H - 50); }
         });
         if (exitTab) {
             const tab = board(3.4, 1.1, (ctx, W, H) => {
@@ -89,7 +97,7 @@ window.Signs = (function () {
             ctx.fillStyle = '#0d6b2f'; ctx.fillRect(0, 0, W, H);
             ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.font = 'bold 22px Helvetica, Arial, sans-serif'; ctx.fillText(name.toUpperCase(), W / 2, H / 2 + 1);
-        });
+        }, 'blade:' + name);
         post(g, 0, -0.25 - 1.6, 3.2, 0.06);
         return place(g, pos, facing, 3.2 + 0.25);
     };

@@ -188,6 +188,20 @@ window.Tex = (function () {
         return geom;
     };
 
+    // The pool of light under a street lamp: a soft warm patch that is added to whatever it
+    // lies on. One material for every lamp in the game; City.update fades it in with the night.
+    let pool = null;
+    T.lightPool = function () {
+        if (pool) return pool;
+        const tex = T.textCanvas(128, 128, (ctx, W, H) => {
+            const g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W / 2);
+            g.addColorStop(0, 'rgba(255,214,150,1)'); g.addColorStop(0.45, 'rgba(255,200,130,0.42)'); g.addColorStop(1, 'rgba(255,190,120,0)');
+            ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+        });
+        pool = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -8 });
+        return pool;
+    };
+
     // Draw text onto a canvas and return a texture (signs, name plates).
     T.textCanvas = function (w, h, draw) {
         const c = document.createElement('canvas');
