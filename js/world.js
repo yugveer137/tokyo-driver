@@ -65,6 +65,9 @@ window.World = (function () {
         if (opts.groundEnds) for (let pass = 0; pass < 2; pass++) for (let i = 1; i < lifted.length - 1; i++) {
             if (Math.min(chord[i], total - chord[i]) < CLIMB) lifted[i][1] = (lifted[i - 1][1] + 2 * lifted[i][1] + lifted[i + 1][1]) / 4;
         }
+        // (and never under the land: the ease from the ground up to deck height cut through a hill
+        // near the start of Highway 1)
+        if (opts.groundEnds) lifted.forEach(p => { p[1] = Math.max(p[1], Terrain.height(p[0], p[2]) + Road.DRAPE + 0.5); });   // (half a metre clear: the land bulges a little between these points)
         const gapsRight = (opts.gapsRight || []).slice(), gapsLeft = (opts.gapsLeft || []).slice();
         cities.forEach((c, k) => {
             if (c.town) {                                                        // a town: a short exit and on-ramp on its own side, the far pair like a city, no loops
@@ -408,7 +411,7 @@ window.World = (function () {
         city.roads.push(collector);
         city.collector = collector;
         const land = Road.at(fw, city.s - d * (T ? 310 : 760), d * COLLECTOR_LAT);
-        const exit = Road.exit(fw, sExit, d, land.p, slant(land.tan.clone().multiplyScalar(d), land.right.clone().multiplyScalar(-d), -1), 'Exit ' + city.exitNumber, { stub: 12 });
+        const exit = Road.exit(fw, sExit, d, land.p, slant(land.tan.clone().multiplyScalar(d), land.right.clone().multiplyScalar(-d), -1), 'Exit ' + city.exitNumber, { stub: 12, spread: T });   // (a town's exit is short: 340 m from the freeway to the frontage road)
         city.roads.push(exit); W.exits.push(exit);
         const leave = Road.at(fw, city.s + d * (T ? 170 : 620), d * COLLECTOR_LAT);   // (well before the climb, which starts 280 before the merge: a town's at s+280)
         const ramp = Road.onramp(fw, sMerge, d, leave.p, slant(leave.tan.clone().multiplyScalar(d), leave.right.clone().multiplyScalar(-d), 1), city.name + ' on-ramp', { stub: 12 });

@@ -184,6 +184,7 @@
     function tick(dt) {
         // re-pick the sweep axis now and then: I-80 runs along z, the I-15 loop along x
         if (++axisFrames % 600 === 0 && world.broadphase.autoDetectAxis) { world.broadphase.autoDetectAxis(); world.broadphase.dirty = true; }
+        if (Car.body) Road.updatePhysics(Car.body.position);              // (the road boxes near the car, before the step that needs them)
         if (dt > 0) world.step(1 / 60, dt, 3);
         if (Car.body) Train.update(dt, Car.body.position);
         Car.update(dt);

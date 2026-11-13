@@ -191,10 +191,29 @@ window.Road = (function () {
             body.addShape(new CANNON.Box(new CANNON.Vec3(halfW, halfH, segLen / 2 + 0.4)));
             body.position.set(mid.x, mid.y, mid.z);
             body.quaternion.set(q.x, q.y, q.z, q.w);
-            world.addBody(body);
-            chunk.bodies.push(body);
+            chunk.bodies.push(body);                                     // (it joins the physics world when the player comes near: see R.updatePhysics)
         }
     }
+
+    // Only the roads near the player are in the physics world. Every body in it costs a little
+    // on every step whether or not anything is near it, and the roads within streaming range
+    // came to 8,000 boxes: one step took 10 ms, and a slow frame takes three of them. Nothing but
+    // the player's car collides with a road (traffic and trains ride their own lines), so a
+    // chunk's boxes join the world while the car is within REACH of the chunk and leave again
+    // once it is well clear.
+    const REACH = 350;
+    function setLive(chunk, live) {
+        if (!!chunk.live === live) return;
+        chunk.live = live;
+        chunk.bodies.forEach(b => { if (live) world.addBody(b); else world.removeBody(b); });
+    }
+    R.updatePhysics = function (pos) {
+        R.all.forEach(rec => Object.values(rec.chunks).forEach(chunk => {
+            if (!chunk.centre || !chunk.bodies.length) return;
+            const d = chunk.centre.distanceTo(pos) - chunk.reach;
+            if (d < REACH) setLive(chunk, true); else if (d > REACH + 120) setLive(chunk, false);
+        }));
+    };
 
     // Define a road. spec: { type, points: [[x,y,z],...] | curve, name, segLen,
     //   conform: true  -> a surface street draped on the terrain (every vertex at terrain + lift,
@@ -247,6 +266,9 @@ window.Road = (function () {
         const fr = rec.frames.slice(i0, i1 + 1);
         const chunk = { meshes: [], bodies: [] };
         rec.chunks[key] = chunk;
+        // (where the chunk is and how far it reaches from there, for R.updatePhysics)
+        chunk.centre = fr[Math.floor(fr.length / 2)].p.clone();
+        chunk.reach = fr.reduce((far, f) => Math.max(far, chunk.centre.distanceTo(f.p)), 0) + halfW;
 
         // Surface
         mesh(strip(fr, { x: -halfW, y: 0 }, { x: halfW, y: 0 }, 12, length, 0, 1, lift), surfMat(rec.type, spec.conform), false, chunk);
@@ -344,7 +366,7 @@ window.Road = (function () {
     R.dropRange = function (rec, key) {
         const c = rec.chunks[key]; if (!c) return;
         c.meshes.forEach(m => { scene.remove(m); if (m.geometry) m.geometry.dispose(); });
-        c.bodies.forEach(b => world.removeBody(b));
+        setLive(c, false);
         delete rec.chunks[key];
     };
 
@@ -431,12 +453,18 @@ window.Road = (function () {
 
     // An exit at arc-length s0, descending to `toPoint` (street level), continuing along `toDir`.
     // opts.keepY: the end point keeps its own height (landing on an elevated road instead of the
-    // ground); opts.via: extra points the ramp passes through on its way (an underpass, say).
+    // ground); opts.via: extra points the ramp passes through on its way (an underpass, say);
+    // opts.spread: spread the drop along the ramp (see below).
     R.exit = function (fw, s0, dir, toPoint, toDir, name, opts) {
         opts = opts || {};
         const pts = PEEL.map(([k, lat, dy]) => peelPoint(fw, s0, dir, k, lat, dy));
         const end = toPoint.clone(), d = toDir.clone().normalize();
         if (!opts.keepY) end.y = Terrain.height(end.x, end.z) + R.DRAPE;
+        // opts.spread (a short exit, a town's): start coming down as soon as the ramp has left
+        // the deck, a quarter of the drop by 220 m and three fifths by 280 m. Otherwise the peel
+        // stays at deck height to its end and the whole drop lands on the last 60 m: a cliff
+        // where the freeway stands high over low ground (29% at Pacifica).
+        if (opts.spread && !opts.keepY) { const drop = pts[5].y - end.y; if (drop > 0) { pts[4].y -= drop * 0.25; pts[5].y -= drop * 0.6; } }
         const tail = end.clone().addScaledVector(d, opts.stub || 30); if (!opts.keepY) tail.y = Terrain.height(tail.x, tail.z) + R.DRAPE;   // opts.stub: a short run-out when the ramp lands at a slant
         (opts.via || []).forEach(v => pts.push(v.clone()));
         pts.push(end.clone().addScaledVector(d, -40).setY((pts[pts.length - 1].y + end.y) / 2));

@@ -160,6 +160,8 @@ window.Features = (function () {
         });
         return best;
     }
+    // the gap to hold behind a car doing `speed`: two car lengths, plus about a second
+    const followGap = (speed) => 9 + speed * 1.1;
     function laneClear(pose, laneIndex) {
         return !Traffic.cars.some(c => c.road === A.fw && c.dir === pose.dir && c.lane.index === laneIndex && Math.abs(c.s - pose.s) < 28);
     }
@@ -188,7 +190,9 @@ window.Features = (function () {
             // "Slow" is under nine tenths of what we would be doing: the cruise speed, or the limit.
             const limit = A.fw.type === 'freeway' ? 65 : A.fw.type === 'avenue' ? 45 : A.fw.type === 'ramp' ? 35 : 30;
             const want = Math.max(Car.cruise || 0, limit) / CFG.MPH;
-            const held = ahead && ahead.gap < 30 && ahead.speed < want * 0.9;
+            // (held up = within the gap front lock follows at, plus a little: see followGap)
+            const near = trafficAhead(pose, A.laneIndex, 110);
+            const held = near && near.gap < followGap(near.speed) + 15 && near.speed < want * 0.9;
             A.held = held ? (A.held || 0) + dt : 0;
             if (A.held >= 15 && A.cooldown === 0) {
                 const room = (i) => { const t = trafficAhead(pose, i, 90); return t ? t.gap : Infinity; };
@@ -232,10 +236,10 @@ window.Features = (function () {
             let brake = false; Car.cruiseCap = null;
             if (ahead && Car.mph > 4) {
                 const closing = v - ahead.speed;
-                const keep = 9 + ahead.speed * 1.1;                              // the gap to hold: two car lengths, plus about a second
+                const keep = followGap(ahead.speed);
                 const settle = closing > 0 ? closing * closing / (2 * 6) + closing * 0.4 : 0;   // room needed to slow to its speed (6 m/s² and a moment to react)
                 brake = (closing > 0.5 && ahead.gap < keep + settle) || ahead.gap < keep * 0.5;
-                if (ahead.gap < keep * 2 + settle) Car.cruiseCap = ahead.speed * CFG.MPH;
+                if (ahead.gap < keep * 1.25 + settle) Car.cruiseCap = ahead.speed * CFG.MPH;   // (not from further back: we would trail it at a distance and never count as held up)
             }
             Car.autoBrake = brake;
         } else Car.cruiseCap = null;
