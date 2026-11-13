@@ -148,17 +148,26 @@ window.Road = (function () {
     }
 
     // A strip between two offsets {x: lateral (right+), y: vertical (up+)} along the frames.
-    // With `drape` (a lift), every vertex is laid on the terrain at that height instead.
-    function strip(fr, a, b, vUnit, length, uA, uB, drape) {
-        const n = fr.length, pos = new Float32Array(n * 6), uv = new Float32Array(n * 4), idx = [];
+    // With `drape` (a lift), every vertex is laid on the terrain at that height instead, and
+    // `cols` says how many quads the strip is across: a draped street needs a vertex every few
+    // metres across as well as along, or on a rounded hill the land between its two edges
+    // stands higher than the road and grass shows down the middle of it.
+    function strip(fr, a, b, vUnit, length, uA, uB, drape, cols) {
+        cols = drape === undefined ? 1 : (cols || 1);
+        const n = fr.length, row = cols + 1, pos = new Float32Array(n * row * 3), uv = new Float32Array(n * row * 2), idx = [];
+        if (uA === undefined) uA = 0;
+        if (uB === undefined) uB = 1;
+        const p = new THREE.Vector3();
         for (let i = 0; i < n; i++) {
             const f = fr[i], v = f.t * length / vUnit;
-            const pa = f.p.clone().addScaledVector(f.right, a.x).addScaledVector(f.up, a.y);
-            const pb = f.p.clone().addScaledVector(f.right, b.x).addScaledVector(f.up, b.y);
-            if (drape !== undefined) { pa.y = Terrain.height(pa.x, pa.z) + drape + a.y; pb.y = Terrain.height(pb.x, pb.z) + drape + b.y; }
-            pos.set([pa.x, pa.y, pa.z, pb.x, pb.y, pb.z], i * 6);
-            uv.set([uA === undefined ? 0 : uA, v, uB === undefined ? 1 : uB, v], i * 4);
-            if (i < n - 1) { const k = i * 2; idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2); }   // CCW seen from +up
+            for (let c = 0; c <= cols; c++) {
+                const k = c / cols, at = i * row + c;
+                p.copy(f.p).addScaledVector(f.right, a.x + (b.x - a.x) * k).addScaledVector(f.up, a.y + (b.y - a.y) * k);
+                if (drape !== undefined) p.y = Terrain.height(p.x, p.z) + drape + a.y + (b.y - a.y) * k;
+                pos.set([p.x, p.y, p.z], at * 3);
+                uv.set([uA + (uB - uA) * k, v], at * 2);
+                if (i < n - 1 && c < cols) idx.push(at, at + 1, at + row, at + 1, at + row + 1, at + row);   // CCW seen from +up
+            }
         }
         const g = new THREE.BufferGeometry();
         g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -271,7 +280,7 @@ window.Road = (function () {
         chunk.reach = fr.reduce((far, f) => Math.max(far, chunk.centre.distanceTo(f.p)), 0) + halfW;
 
         // Surface
-        mesh(strip(fr, { x: -halfW, y: 0 }, { x: halfW, y: 0 }, 12, length, 0, 1, lift), surfMat(rec.type, spec.conform), false, chunk);
+        mesh(strip(fr, { x: -halfW, y: 0 }, { x: halfW, y: 0 }, 12, length, 0, 1, lift, Math.ceil(rec.width / 1.8)), surfMat(rec.type, spec.conform), false, chunk);
         if (!spec.conform) physicsChain(fr, rec.segLen, 0, halfW, 0.3, -0.3, chunk);
 
         // Deck skirts + piers for elevated roads

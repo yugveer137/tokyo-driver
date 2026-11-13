@@ -171,7 +171,7 @@ window.City = (function () {
         const patchMat = new THREE.MeshStandardMaterial({ map: patchTex, roughness: 0.92, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
         for (let i = 0; i <= city.rows; i++) for (let j = 0; j <= city.cols; j++) {
             const c = city.toWorld(city.streetX(j), city.streetZ(i));
-            city.meshes.push(Road.drapedQuad(c.x, c.z, city.street, city.heading, patchMat, Road.DRAPE + 0.01, 3));
+            city.meshes.push(Road.drapedQuad(c.x, c.z, city.street, city.heading, patchMat, Road.DRAPE + 0.01, 8));   // (a vertex every 2 m: see Road.strip on why)
             buildTrafficLight(city, j, i);
             const corner = city.toWorld(city.streetX(j) + half + 1.2, city.streetZ(i) + half + 1.2);
             corner.y = Terrain.height(corner.x, corner.z) + 0.3;
@@ -221,14 +221,14 @@ window.City = (function () {
             const c = city.toWorld(cx, cz);
             if (j < city.suburbCols) {
                 // a suburb block: lawns, with a sidewalk along each of the two streets the houses face
-                const lawn = Road.drapedQuad(c.x, c.z, B, city.heading, parkMat, 0.3, 6);
+                const lawn = Road.drapedQuad(c.x, c.z, B, city.heading, parkMat, 0.3, 12);
                 lawn.geometry.attributes.uv.array.forEach((v, k, arr) => arr[k] = v * B / 6);
                 lawn.geometry.attributes.uv.needsUpdate = true;
                 city.meshes.push(lawn);
                 [-1, 1].forEach(side => { const e = city.toWorld(cx + side * (B / 2 - 1.3), cz); const walk = Road.drapedQuad(e.x, e.z, 2.6, city.heading, walkMat, 0.31, 2, B); city.meshes.push(walk); });
             } else {
                 // sidewalk slab over the whole block (draped, raised a bit), curb strips around it
-                const slab = Road.drapedQuad(c.x, c.z, B, city.heading, walkMat, 0.3, 6);
+                const slab = Road.drapedQuad(c.x, c.z, B, city.heading, walkMat, 0.3, 12);
                 slab.geometry.attributes.uv.array.forEach((v, k, arr) => arr[k] = v * B / 4);
                 slab.geometry.attributes.uv.needsUpdate = true;
                 city.meshes.push(slab);
@@ -666,7 +666,7 @@ window.City = (function () {
                     put(post, headGeom, lampMat, -side * 2.2, 7.22);
                     addMesh(city, post, false);
                     const c = city.toWorld(city.streetX(j) + side * 4.4, s);
-                    city.meshes.push(Road.drapedQuad(c.x, c.z, 9, city.heading, Tex.lightPool(), Road.DRAPE + 0.05, 2, 18));
+                    city.meshes.push(Road.drapedQuad(c.x, c.z, 9, city.heading, Tex.lightPool(), Road.DRAPE + 0.05, 4, 18));
                 });
             }
         }
