@@ -30,7 +30,9 @@ window.Multiplayer = (function () {
         if (M.loading) return M.loading;
         M.loading = new Promise((res, rej) => {
             const s = document.createElement('script');
-            s.src = 'https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js';
+            // (tools/fakepeer.js stands in for PeerJS in tests between tabs: see that file)
+            let fake = false; try { fake = !!localStorage.getItem('td_fakepeer'); } catch (e) { /* (no storage: the real thing) */ }
+            s.src = fake ? 'tools/fakepeer.js' : 'https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js';
             s.onload = res; s.onerror = () => { M.loading = null; rej(new Error('PeerJS failed to load')); };
             document.head.appendChild(s);
         });
@@ -50,16 +52,34 @@ window.Multiplayer = (function () {
         const local = location.protocol === 'file:' || h === 'localhost' || h === '[::1]' || h.endsWith('.local') || /^(127|10)\.|^192\.168\.|^172\.(1[6-9]|2\d|3[01])\./.test(h);
         return (local ? CFG.SITE : location.origin + location.pathname) + '?room=' + encodeURIComponent(id);
     }
+    // The name a player picks in the Multiplayer menu: kept on this device, shown over their car
+    // in other players' games, in the "opened a room" banner and when they join or leave.
+    // Letters, digits, spaces and . ' _ - only, 16 at most.
+    const cleanName = (v) => String(v || '').replace(/[^\p{L}\p{N} .'_-]/gu, '').trim().slice(0, 16);
+    function myName() { try { return cleanName(localStorage.getItem('td_mp_name')); } catch (e) { return ''; } }
+    function setName(v) { try { localStorage.setItem('td_mp_name', cleanName(v)); } catch (e) { /* (private window: the name lasts until the page closes) */ } }
     const send = (conn, msg) => { try { if (conn && conn.open) conn.send(msg); } catch (e) { /* (a closing connection) */ } };
+
+    // How long to wait before trying the PeerJS service again: about 2 seconds, doubling every
+    // time up to a minute, and back to 2 once something works. Trying again at once, as this
+    // used to, is thousands of connections an hour whenever the service is down or refusing us,
+    // from every open tab, and the service answers that by blocking the whole network for half
+    // an hour (HTTP 429), which takes multiplayer away from everyone in the house.
+    let wait = 2000, calm = 0;
+    function backoff() { clearTimeout(calm); const w = wait * (0.75 + Math.random() * 0.5); wait = Math.min(wait * 2, 60000); return w; }
+    // (only a connection that has held for half a minute counts as working: one that opens and
+    // drops straight away, over and over, must keep slowing down too)
+    function settled() { clearTimeout(calm); calm = setTimeout(() => { wait = 2000; }, 30000); }
+    function reconnectLater(peer) { setTimeout(() => { try { if (!peer.destroyed && peer.disconnected) peer.reconnect(); } catch (e) { /* (destroyed meanwhile) */ } }, backoff()); }
 
     // ---------- this player's own peer (one for the lobby, hosting and joining) ----------
     function getPeer() {
         if (M.peerReady) return M.peerReady;
         M.peerReady = loadPeerJs().then(() => new Promise((res, rej) => {
             const p = new Peer();
-            p.on('open', () => { M.peer = p; res(p); });
+            p.on('open', () => { M.peer = p; settled(); res(p); });
             p.on('connection', onGuest);
-            p.on('disconnected', () => { try { p.reconnect(); } catch (e) { /* (destroyed) */ } });
+            p.on('disconnected', () => reconnectLater(p));
             p.on('error', (err) => {
                 if (!M.peer) { M.peerReady = null; rej(new Error('No connection (' + err.type + ')')); return; }
                 if (err.type !== 'peer-unavailable') return;
@@ -72,7 +92,7 @@ window.Multiplayer = (function () {
     }
 
     // ---------- the lobby ----------
-    function retryLobby() { clearTimeout(lobby.retry); lobby.retry = setTimeout(joinLobby, 800 + Math.random() * 2500); }
+    function retryLobby() { clearTimeout(lobby.retry); lobby.retry = setTimeout(joinLobby, backoff()); }
     function joinLobby() {
         if (lobby.hub || lobby.conn || lobby.trying) return;
         getPeer().then(p => {
@@ -82,13 +102,13 @@ window.Multiplayer = (function () {
             lobby.fail = () => { if (lobby.trying !== c) return; clearTimeout(lobby.timer); lobby.trying = null; lobby.fail = null; try { c.close(); } catch (e) { /* (never opened) */ } claimLobby(); };
             lobby.timer = setTimeout(lobby.fail, 7000);
             c.on('open', () => {
-                clearTimeout(lobby.timer); lobby.trying = null; lobby.fail = null; lobby.conn = c; lobby.heard = Date.now();
-                if (M.role === 'host') send(c, { t: 'room', id: M.peer.id });
+                clearTimeout(lobby.timer); lobby.trying = null; lobby.fail = null; lobby.conn = c; lobby.heard = Date.now(); settled();
+                if (M.role === 'host') send(c, { t: 'room', id: M.peer.id, by: myName() });
             });
             c.on('data', (d) => {
                 lobby.heard = Date.now();
                 if (!d) return;
-                if (d.t === 'room') roomOpened(d.id);
+                if (d.t === 'room') roomOpened(d.id, d.by);
                 else if (d.t === 'room-close') roomClosed(d.id);
             });
             c.on('close', () => lostLobby(c));
@@ -104,20 +124,20 @@ window.Multiplayer = (function () {
     function claimLobby() {
         const h = new Peer(LOBBY_ID);
         h.on('open', () => {
-            lobby.hub = h; lobby.members = [];
-            if (M.role === 'host') lobby.rooms[M.peer.id] = { id: M.peer.id, owner: null };
+            lobby.hub = h; lobby.members = []; settled();
+            if (M.role === 'host') lobby.rooms[M.peer.id] = { id: M.peer.id, owner: null, by: myName() };
         });
         h.on('connection', (c) => {
-            c.on('open', () => { c.heard = Date.now(); lobby.members.push(c); Object.keys(lobby.rooms).forEach(id => send(c, { t: 'room', id })); });
+            c.on('open', () => { c.heard = Date.now(); lobby.members.push(c); Object.values(lobby.rooms).forEach(r => send(c, { t: 'room', id: r.id, by: r.by })); });
             c.on('data', (d) => {
                 c.heard = Date.now();
                 if (!d) return;
-                if (d.t === 'room') { lobby.rooms[d.id] = { id: d.id, owner: c }; tellMembers({ t: 'room', id: d.id }, c); roomOpened(d.id); }
+                if (d.t === 'room') { const by = cleanName(d.by); lobby.rooms[d.id] = { id: d.id, owner: c, by }; tellMembers({ t: 'room', id: d.id, by }, c); roomOpened(d.id, by); }
                 else if (d.t === 'room-close') { tellMembers({ t: 'room-close', id: d.id }, c); roomClosed(d.id); }
             });
             c.on('close', () => memberGone(c));
         });
-        h.on('disconnected', () => { try { h.reconnect(); } catch (e) { /* (destroyed) */ } });
+        h.on('disconnected', () => { if (lobby.hub === h) reconnectLater(h); });
         // (unavailable-id: someone else took the lobby first, so go and join theirs)
         h.on('error', () => { if (lobby.hub === h) return; try { h.destroy(); } catch (e) { /* (never opened) */ } retryLobby(); });
     }
@@ -142,12 +162,12 @@ window.Multiplayer = (function () {
     // tell everyone in the lobby that this player's room is open (or closed again)
     function announce(open) {
         const id = M.peer && M.peer.id; if (!id) return;
-        const msg = { t: open ? 'room' : 'room-close', id };
-        if (lobby.hub) { if (open) lobby.rooms[id] = { id, owner: null }; else delete lobby.rooms[id]; tellMembers(msg); }
+        const msg = { t: open ? 'room' : 'room-close', id, by: myName() };
+        if (lobby.hub) { if (open) lobby.rooms[id] = { id, owner: null, by: msg.by }; else delete lobby.rooms[id]; tellMembers(msg); }
         else send(lobby.conn, msg);
     }
-    function roomOpened(id) {
-        if (!lobby.rooms[id]) lobby.rooms[id] = { id, owner: null };
+    function roomOpened(id, by) {
+        if (!lobby.rooms[id]) lobby.rooms[id] = { id, owner: null, by: cleanName(by) };
         refreshMenu();
         if (M.role || joining || lobby.declined[id] || (M.peer && id === M.peer.id)) return;
         showInvite(id);
@@ -163,6 +183,8 @@ window.Multiplayer = (function () {
     let invite = null, inviteTimer = 0;
     function showInvite(id) {
         invite = id;
+        const by = lobby.rooms[id] && lobby.rooms[id].by;
+        $('mp-invite-text').textContent = (by || 'Somebody') + ' opened a multiplayer room. Want to play together?';
         $('mp-invite').style.display = 'flex';
         clearTimeout(inviteTimer); inviteTimer = setTimeout(hideInvite, 45000);   // (not answered: it goes away, the menu still lists the room)
     }
@@ -194,7 +216,7 @@ window.Multiplayer = (function () {
         }
         const tag = Tex.textCanvas(256, 64, (ctx, W, H) => {
             ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.beginPath(); ctx.roundRect(4, 4, W - 8, H - 8, 8); ctx.fill();
-            ctx.fillStyle = '#00e5ff'; ctx.font = 'bold 30px monospace'; ctx.textAlign = 'center'; ctx.fillText(label, W / 2, 42);
+            ctx.fillStyle = '#00e5ff'; ctx.font = 'bold ' + Math.min(30, Math.floor(380 / Math.max(label.length, 1))) + 'px monospace'; ctx.textAlign = 'center'; ctx.fillText(label, W / 2, 42);   // (a long name gets smaller letters)
         });
         const tagMesh = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 0.9), new THREE.MeshBasicMaterial({ map: tag, transparent: true, depthTest: false }));
         tagMesh.position.set(0, 2.4, 0); g.add(tagMesh);
@@ -206,10 +228,13 @@ window.Multiplayer = (function () {
     // a player's latest state: make (or swap) their car and remember where it should be
     function placeCar(id, d) {
         let c = cars[id];
-        const carId = d.car || 'starter';
-        if (!c || c.mesh.userData.carId !== carId) {
+        const carId = d.car || 'starter', label = labelOf(d);
+        if (!c || c.mesh.userData.carId !== carId || c.label !== label) {       // (a new car, or they changed their name)
+            const fresh = !c;
             if (c) scene.remove(c.mesh);
-            c = cars[id] = { mesh: makePeerCar(carId, d.n === 1 ? 'HOST' : 'PLAYER ' + d.n), d, fresh: true };
+            const was = c && { p: c.mesh.position.clone(), q: c.mesh.quaternion.clone(), at: c.at, speed: c.speed };
+            c = cars[id] = { mesh: makePeerCar(carId, label), label, d, fresh };
+            if (was) { c.mesh.position.copy(was.p); c.mesh.quaternion.copy(was.q); c.at = was.at; c.speed = was.speed; }   // (the new car stands where the old one did)
         }
         // (their speed, from how far they moved between the last two reports: front lock uses it)
         const now = performance.now();
@@ -219,10 +244,12 @@ window.Multiplayer = (function () {
     }
     // where the other players are, for the driving aids
     M.others = () => Object.values(cars).map(c => ({ x: c.d.x, z: c.d.z, speed: c.speed || 0 }));
+    // what to call a player: the name they picked, else HOST or PLAYER 2, 3...
+    const labelOf = (d) => cleanName(d.name) || (d.n === 1 ? 'HOST' : 'PLAYER ' + d.n);
     function removeCar(id) { if (cars[id]) { scene.remove(cars[id].mesh); delete cars[id]; } }
     function myState() {
         const p = Car.body.position, q = Car.body.quaternion;
-        return { t: 'p', x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w, car: Car.data.id };
+        return { t: 'p', x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w, car: Car.data.id, name: myName() };
     }
     // the screens before driving, if this player is still on them
     function startDriving() {
@@ -250,14 +277,14 @@ window.Multiplayer = (function () {
     };
     // someone connected to this player's peer: a guest, if a room is open here
     function onGuest(conn) {
-        const g = { conn, id: conn.peer, n: 0, d: null, heard: Date.now() };
+        const g = { conn, id: conn.peer, n: 0, d: null, heard: Date.now(), name: cleanName(conn.metadata && conn.metadata.name) };
         conn.on('open', () => {
             if (M.role !== 'host' || guests.length + 1 >= MAX_PLAYERS) { send(conn, { t: 'full' }); setTimeout(() => { try { conn.close(); } catch (e) { /* (gone already) */ } }, 500); return; }
             g.n = nextN++; guests.push(g);
             $('mp-waiting').style.display = 'none';
             const p = Car.body.position;
-            send(conn, { t: 'hi', n: g.n, x: p.x, y: p.y, z: p.z, yaw: Car.yaw() });
-            status('Player ' + g.n + ' joined!', GREEN, 4000);
+            send(conn, { t: 'hi', n: g.n, x: p.x, y: p.y, z: p.z, yaw: Car.yaw(), host: myName() });
+            status((g.name || 'Player ' + g.n) + ' joined!', GREEN, 4000);
             refreshChip();
         });
         conn.on('data', (d) => { g.heard = Date.now(); if (d && d.t === 'p' && g.n) { d.n = g.n; g.d = d; placeCar(g.id, d); } });
@@ -267,7 +294,7 @@ window.Multiplayer = (function () {
         if (!guests.includes(g)) return;
         guests = guests.filter(x => x !== g); removeCar(g.id);
         try { g.conn.close(); } catch (e) { /* (gone already) */ }
-        status('Player ' + g.n + ' left.', RED, 4000);
+        status((g.name || 'Player ' + g.n) + ' left.', RED, 4000);
         refreshChip();
     }
 
@@ -285,7 +312,7 @@ window.Multiplayer = (function () {
         status('Connecting to the room…');
         startDriving();
         getPeer().then(p => {
-            const c = p.connect(roomId, { reliable: true, metadata: { kind: 'room' } });
+            const c = p.connect(roomId, { reliable: true, metadata: { kind: 'room', name: myName() } });
             joining = { id: roomId, conn: c, timer: setTimeout(() => joinFailed('Could not reach that room.'), 12000) };
             c.on('open', () => {
                 if (!joining || joining.conn !== c) return;                 // (given up on already)
@@ -302,7 +329,7 @@ window.Multiplayer = (function () {
         hostHeard = Date.now();
         if (!d) return;
         if (d.t === 'full') { status('That room is full.', RED, 5000); return; }
-        if (d.t === 'hi') { myN = d.n; goNear(d); return; }
+        if (d.t === 'hi') { myN = d.n; if (cleanName(d.host)) status('You are in ' + cleanName(d.host) + "'s room.", GREEN, 4000); goNear(d); return; }
         if (d.t !== 'all') return;
         const here = {};
         d.ps.forEach(s => { here[s.id] = true; placeCar(s.id, s); });
@@ -338,7 +365,7 @@ window.Multiplayer = (function () {
     M.leave = () => leaveRoom();
     // one line on where this player stands, for tests
     M.debug = () => 'role ' + M.role + ' n' + myN + ' | lobby ' + (lobby.hub ? 'hub with ' + lobby.members.length : lobby.conn ? 'member' : lobby.trying ? 'trying' : 'none') +
-        ' | rooms ' + Object.keys(lobby.rooms).length + ' | guests ' + guests.length + ' | cars ' + Object.keys(cars).length + ' | invite ' + (invite ? 'shown' : 'no');
+        ' | rooms ' + Object.keys(lobby.rooms).length + ' | guests ' + guests.length + ' | cars ' + Object.keys(cars).length + ' [' + Object.values(cars).map(c => c.label).join(', ') + '] | invite ' + (invite ? 'shown' : 'no');
 
     // ?room=<id> in the URL: ask before joining
     M.checkInvite = function () {
@@ -351,7 +378,7 @@ window.Multiplayer = (function () {
         return true;
     };
 
-    M.showMenu = function () { $('menu-main').style.display = 'none'; $('mp-panel').style.display = 'block'; refreshMenu(); };
+    M.showMenu = function () { $('menu-main').style.display = 'none'; $('mp-panel').style.display = 'block'; $('mp-name').value = myName(); refreshMenu(); };
     M.hideMenu = function () { $('mp-panel').style.display = 'none'; $('menu-main').style.display = 'block'; };
 
     M.update = function (dt) {
@@ -385,6 +412,7 @@ window.Multiplayer = (function () {
         $('mp-share').onclick = () => { M.hideMenu(); M.host(); };
         $('mp-join-open').onclick = () => { const id = openRoom(); M.hideMenu(); if (id) M.join(id); };
         $('mp-back').onclick = M.hideMenu;
+        $('mp-name').oninput = (e) => setName(e.target.value);
         $('mp-invite-yes').onclick = (e) => { e.target.blur(); if (invite) M.join(invite); };
         $('mp-invite-no').onclick = (e) => { e.target.blur(); if (invite) lobby.declined[invite] = true; hideInvite(); };
         $('mp-leave').onclick = (e) => { e.target.blur(); leaveRoom(); };

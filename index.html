@@ -237,6 +237,8 @@
             </div>
             <div id="mp-panel" style="display:none">
                 <p>Open a room and everyone who is playing right now is asked to join. You also get a link to send. Lots of players can drive in one room.</p>
+                <label for="mp-name" style="display:block;font-size:0.8rem;color:#9ab;margin:10px 0 4px">Your name (shown over your car)</label>
+                <input id="mp-name" type="text" maxlength="16" placeholder="Type your name" autocomplete="off" style="width:100%;box-sizing:border-box;padding:10px;margin-bottom:10px;border-radius:8px;border:1px solid #ffffff33;background:#0008;color:#fff;font-size:1rem;text-align:center" />
                 <button id="mp-join-open" class="menu-btn" style="display:none">JOIN THE OPEN ROOM</button>
                 <button id="mp-share" class="menu-btn menu-btn-mp">OPEN A ROOM</button>
                 <button id="mp-back" class="menu-btn menu-btn-ghost">BACK</button>
@@ -259,7 +261,7 @@
     <button id="drive-btn">&#9654; DRIVE</button>
 
     <div id="mp-status"></div>
-    <div id="mp-invite"><span>Somebody opened a multiplayer room. Want to play together?</span><button id="mp-invite-yes">JOIN</button><button id="mp-invite-no">NO THANKS</button></div>
+    <div id="mp-invite"><span id="mp-invite-text">Somebody opened a multiplayer room. Want to play together?</span><button id="mp-invite-yes">JOIN</button><button id="mp-invite-no">NO THANKS</button></div>
     <div id="mp-chip"><span id="mp-count"></span><button id="mp-leave">LEAVE</button></div>
     <div id="mp-waiting" class="mp-box">
         <h3>ROOM READY</h3>
