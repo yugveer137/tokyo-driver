@@ -58,7 +58,8 @@ window.UI = (function () {
             if (e.code === 'KeyV') Features.toggleRain();
             if (e.code === 'KeyK') Features.toggleCruise();
             if (e.code === 'KeyQ') Features.setSignal('left');
-            if (e.code === 'KeyE') { if (window.Walk && Walk.active) Robbery.rob(); else Features.setSignal('right'); }
+            // E on foot: a door or a counter here (places.js), else the robbery's doors
+            if (e.code === 'KeyE') { if (window.Walk && Walk.active) { if (!(window.Places && Places.use())) Robbery.rob(); } else Features.setSignal('right'); }
             if (e.code === 'KeyH') Features.setSignal('hazard');
             if (e.code === 'KeyT') Train.toggle();
             if (e.code === 'KeyR') Car.reset();

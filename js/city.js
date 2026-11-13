@@ -256,7 +256,9 @@ window.City = (function () {
             const w = lot * rnd(0.6, 0.92), d = lot * rnd(0.6, 0.92);
             let h = rnd(minH, maxH);
             if (Math.random() < 0.08) h *= 1.5;                               // the odd standout tower
-            buildBuilding(city, lx, lz, w, h, d, dNorm);
+            // which street the lot looks onto: the nearest edge of its block (the middle lot looks onto none)
+            const face = a !== 1 ? [a - 1, 0] : b !== 1 ? [0, b - 1] : null;
+            buildBuilding(city, lx, lz, w, h, d, dNorm, face);
         }
     }
 
@@ -289,8 +291,14 @@ window.City = (function () {
         return geom;
     }
 
+    // What a building with a door is, and how its door is dressed (places.js builds the inside).
+    const SHOP_NAMES = ['MARKET', 'BAKERY', 'TOY SHOP', 'BOOKS', 'CAFE', 'CLOTHES'];
+    const DOOR_FRAME = { shop: 0x2b2e34, hotel: 0xb8902a, apartment: 0xdedcd2 };
+    const DOOR_SIGN = { shop: '#0a2a5a', hotel: '#5a0a12', apartment: '#1f3a1f' };
+    let doorMat = null;
+
     const FOUND = 3;                                                         // walls go this far into the ground, which hides slopes
-    function buildBuilding(city, lx, lz, w, h, d, dNorm) {
+    function buildBuilding(city, lx, lz, w, h, d, dNorm, face) {
         const p = city.toWorld(lx, lz);
         const ground = Terrain.height(p.x, p.z) + 0.3;
         const tall = h > 45, glassy = tall && Math.random() < 0.5;
@@ -323,6 +331,22 @@ window.City = (function () {
         // the ground floor: shops, standing a hand's width proud of the wall
         if (h > 9) part(shopBand(w + 0.3, 5, d + 0.3), shopMat, 1.5);
         addBox(city, w, h, d, p.x, ground + h / 2, p.z, city.heading);
+        // The way in: a door on the street side with a name over it. Low buildings are mostly
+        // shops, towers are hotels or apartments. city.places lists them for places.js.
+        if (face && h > 9) {
+            const [fx, fz] = face, out = (fx ? w : d) / 2;
+            const kind = tall ? pick(['hotel', 'apartment']) : pick(['shop', 'shop', 'shop', 'apartment', 'hotel']);
+            const name = kind === 'hotel' ? 'HOTEL' : kind === 'apartment' ? 'APARTMENTS' : pick(SHOP_NAMES);
+            doorMat = doorMat || new THREE.MeshStandardMaterial({ color: 0x16222e, roughness: 0.3, metalness: 0.4 });
+            const slab = (thick, high, wide) => fx ? new THREE.BoxGeometry(thick, high, wide) : new THREE.BoxGeometry(wide, high, thick);   // (a flat piece lying against this wall)
+            part(slab(0.14, 2.7, 1.9), trimMat, 1.35, asPainted(DOOR_FRAME[kind]), fx * (out + 0.2), fz * (out + 0.2));
+            part(slab(0.2, 2.4, 1.5), doorMat, 1.2, undefined, fx * (out + 0.2), fz * (out + 0.2));
+            if (kind === 'hotel') part(slab(1.6, 0.18, 3.2), trimMat, 2.95, asPainted(0x8a1f2a), fx * (out + 1.0), fz * (out + 1.0));     // the canopy
+            const sign = part(new THREE.PlaneGeometry(3.0, 0.7), Signs.nameFace(name, DOOR_SIGN[kind]), 3.55, undefined, fx * (out + 0.34), fz * (out + 0.34));
+            sign.rotation.y = city.heading + Math.atan2(fx, fz); sign.castShadow = false;
+            const at = city.toWorld(lx + fx * (out + 1.6), lz + fz * (out + 1.6)); at.y = Terrain.height(at.x, at.z) + 0.3;
+            city.places.push({ city, kind, name, p: at, centre: p.clone(), yaw: city.heading + Math.atan2(fx, fz) });
+        }
         // what stands on the roof
         const spot = () => [(Math.random() - 0.5) * tw * 0.45, (Math.random() - 0.5) * td * 0.45];
         if (tall) {
@@ -674,7 +698,7 @@ window.City = (function () {
 
     C.load = function (city) {
         if (city.loaded) return; city.loaded = true;
-        city.treeSpots = []; city.lenses = {};
+        city.treeSpots = []; city.lenses = {}; city.places = [];
         const first = city.meshes.length;
         buildStreets(city);
         buildBlocks(city);
@@ -703,7 +727,7 @@ window.City = (function () {
         C.lights = C.lights.filter(l => l.city !== city);
         C.nightMats = C.nightMats.filter(m => city.mats.indexOf(m) === -1);
         city.mats.forEach(m => m.dispose());
-        city.meshes = []; city.bodies = []; city.roads = []; city.signs = []; city.mats = []; city.houses = [];
+        city.meshes = []; city.bodies = []; city.roads = []; city.signs = []; city.mats = []; city.houses = []; city.places = [];
     };
 
     // Night: windows and lamps glow; traffic lights cycle (8 s, like the old game)

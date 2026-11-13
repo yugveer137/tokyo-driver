@@ -91,6 +91,18 @@ window.Signs = (function () {
         return place(g, pos, facing, 2.2 + h / 2);
     };
 
+    // The face of a name board over a building's door (HOTEL, MARKET...): white letters on a
+    // dark colour. One per name, so every door that says the same shares it.
+    S.nameFace = function (text, background) {
+        const key = 'name:' + text + background;
+        return faces[key] || (faces[key] = new THREE.MeshBasicMaterial({ map: Tex.textCanvas(384, 90, (ctx, W, H) => {
+            ctx.fillStyle = background; ctx.fillRect(0, 0, W, H);
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4; ctx.strokeRect(5, 5, W - 10, H - 10);
+            ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.font = 'bold ' + Math.min(56, Math.floor(620 / text.length)) + 'px Helvetica, Arial, sans-serif'; ctx.fillText(text, W / 2, H / 2 + 3);
+        }) }));
+    };
+
     // Green street-name blade on a pole
     S.streetBlade = function (pos, facing, name) {
         const g = board(2.6, 0.5, (ctx, W, H) => {

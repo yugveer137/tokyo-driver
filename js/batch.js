@@ -11,7 +11,10 @@
 // A part is left alone if it is hidden, has `userData.keep` (it moves on its own: a train's
 // wheels), carries several materials, or is not a plain mesh. A material made with
 // `vertexColors: true` is shared by parts of different colours: each part says its own colour in
-// `userData.color` (a hex number) and the merge writes it into the vertices.
+// `userData.color` (a hex number) and the merge writes it into the vertices. If that material
+// also has `userData.shaded`, each face's colour is darkened by which way it faces (tops light,
+// undersides dark): the shading is painted on, for an unlit material that must look the same
+// whatever the sun is doing (the rooms in places.js).
 window.Batch = (function () {
     const B = {};
     const v = new THREE.Vector3(), normalMatrix = new THREE.Matrix3(), white = new THREE.Color(0xffffff), tint = new THREE.Color();
@@ -29,7 +32,8 @@ window.Batch = (function () {
     }
 
     // one geometry out of the parts of one material
-    function join(parts, colored) {
+    const LIGHT = new THREE.Vector3(0.35, 0.85, 0.4).normalize();          // where the painted-on shading takes its light from
+    function join(parts, colored, shaded) {
         let verts = 0, indices = 0;
         parts.forEach(p => {
             const g = p.mesh.geometry;
@@ -49,7 +53,7 @@ window.Batch = (function () {
                 v.fromBufferAttribute(gp, i).applyMatrix4(p.matrix); pos.set([v.x, v.y, v.z], (at + i) * 3);
                 v.fromBufferAttribute(gn, i).applyMatrix3(normalMatrix).normalize(); nor.set([v.x, v.y, v.z], (at + i) * 3);
                 if (gu) { uv[(at + i) * 2] = gu.getX(i); uv[(at + i) * 2 + 1] = gu.getY(i); }
-                if (col) col.set([tint.r, tint.g, tint.b], (at + i) * 3);
+                if (col) { const k = shaded ? 0.62 + 0.38 * Math.max(0, v.dot(LIGHT)) : 1; col.set([tint.r * k, tint.g * k, tint.b * k], (at + i) * 3); }   // (v is the normal here)
             }
             // a mirrored part (negative scale) has its triangles wound the other way: turn them back
             const mirrored = p.matrix.determinant() < 0, count = g.index ? g.index.count : n;
@@ -85,7 +89,7 @@ window.Batch = (function () {
         Object.values(buckets).forEach(list => {
             const first = list[0].mesh, colored = !!first.material.vertexColors;
             if (list.length < 2 && !colored) return;                      // nothing to join it with
-            const merged = new THREE.Mesh(join(list, colored), first.material);
+            const merged = new THREE.Mesh(join(list, colored, colored && first.material.userData.shaded), first.material);
             merged.castShadow = first.castShadow; merged.receiveShadow = first.receiveShadow;
             list.forEach(p => { const up = p.mesh.parent; up.remove(p.mesh); p.mesh.geometry.dispose(); prune(up, root); });
             root.add(merged);

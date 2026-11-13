@@ -154,6 +154,7 @@
             #rob-map-text { font-size: 0.62rem !important; }
             #chat-alert { bottom: 300px !important; left: 16px !important; max-width: 200px !important; font-size: 0.75rem !important; }
             #next-city, #getmoney-big, #escape-big { bottom: 36% !important; }
+            #place-btn { bottom: 27% !important; font-size: 0.9rem; padding: 10px 18px; }
         }
     </style>
 </head>
@@ -232,8 +233,11 @@
     <style>
         #getmoney-big { position: fixed; left: 50%; bottom: 18%; transform: translateX(-50%); display: none; z-index: 25; background: linear-gradient(135deg, #38d66b, #ffd21e); color: #102a14; border: 0; border-radius: 40px; padding: 16px 40px; font-size: 1.4rem; font-weight: 900; letter-spacing: 2px; box-shadow: 0 8px 30px #000a; cursor: pointer; }
         #getmoney-big.on { display: block; }
+        /* what you can do right here on foot: go in, leave, buy, ride with a player (places.js) */
+        #place-btn { position: fixed; left: 50%; bottom: 9%; transform: translateX(-50%); display: none; z-index: 25; background: linear-gradient(135deg, #00e5ff, #38d66b); color: #04121c; border: 0; border-radius: 14px; padding: 12px 26px; font-size: 1.05rem; font-weight: 900; letter-spacing: 0.06em; cursor: pointer; box-shadow: 0 6px 22px #0008; }
         #getmoney-big small { display: block; font-size: 0.8rem; letter-spacing: 0; font-weight: 700; margin-top: 4px; }
     </style>
+    <button id="place-btn"></button>
     <button id="getmoney-big">GET MONEY<small id="getmoney-note">grab it all, and the crew too</small></button>
     <div id="hud-walk" style="position:fixed;left:50%;top:70%;transform:translateX(-50%);max-width:46vw;text-align:center;color:#8ad0ff;font-weight:700;text-shadow:0 1px 4px #000;pointer-events:none"></div>
     <div id="tada"></div>
@@ -343,7 +347,7 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script>
     // Load the game files with a cache-busting stamp so Safari never runs a stale mix of old and new files
-    (function () { const v = Date.now(); ['config','save','textures','batch','sky','terrain','road','trees','signs','train','peds','walk','police','robbery','city','cities','traffic','world','carmodels','models','car','game','features','races','selfdrive','multiplayer','osm','ui','minimap','debug','main'].forEach(function (f) { document.write('<script src="js/' + f + '.js?v=' + v + '"><\/script>'); }); })();
+    (function () { const v = Date.now(); ['config','save','textures','batch','sky','terrain','road','trees','signs','train','peds','walk','police','robbery','city','places','cities','traffic','world','carmodels','models','car','game','features','races','selfdrive','multiplayer','osm','ui','minimap','debug','main'].forEach(function (f) { document.write('<script src="js/' + f + '.js?v=' + v + '"><\/script>'); }); })();
     </script>
 </body>
 </html>

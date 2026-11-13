@@ -260,13 +260,22 @@ window.Multiplayer = (function () {
         c.d = d;
     }
     // where the other players are, for the driving aids
-    M.others = () => Object.values(cars).map(c => ({ x: c.d.x, z: c.d.z, speed: c.speed || 0 }));
+    M.others = () => Object.values(cars).filter(c => !c.d.riding).map(c => ({ x: c.d.x, z: c.d.z, speed: c.speed || 0 }));
+    // Riding with another player (walk.js): the car to get into, where it is now, and a word to
+    // its driver. A player who is riding reports `riding`, and their own car is not drawn.
+    M.carNear = function (pos, reach) {
+        let best = null, bd = reach;
+        Object.keys(cars).forEach(id => { const c = cars[id]; if (!c.mesh.visible) return; const d = c.mesh.position.distanceTo(pos); if (d < bd) { bd = d; best = M.car(id); } });
+        return best;
+    };
+    M.car = (id) => cars[id] ? { id, label: cars[id].label, mesh: cars[id].mesh, speed: cars[id].speed || 0 } : null;
+    M.tell = function (id, text) { if (M.role && cars[id]) post({ t: 'msg', to: id, text }); };
     // what to call a player: the name they picked, else HOST or PLAYER 2, 3...
     const labelOf = (d) => cleanName(d.name) || (d.n === 1 ? 'HOST' : 'PLAYER ' + d.n);
     function removeCar(id) { if (cars[id]) { scene.remove(cars[id].mesh); delete cars[id]; } }
     function myState() {
         const p = Car.body.position, q = Car.body.quaternion;
-        return { t: 'p', x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w, car: Car.data.id, name: myName() };
+        return { t: 'p', x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w, car: Car.data.id, name: myName(), riding: !!(window.Walk && Walk.passenger) };
     }
     // the screens before driving, if this player is still on them
     function startDriving() {
@@ -516,6 +525,7 @@ window.Multiplayer = (function () {
         }
         Object.values(cars).forEach(c => {
             const d = c.d, to = new THREE.Vector3(d.x, d.y, d.z), rot = new THREE.Quaternion(d.qx, d.qy, d.qz, d.qw);
+            c.mesh.visible = !d.riding;                                     // (a passenger's own car is put away while they ride)
             if (c.fresh) { c.mesh.position.copy(to); c.mesh.quaternion.copy(rot); c.fresh = false; }
             else { c.mesh.position.lerp(to, 0.5); c.mesh.quaternion.slerp(rot, 0.5); }
             // (the name tag faces the camera whatever way the car points)

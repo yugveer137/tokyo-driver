@@ -109,7 +109,7 @@
         Road.init(scene, world);
         Signs.init(scene);
         Train.init(scene);
-        Peds.init(scene); Walk.init(scene, camera); Police.init(scene); Robbery.init(scene);
+        Peds.init(scene); Walk.init(scene, camera); Police.init(scene); Robbery.init(scene); Places.init(scene);
         City.init(scene, world);
         Traffic.init(scene, world);
         Car.init(scene, world, camera);
@@ -202,7 +202,7 @@
             }
             Minimap.update(Car.body.position, Car.yaw());
             Features.update(dt);
-            Walk.update(dt); Peds.update(dt, Walk.active ? Walk.pos : focus); Police.update(dt); Robbery.update(dt);
+            Walk.update(dt); Places.update(dt); Peds.update(dt, Walk.active ? Walk.pos : focus); Police.update(dt); Robbery.update(dt);
             Races.update(dt);
             SelfDrive.update(dt);
             Multiplayer.update(dt);
