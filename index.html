@@ -58,7 +58,18 @@
         #mp-invite { position: fixed; left: 50%; top: 132px; transform: translateX(-50%); display: none; align-items: center; flex-wrap: wrap; justify-content: center; gap: 10px; max-width: 92vw; box-sizing: border-box; padding: 10px 14px; border-radius: 12px; background: rgba(18,24,38,0.95); border: 1px solid #00e5ff88; color: #fff; font-weight: 700; z-index: 46; }
         #mp-invite button, #mp-chip button { border: 0; border-radius: 8px; padding: 6px 12px; font-weight: 800; cursor: pointer; color: #fff; background: #ffffff22; }
         #mp-invite #mp-invite-yes { background: #00a03c; }
-        #mp-chip { position: fixed; left: 50%; top: 52px; transform: translateX(-50%); display: none; align-items: center; gap: 8px; padding: 4px 6px 4px 12px; border-radius: 999px; background: rgba(0,114,255,0.85); color: #fff; font-weight: 700; font-size: 0.8rem; z-index: 44; white-space: nowrap; }
+        /* multiplayer: the chat and give-coins panels, and the note that pops up when one arrives */
+        .mp-side { position: fixed; left: 16px; top: 128px; width: min(300px, 92vw); display: none; flex-direction: column; gap: 8px; padding: 12px; border-radius: 14px; background: rgba(18,24,38,0.96); border: 1px solid #00e5ff66; color: #fff; z-index: 47; box-sizing: border-box; }
+        .mp-side-head { display: flex; justify-content: space-between; align-items: center; color: var(--cyan); letter-spacing: 1px; }
+        .mp-side-head button { border: 0; background: none; color: #9ab; font-size: 1rem; cursor: pointer; }
+        .mp-side select, .mp-side input { width: 100%; box-sizing: border-box; padding: 8px; border-radius: 8px; border: 1px solid #ffffff33; background: #0008; color: #fff; font-size: 0.9rem; }
+        .mp-side-row { display: flex; gap: 6px; } .mp-side-row input { flex: 1; min-width: 0; }
+        .mp-side-row button { border: 0; border-radius: 8px; padding: 0 14px; font-weight: 800; cursor: pointer; color: #000; background: var(--cyan); }
+        #mp-chat-log { height: 150px; overflow-y: auto; font-size: 0.85rem; line-height: 1.35; background: #0006; border-radius: 8px; padding: 8px; }
+        #mp-chat-log div { margin-bottom: 4px; word-break: break-word; } #mp-chat-log .mine { color: #9fd8ff; } #mp-chat-log .gift { color: #ffd21e; }
+        #mp-give-have, #mp-give-note { font-size: 0.85rem; color: #c9d2e0; min-height: 1em; }
+        #mp-pop { position: fixed; left: 50%; top: 176px; transform: translateX(-50%); display: none; max-width: 90vw; padding: 10px 16px; border-radius: 12px; background: rgba(18,24,38,0.96); border: 1px solid #ffd21e99; color: #fff; font-weight: 700; z-index: 46; cursor: pointer; word-break: break-word; }
+        #mp-chip { position: fixed; left: 50%; top: 52px; transform: translateX(-50%); display: none; align-items: center; gap: 8px; padding: 4px 6px 4px 12px; border-radius: 18px; background: rgba(0,114,255,0.85); color: #fff; font-weight: 700; font-size: 0.8rem; z-index: 44; white-space: nowrap; flex-wrap: wrap; justify-content: center; max-width: 96vw; box-sizing: border-box; }
         #mp-status { position: fixed; left: 50%; top: 90px; transform: translateX(-50%); display: none; padding: 8px 16px; border-radius: 10px; font-weight: 700; color: #fff; z-index: 45; }
         .mp-box { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; flex-direction: column; gap: 10px; background: #121826; border: 1px solid #ffffff22; border-radius: 16px; padding: 20px 24px; width: min(460px, 92vw); z-index: 55; }
         .mp-box h3 { margin: 0; color: var(--cyan); letter-spacing: 2px; } .mp-box p { margin: 0; color: #c9d2e0; font-size: 0.9rem; }
@@ -262,7 +273,21 @@
 
     <div id="mp-status"></div>
     <div id="mp-invite"><span id="mp-invite-text">Somebody opened a multiplayer room. Want to play together?</span><button id="mp-invite-yes">JOIN</button><button id="mp-invite-no">NO THANKS</button></div>
-    <div id="mp-chip"><span id="mp-count"></span><button id="mp-leave">LEAVE</button></div>
+    <div id="mp-chip"><span id="mp-count"></span><button id="mp-chat-btn">CHAT</button><button id="mp-give-btn">GIVE COINS</button><button id="mp-leave">LEAVE</button></div>
+    <div id="mp-pop"></div>
+    <div id="mp-chat" class="mp-side">
+        <div class="mp-side-head"><b>CHAT</b><button id="mp-chat-close">&#10005;</button></div>
+        <div id="mp-chat-log"></div>
+        <select id="mp-chat-to"></select>
+        <div class="mp-side-row"><input id="mp-chat-text" type="text" maxlength="200" placeholder="Type a message" autocomplete="off" /><button id="mp-chat-send">SEND</button></div>
+    </div>
+    <div id="mp-give" class="mp-side">
+        <div class="mp-side-head"><b>GIVE COINS</b><button id="mp-give-close">&#10005;</button></div>
+        <div id="mp-give-have"></div>
+        <select id="mp-give-to"></select>
+        <div class="mp-side-row"><input id="mp-give-amount" type="number" min="1" step="1" placeholder="How many coins" /><button id="mp-give-send">GIVE</button></div>
+        <div id="mp-give-note"></div>
+    </div>
     <div id="mp-waiting" class="mp-box">
         <h3>ROOM READY</h3>
         <p>Everyone who is playing right now has been asked to join. You can also send this link to friends. Keep driving while you wait.</p>

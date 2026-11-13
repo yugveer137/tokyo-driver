@@ -211,6 +211,8 @@ window.Multiplayer = (function () {
         const n = M.role === 'host' ? guests.length + 1 : M.role === 'guest' ? Object.keys(cars).length + 1 : 0;
         $('mp-chip').style.display = M.role ? 'flex' : 'none';
         $('mp-count').textContent = 'MULTIPLAYER · ' + n + (n === 1 ? ' player' : ' players');
+        if (!M.role) { $('mp-chat').style.display = 'none'; $('mp-give').style.display = 'none'; $('mp-pop').style.display = 'none'; }
+        refreshPeople();
     }
 
     // ---------- the other players' cars ----------
@@ -302,7 +304,12 @@ window.Multiplayer = (function () {
             status((g.name || 'Player ' + g.n) + ' joined!', GREEN, 4000);
             refreshChip();
         });
-        conn.on('data', (d) => { g.heard = Date.now(); if (d && d.t === 'p' && g.n) { d.n = g.n; g.d = d; placeCar(g.id, d); } });
+        conn.on('data', (d) => {
+            g.heard = Date.now();
+            if (!d || !g.n) return;
+            if (d.t === 'p') { d.n = g.n; g.d = d; placeCar(g.id, d); }
+            else if (d.t === 'msg' || d.t === 'coins') passOn(g, d);
+        });
         conn.on('close', () => guestGone(g));
     }
     function guestGone(g) {
@@ -345,6 +352,7 @@ window.Multiplayer = (function () {
         if (!d) return;
         if (d.t === 'full') { status('That room is full.', RED, 5000); return; }
         if (d.t === 'hi') { myN = d.n; if (cleanName(d.host)) status('You are in ' + cleanName(d.host) + "'s room.", GREEN, 4000); goNear(d); return; }
+        if (d.t === 'msg' || d.t === 'coins') { receive(d); return; }
         if (d.t !== 'all') return;
         const here = {};
         d.ps.forEach(s => { here[s.id] = true; placeCar(s.id, s); });
@@ -365,6 +373,99 @@ window.Multiplayer = (function () {
         const at = new THREE.Vector3(x, d.y, z);
         Terrain.update(at); World.update(at, true);
         Car.teleport(x, d.y + 1.0, z, d.yaw);
+    }
+
+    // ---------- messages and coins between players ----------
+    // Both travel like the cars do, through the host: a guest hands the host a note for someone
+    // ('all', 'host' or a guest's id), the host stamps who it is from and passes it on, or
+    // keeps it if it is the host's own. A message is { t: 'msg', to, text }, a gift of coins
+    // { t: 'coins', to, amount }: the giver takes the coins off their own count as they send,
+    // the receiver adds them on arrival.
+    const myLabel = () => myName() || (M.role === 'host' ? 'HOST' : 'PLAYER ' + myN);
+    const people = () => Object.keys(cars).map(id => ({ id, label: cars[id].label }));
+    const labelFor = (id) => id === 'all' ? 'everyone' : (cars[id] ? cars[id].label : 'a player who left');
+    function post(note) {
+        if (M.role === 'guest') send(hostConn, note);
+        else if (M.role === 'host') deliver(Object.assign({ from: 'host', name: myLabel() }, note));
+    }
+    // (host) a guest's note: checked, stamped with who sent it, and sent on
+    function passOn(g, d) {
+        const to = d.to === 'all' || d.to === 'host' || guests.some(x => x.id === d.to) ? d.to : null;
+        if (!to || to === g.id) return;
+        const note = { t: d.t, to, from: g.id, name: g.name || 'Player ' + g.n };
+        if (d.t === 'msg') { note.text = String(d.text || '').trim().slice(0, 200); if (!note.text) return; }
+        else { note.amount = Math.floor(Number(d.amount)); if (!(note.amount >= 1 && note.amount <= 1000000) || to === 'all') return; }
+        deliver(note);
+    }
+    // (host) to the guests it is for, and to the host if it is for the host
+    function deliver(note) {
+        guests.forEach(g => { if (g.id !== note.from && (note.to === 'all' || note.to === g.id)) send(g.conn, note); });
+        if (note.from !== 'host' && (note.to === 'all' || note.to === 'host')) receive(note);
+    }
+    // a note has arrived for this player
+    let unread = 0;
+    function receive(note) {
+        const who = cleanName(note.name) || 'A player';
+        if (note.t === 'coins') {
+            const n = Math.floor(Number(note.amount)); if (!(n >= 1 && n <= 1000000)) return;
+            Game.addCoins(n);
+            log(who + ' gave you ' + n + ' coins', 'gift'); pop(who + ' gave you ' + n + ' coins!');
+        } else {
+            const text = String(note.text || '').slice(0, 200);
+            log(who + (note.to === 'all' ? ' (to everyone)' : '') + ': ' + text); pop(who + ': ' + text);
+            if ($('mp-chat').style.display !== 'flex') { unread++; $('mp-chat-btn').textContent = 'CHAT (' + unread + ')'; }
+        }
+    }
+    function sendMessage() {
+        const box = $('mp-chat-text'), text = box.value.trim().slice(0, 200), to = $('mp-chat-to').value;
+        if (!text || !M.role) return;
+        if (to !== 'all' && !cars[to]) { log('That player has left.'); refreshPeople(); return; }
+        post({ t: 'msg', to, text });
+        log('You' + (to === 'all' ? ' (to everyone)' : ' to ' + labelFor(to)) + ': ' + text, 'mine');
+        box.value = '';
+    }
+    function giveCoins() {
+        const to = $('mp-give-to').value, n = Math.floor(Number($('mp-give-amount').value)), note = $('mp-give-note');
+        if (!M.role || !cars[to]) { note.textContent = 'Pick a player who is in the room.'; refreshPeople(); return; }
+        if (!(n >= 1)) { note.textContent = 'Type how many coins to give.'; return; }
+        if (n > Game.state.coins) { note.textContent = 'You only have ' + Game.state.coins + ' coins.'; return; }
+        Game.addCoins(-n);
+        post({ t: 'coins', to, amount: n });
+        note.textContent = 'You gave ' + n + ' coins to ' + labelFor(to) + '.';
+        log('You gave ' + n + ' coins to ' + labelFor(to), 'gift');
+        $('mp-give-amount').value = ''; $('mp-give-have').textContent = 'You have ' + Game.state.coins + ' coins.';
+    }
+    // the chat's list of what was said, newest at the bottom
+    function log(text, kind) {
+        const line = document.createElement('div'); line.textContent = text; if (kind) line.className = kind;
+        const box = $('mp-chat-log'); box.appendChild(line);
+        while (box.children.length > 60) box.removeChild(box.firstChild);
+        box.scrollTop = box.scrollHeight;
+    }
+    // a note that just arrived, shown on screen for a few seconds (click it to open the chat)
+    function pop(text) {
+        const el = $('mp-pop'); el.textContent = text; el.style.display = 'block';
+        clearTimeout(pop.timer); pop.timer = setTimeout(() => { el.style.display = 'none'; }, 7000);
+    }
+    // the "who to" pickers follow who is in the room
+    let peopleShown = null;
+    function refreshPeople() {
+        const list = people(), now = list.map(p => p.id + ':' + p.label).join('|');
+        if (now === peopleShown) return;                                    // (nobody came, went or changed name: leave an open picker alone)
+        peopleShown = now;
+        [['mp-chat-to', true], ['mp-give-to', false]].forEach(([id, withAll]) => {
+            const sel = $(id), keep = sel.value;
+            sel.innerHTML = '';
+            if (withAll) sel.appendChild(new Option('Everyone', 'all'));
+            list.forEach(p => sel.appendChild(new Option(p.label, p.id)));
+            if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+        });
+    }
+    function openPanel(id) {
+        ['mp-chat', 'mp-give'].forEach(p => { $(p).style.display = p === id && $(p).style.display !== 'flex' ? 'flex' : 'none'; });
+        refreshPeople();
+        if ($('mp-chat').style.display === 'flex') { unread = 0; $('mp-chat-btn').textContent = 'CHAT'; $('mp-chat-text').focus(); }
+        if ($('mp-give').style.display === 'flex') { $('mp-give-have').textContent = 'You have ' + Game.state.coins + ' coins.'; $('mp-give-note').textContent = ''; }
     }
 
     // ---------- leaving ----------
@@ -431,6 +532,13 @@ window.Multiplayer = (function () {
         $('mp-invite-yes').onclick = (e) => { e.target.blur(); if (invite) M.join(invite); };
         $('mp-invite-no').onclick = (e) => { e.target.blur(); if (invite) lobby.declined[invite] = true; hideInvite(); };
         $('mp-leave').onclick = (e) => { e.target.blur(); leaveRoom(); };
+        $('mp-chat-btn').onclick = (e) => { e.target.blur(); openPanel('mp-chat'); };
+        $('mp-give-btn').onclick = (e) => { e.target.blur(); openPanel('mp-give'); };
+        $('mp-chat-close').onclick = $('mp-give-close').onclick = () => { $('mp-chat').style.display = 'none'; $('mp-give').style.display = 'none'; document.activeElement.blur(); };
+        $('mp-chat-send').onclick = sendMessage;
+        $('mp-chat-text').onkeydown = (e) => { if (e.key === 'Enter') sendMessage(); };
+        $('mp-give-send').onclick = giveCoins;
+        $('mp-pop').onclick = () => { $('mp-pop').style.display = 'none'; if ($('mp-chat').style.display !== 'flex') openPanel('mp-chat'); };
         // join the lobby a moment after the game is up, and leave it cleanly with the page (so
         // the lobby id and any room here are free again at once)
         setTimeout(joinLobby, 1500);
