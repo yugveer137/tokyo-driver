@@ -81,7 +81,7 @@ window.Multiplayer = (function () {
             p.on('connection', onGuest);
             p.on('disconnected', () => reconnectLater(p));
             p.on('error', (err) => {
-                if (!M.peer) { M.peerReady = null; rej(new Error('No connection (' + err.type + ')')); return; }
+                if (!M.peer) { M.peerReady = null; rej(new Error(SERVICE_DOWN)); return; }
                 if (err.type !== 'peer-unavailable') return;
                 // (the message names the peer that is not there)
                 if (String(err.message).includes(LOBBY_ID)) { if (lobby.fail) lobby.fail(); }
@@ -89,6 +89,21 @@ window.Multiplayer = (function () {
             });
         }));
         return M.peerReady;
+    }
+
+    // The peer for opening or joining a room: it has to be talking to the service right now. If
+    // the service has dropped us since (it does when it is busy or blocking the network), try
+    // once to get back before saying so, rather than "opening" a room nobody can be told about.
+    const SERVICE_DOWN = 'The multiplayer service is not answering right now. Wait a minute and try again.';
+    function connected() {
+        return getPeer().then(p => {
+            if (!p.disconnected) return p;
+            return new Promise((res, rej) => {
+                const giveUp = setTimeout(() => rej(new Error(SERVICE_DOWN)), 8000);
+                p.on('open', function back() { clearTimeout(giveUp); if (p.off) p.off('open', back); res(p); });
+                try { p.reconnect(); } catch (e) { clearTimeout(giveUp); rej(new Error(SERVICE_DOWN)); }
+            });
+        });
     }
 
     // ---------- the lobby ----------
@@ -262,7 +277,7 @@ window.Multiplayer = (function () {
         if (M.role) return;
         hideInvite();
         status('Creating your room…');
-        getPeer().then(p => {
+        connected().then(p => {
             M.role = 'host'; M.ready = true; guests = []; nextN = 2; myN = 1;
             const url = inviteUrl(p.id);
             $('mp-link').value = url;
@@ -311,7 +326,7 @@ window.Multiplayer = (function () {
         hideInvite();
         status('Connecting to the room…');
         startDriving();
-        getPeer().then(p => {
+        connected().then(p => {
             const c = p.connect(roomId, { reliable: true, metadata: { kind: 'room', name: myName() } });
             joining = { id: roomId, conn: c, timer: setTimeout(() => joinFailed('Could not reach that room.'), 12000) };
             c.on('open', () => {
