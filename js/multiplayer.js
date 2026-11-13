@@ -211,8 +211,14 @@ window.Multiplayer = (function () {
             if (c) scene.remove(c.mesh);
             c = cars[id] = { mesh: makePeerCar(carId, d.n === 1 ? 'HOST' : 'PLAYER ' + d.n), d, fresh: true };
         }
+        // (their speed, from how far they moved between the last two reports: front lock uses it)
+        const now = performance.now();
+        if (c.at && now - c.at > 20) c.speed = (c.speed || 0) * 0.7 + 0.3 * Math.hypot(d.x - c.d.x, d.z - c.d.z) / ((now - c.at) / 1000);   // (smoothed: reports arrive unevenly)
+        c.at = now;
         c.d = d;
     }
+    // where the other players are, for the driving aids
+    M.others = () => Object.values(cars).map(c => ({ x: c.d.x, z: c.d.z, speed: c.speed || 0 }));
     function removeCar(id) { if (cars[id]) { scene.remove(cars[id].mesh); delete cars[id]; } }
     function myState() {
         const p = Car.body.position, q = Car.body.quaternion;

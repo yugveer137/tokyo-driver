@@ -346,7 +346,7 @@ window.Car = (function () {
         let engine = 0, brake = 0;
         C.throttle = 0;
         if (keys.back && C.cruise) C.cruise = null;                  // braking cancels cruise
-        const fwd = keys.fwd || (C.cruise && C.mph < C.cruise);
+        const fwd = keys.fwd || (C.cruise && C.mph < Math.min(C.cruise, C.cruiseCap != null ? C.cruiseCap : Infinity));   // (cruiseCap: front lock following a slower car, 0 behind a stopped one)
         if (C.gear === 0) {                          // reverse gear
             if (keys.fwd && C.mph < cap) { engine = maxForce * 0.5; C.throttle = 0.6; }
             if (keys.back) brake = 50;

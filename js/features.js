@@ -123,13 +123,13 @@ window.Features = (function () {
     const A = { lane: false, front: false, laneIndex: null, cooldown: 0 };
     F.aids = A;
     F.toggleLaneLock = function () {
-        A.lane = !A.lane; A.laneIndex = null; Car.assistSteer = null;
+        A.lane = !A.lane; A.laneIndex = null; A.held = 0; Car.assistSteer = null;
         UI.toast(A.lane ? 'Lane lock on: steering you back into the lane (steer to cancel)' : 'Lane lock off');
         const b = document.getElementById('lane-btn'); if (b) b.classList.toggle('on', A.lane);
     };
     F.toggleFrontLock = function () {
         A.front = !A.front; Car.autoBrake = false;
-        UI.toast(A.front ? 'Front lock on: auto-braking for traffic' : 'Front lock off');
+        UI.toast(A.front ? 'Front lock on: keeps a safe gap to the car ahead' : 'Front lock off');
         const b = document.getElementById('front-btn'); if (b) b.classList.toggle('on', A.front);
     };
     // where the player is on the road: {s, lateral, dir, frame} or null. The freeway when it
@@ -165,9 +165,9 @@ window.Features = (function () {
     }
     function updateAids(dt) {
         A.cooldown = Math.max(0, A.cooldown - dt);
-        if (!A.lane && !A.front) { Car.assistSteer = null; Car.autoBrake = false; return; }
+        if (!A.lane && !A.front) { Car.assistSteer = null; Car.autoBrake = false; Car.cruiseCap = null; return; }
         const pose = freewayPose();
-        if (!pose) { Car.assistSteer = null; Car.autoBrake = false; return; }
+        if (!pose) { Car.assistSteer = null; Car.autoBrake = false; Car.cruiseCap = null; return; }
         const lanes = A.fw.lanes.filter(l => l.dir === pose.dir);
         if (!lanes.length) { Car.assistSteer = null; Car.autoBrake = false; return; }
         if (A.lane) {
@@ -181,6 +181,23 @@ window.Features = (function () {
                 const options = [A.laneIndex - 1, A.laneIndex + 1].filter(i => i >= 0 && i < lanes.length);
                 const free = options.find(i => laneClear(pose, i) && !trafficAhead(pose, i, 45));
                 if (free !== undefined) { A.laneIndex = free; A.cooldown = 3; }
+            }
+            // Stuck behind someone slow for 15 seconds: move over as soon as the lane beside us is
+            // clear alongside, even if it is not empty further on (the quick rule above waits for
+            // an empty lane, and stops applying once we have slowed to the other car's speed).
+            // "Slow" is under nine tenths of what we would be doing: the cruise speed, or the limit.
+            const limit = A.fw.type === 'freeway' ? 65 : A.fw.type === 'avenue' ? 45 : A.fw.type === 'ramp' ? 35 : 30;
+            const want = Math.max(Car.cruise || 0, limit) / CFG.MPH;
+            const held = ahead && ahead.gap < 30 && ahead.speed < want * 0.9;
+            A.held = held ? (A.held || 0) + dt : 0;
+            if (A.held >= 15 && A.cooldown === 0) {
+                const room = (i) => { const t = trafficAhead(pose, i, 90); return t ? t.gap : Infinity; };
+                const beside = [A.laneIndex - 1, A.laneIndex + 1].filter(i => i >= 0 && i < lanes.length && laneClear(pose, i));
+                if (beside.length) {
+                    A.laneIndex = beside.sort((x, y) => room(y) - room(x))[0];      // (the one with more room ahead)
+                    A.cooldown = 3; A.held = 0;
+                    UI.toast('Lane lock: changing lanes to get past', 2000);
+                }
             }
             const lane = lanes.find(l => l.index === A.laneIndex) || lanes[0];
             // steer at a point ahead in the lane (further ahead the faster you go), like the
@@ -197,10 +214,31 @@ window.Features = (function () {
             Car.assistSteer = Math.max(-lim, Math.min(lim, e * 2.5));
         }
         if (A.front) {
+            // Front lock keeps a safe gap to whoever is ahead in our lane, traffic or another
+            // player. It looks further ahead the faster we go (the old fixed 40 m was under a
+            // second at freeway speed, so it braked too late to matter), brakes while we are
+            // closing too fast to settle in behind, and holds cruise down to the other car's speed
+            // so we follow about a second behind instead of charging up and braking over and over.
             const li = A.laneIndex !== null ? A.laneIndex : lanes.reduce((b, l) => Math.abs(l.offset - pose.lateral) < Math.abs(b.offset - pose.lateral) ? l : b, lanes[0]).index;
-            const ahead = trafficAhead(pose, li, 40);
-            Car.autoBrake = !!(ahead && ahead.gap < 40 && Car.mph > 8 && ahead.speed < Car.mph / CFG.MPH);
-        }
+            const v = Car.mph / CFG.MPH;
+            let ahead = trafficAhead(pose, li, 60 + v * 4);
+            const pos = Car.body.position;
+            (window.Multiplayer && Multiplayer.others ? Multiplayer.others() : []).forEach(o => {
+                // (another player: ahead of our nose and within a lane's half width of our line)
+                const dx = o.x - pos.x, dz = o.z - pos.z;
+                const along = dx * pose.fwd.x + dz * pose.fwd.z, across = Math.abs(dx * pose.fwd.z - dz * pose.fwd.x);
+                if (along > 2 && along < 60 + v * 4 && across < 1.9 && (!ahead || along < ahead.gap)) ahead = { gap: along, speed: o.speed };
+            });
+            let brake = false; Car.cruiseCap = null;
+            if (ahead && Car.mph > 4) {
+                const closing = v - ahead.speed;
+                const keep = 9 + ahead.speed * 1.1;                              // the gap to hold: two car lengths, plus about a second
+                const settle = closing > 0 ? closing * closing / (2 * 6) + closing * 0.4 : 0;   // room needed to slow to its speed (6 m/s² and a moment to react)
+                brake = (closing > 0.5 && ahead.gap < keep + settle) || ahead.gap < keep * 0.5;
+                if (ahead.gap < keep * 2 + settle) Car.cruiseCap = ahead.speed * CFG.MPH;
+            }
+            Car.autoBrake = brake;
+        } else Car.cruiseCap = null;
     }
 
     // ---------- damage + tow truck ----------
