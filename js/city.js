@@ -413,6 +413,10 @@ window.City = (function () {
         // (one storey or two: the first draw of the house's own generator, as buildHouse makes it)
         return { city, i, j, side, k, lx, lz, facing: side, w, d, h, ground, centre, p: door, address: no + ' ' + name, key, floors: seeded(hashOf(key))() < 0.35 ? 2 : 1 };
     };
+    // The garage bay of a house (built only into houses the player owns): `z` where its middle
+    // is along the street wall (the quarter of the house away from the front door), how wide,
+    // how deep into the house, how high, and how far its floor stands over the house's ground.
+    C.bay = (plan) => ({ z: plan.w / 4, wide: 3.4, deep: 5.8, high: 2.65, floor: 0.36 });
     function buildHouses(city, i, j, cx, cz, B) {
         const n = C.housesPerBlock(city);
         [-1, 1].forEach(side => { for (let k = 0; k < n; k++) buildHouse(city, C.housePlan(city, i, j, side, k)); });   // -1 faces street j, +1 faces street j+1
@@ -444,7 +448,26 @@ window.City = (function () {
         const wallColor = asPainted(choose(HOUSE_COLORS)), roofColor = asPainted(choose(ROOF_COLORS)), accent = asPainted(choose(ACCENTS));
         const g = new THREE.Group(); g.position.set(p.x, ground, p.z); g.rotation.y = yaw;
         const put = (geom, mat, x, y, z, color) => { const m = new THREE.Mesh(geom, mat); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; if (color !== undefined) m.userData.color = color; g.add(m); return m; };
-        put(new THREE.BoxGeometry(d, H + 1, w), houseWallMat, 0, H / 2 - 0.5, 0, wallColor);   // the house (local x = toward the street side)
+        // A house the player owns has a real garage in it: a bay open to the street that a car
+        // can be driven into (C.bay gives its size; shop.js adds the door and the drive). So its
+        // walls are four blocks round the bay instead of one, and so is what the car bumps into.
+        const bay = window.Shop && Shop.owns && Shop.owns(plan.key) ? C.bay(plan) : null;
+        const cosH = Math.cos(yaw), sinH = Math.sin(yaw);
+        // a block of the house: size along the house's own x, y, z, centred at local (x, y, z); solid, and seen
+        const block = (sx, sy, sz, x, y, z, solid) => {
+            put(new THREE.BoxGeometry(sx, sy + (solid === 'floor' ? 0 : 1), sz), solid === 'floor' ? housePathMat : houseWallMat, x, y - (solid === 'floor' ? 0 : 0.5), z, solid === 'floor' ? undefined : wallColor);
+            addBox(city, sx, sy, sz, p.x + x * cosH + z * sinH, ground + y, p.z - x * sinH + z * cosH, yaw);
+        };
+        if (!bay) put(new THREE.BoxGeometry(d, H + 1, w), houseWallMat, 0, H / 2 - 0.5, 0, wallColor);   // the house (local x = toward the street side)
+        else {
+            const z0 = bay.z - bay.wide / 2, z1 = bay.z + bay.wide / 2;        // the bay's two sides, along the street
+            block(d, H, z0 + w / 2, 0, H / 2, (z0 - w / 2) / 2);              // the house beside the bay (the front door's side)
+            block(d, H, w / 2 - z1, 0, H / 2, (z1 + w / 2) / 2);              // the sliver of wall on its other side
+            block(d - bay.deep, H, bay.wide, -facing * bay.deep / 2, H / 2, bay.z);   // behind it
+            put(new THREE.BoxGeometry(bay.deep, H - bay.high, bay.wide), houseWallMat, facing * (d - bay.deep) / 2, (H + bay.high) / 2, bay.z, wallColor);   // over it
+            addBox(city, bay.deep, H - bay.high, bay.wide, p.x + facing * (d - bay.deep) / 2 * cosH + bay.z * sinH, ground + (H + bay.high) / 2, p.z - facing * (d - bay.deep) / 2 * sinH + bay.z * cosH, yaw);
+            block(bay.deep, 0.4, bay.wide, facing * (d - bay.deep) / 2, bay.floor - 0.2, bay.z, 'floor');   // its floor
+        }
         if (floors === 2) put(new THREE.BoxGeometry(d + 0.12, 0.14, w + 0.12), houseTrimMat, 0, h, 0);   // a band between the storeys
         put(new THREE.BoxGeometry(d + 0.5, 0.18, w + 0.5), houseTrimMat, 0, H + 0.05, 0);   // the eaves
         if (roofKind === 'hip') {
@@ -476,7 +499,8 @@ window.City = (function () {
             if (shutters) [-1, 1].forEach(sd => put(new THREE.BoxGeometry(0.06, 1.15, 0.32), trimMat, fx + facing * 0.04, y, z + sd * (wide / 2 + 0.32), accent));
         };
         const pathLen = 8 - d / 2 - 1.3;
-        if (garage) {
+        if (bay) { /* (the bay is there: shop.js hangs its door and lays its drive) */ }
+        else if (garage) {
             // a garage door in place of the front window, and a drive down to the street
             put(new THREE.BoxGeometry(0.1, 2.3, 3.0), houseTrimMat, fx, 1.15, w / 4);
             [0.5, 1.05, 1.6].forEach(y => put(new THREE.BoxGeometry(0.06, 0.04, 2.8), housePathMat, fx + facing * 0.05, y, w / 4));
@@ -493,7 +517,7 @@ window.City = (function () {
         put(new THREE.BoxGeometry(pathLen, 0.06, 1.3), housePathMat, fx + facing * pathLen / 2, 0.03, -w / 4);
         // along the front of the lawn: a hedge or a white picket fence, with gaps for the path and the drive
         if (edge !== 'none') {
-            const gaps = [[-w / 4 - 0.9, -w / 4 + 0.9]]; if (garage) gaps.push([w / 4 - 1.7, w / 4 + 1.7]);
+            const gaps = [[-w / 4 - 0.9, -w / 4 + 0.9]]; if (garage || bay) gaps.push([w / 4 - 1.9, w / 4 + 1.9]);
             const runs = []; let from = -w / 2;
             gaps.forEach(([a, b]) => { if (a > from) runs.push([from, a]); from = b; });
             if (from < w / 2) runs.push([from, w / 2]);
@@ -508,7 +532,7 @@ window.City = (function () {
             });
         }
         addMesh(city, g, true);
-        addBox(city, d, H, w, p.x, ground + H / 2, p.z, yaw);
+        if (!bay) addBox(city, d, H, w, p.x, ground + H / 2, p.z, yaw);
         plan.group = g;
         city.houses.push(plan);
     }

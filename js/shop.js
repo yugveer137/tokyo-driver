@@ -15,11 +15,11 @@
 //                 their coins are yours and the house is theirs.
 //   The realtor also shows houses: SEE IT on a house for sale drives you there, she is waiting
 //   at the door, and E goes round the inside with her (places.js) before you bid.
-//   YOUR GARAGE   every house you own has a garage door and a drive down to the street. Stop on
-//                 the street by the drive and P (or the big button) backs the car in: the door
-//                 rolls up, the car turns its tail to the house and reverses inside, the door
-//                 comes down and you are standing in your house. The grey door inside drives it
-//                 out again (so does G by the garage, from outside).
+//   YOUR GARAGE   every house you own is built with a garage in it and a drive down to the
+//                 street. Drive up the drive and in, forwards or backwards: the door rolls up as
+//                 the car comes near. Or stop on the street by the drive and P (or the big
+//                 button) backs the car in for you. G gets you out in the garage, E there goes
+//                 into the house, and the grey door inside takes you back to the car.
 //   In multiplayer every player tells the room which houses are theirs (Shop.myHouses, sent
 //   with their car). Those houses get a board with the owner's name, and anyone can walk in
 //   (places.js): "This is Yugveer's house". Two players in the same room see each other.
@@ -136,6 +136,7 @@ window.Shop = (function () {
             Game.addCoins(-amount);
             houses.push({ key: h.key, city: city.id, i: h.i, j: h.j, side: h.side, k: h.k, address: h.address, cityName: city.name, paid: amount });
             Save.set('houses', houses);
+            rebuildCity(city);                                              // (the house is rebuilt with its garage)
             result = 'SOLD to you! You bid ' + amount + ' coins and the other buyer bid ' + theirs + '. ' + h.address + ' is yours.';
         } else {
             lossStreak++;
@@ -255,6 +256,7 @@ window.Shop = (function () {
         houses = houses.filter(x => x.key !== o.key); Save.set('houses', houses);
         lost.push(o.key); Save.set('housesLost', lost);                      // (it is somebody else's now, not for sale again)
         delete listings[o.key];
+        dropGarage(o.key); rebuildCity(cityOf(o.city));                      // (and it is built as a plain house again)
         UI.toast('SOLD! ' + b.name + ' bought ' + o.address + ' for ' + coinsText(b.amount) + '.', 6000);
         renderSell();
     }
@@ -327,7 +329,8 @@ window.Shop = (function () {
         for (const o of houses) {
             const city = cityOf(o.city); if (!city || !city.loaded) continue;
             const plan = planOf(o);
-            if (Math.hypot(plan.p.x - pos.x, plan.p.z - pos.z) < reach && Math.abs(plan.p.y - pos.y) < 3) return { o, city, plan };
+            const inBay = garages[o.key] && flat(garages[o.key].g.inside, pos) < 2.6;    // (standing in the garage counts as being at the door)
+            if ((inBay || Math.hypot(plan.p.x - pos.x, plan.p.z - pos.z) < reach) && Math.abs(plan.p.y - pos.y) < 3) return { o, city, plan };
         }
         return null;
     };
@@ -378,38 +381,77 @@ window.Shop = (function () {
     }
 
     // ---------- the garage of a house you own ----------
-    // Where things are, for house o. Along the house's own axes: the garage door is in the
-    // street wall at the quarter of the house away from the front door, `inside` is where the
-    // car stands in the garage, `mouth` where it waits on the street before backing in, and
-    // `yawOut` the heading from the house to the street (the car backs in, so it faces that way).
+    // A house you own is built with a real garage in it (city.js: an open bay in the street
+    // wall, `City.bay`). This file hangs its door and lays its drive, both of them solid: you
+    // drive up the drive and into the bay yourself, forwards or backwards, and the door rolls up
+    // as the car comes near and down again when you walk away. P (or the big button) backs the
+    // car in for you instead, if you would rather.
+    //
+    // Where things are, for house o, along the house's own axes: `inside` is the middle of the
+    // bay floor, `mouth` where a car waits on the street before backing in, `door` the middle of
+    // the doorway, and `yawOut` the heading from the house to the street.
     function garageOf(o) {
-        const city = cityOf(o.city), plan = planOf(o), f = plan.facing, z = plan.lz + plan.w / 4;
+        const city = cityOf(o.city), plan = planOf(o), f = plan.facing, bay = City.bay(plan), z = plan.lz + bay.z;
         const street = f < 0 ? plan.j : plan.j + 1;                              // the north-south street the house faces (every third is an avenue)
         const half = Road.widthOf(street % 3 === 0 ? 'avenue' : 'street') / 2;
         const xWall = plan.lx + f * plan.d / 2, xRoad = plan.lx + f * (8 + city.street / 2 - half);   // the street wall, and the road's near edge
-        const mouth = city.toWorld(xRoad + f * 2.0, z); mouth.y = Terrain.height(mouth.x, mouth.z) + 0.12;
-        const inside = city.toWorld(xWall - f * 3.0, z); inside.y = plan.ground + 0.36;
-        return { city, plan, f, z, xWall, drive: Math.abs(xRoad - xWall), mouth, inside, yawOut: city.heading + f * Math.PI / 2 };
+        const at = (lx, y) => { const p = city.toWorld(lx, z); p.y = y; return p; };
+        const mouth = at(xRoad + f * 2.0, 0); mouth.y = Terrain.height(mouth.x, mouth.z) + 0.12;
+        return { city, plan, bay, f, z, xWall, drive: Math.abs(xRoad - xWall), mouth, inside: at(xWall - f * bay.deep / 2, plan.ground + bay.floor),
+                 door: at(xWall, plan.ground + bay.floor), yawOut: city.heading + f * Math.PI / 2 };
     }
-    // the door (which rolls up), the dark of the garage behind it, and the drive: built with the YOUR HOUSE board
+    // The door, and the drive in two slopes: from the bay floor across the lawn to the edge of
+    // the block (the lawn and sidewalk lie 0.3 over the land, and the land may slope), then down
+    // onto the road. Each piece is a box you can see and a box the car's wheels stand on.
     const garages = {};
     function buildGarage(o) {
-        const g = garageOf(o), plan = g.plan, f = g.f;
+        const g = garageOf(o), plan = g.plan, f = g.f, bay = g.bay, world = game.world;
         const group = new THREE.Group(); group.position.set(plan.centre.x, plan.ground, plan.centre.z); group.rotation.y = g.city.heading;
-        const box = (w, h, d, color, x, y, z, basic) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), basic ? new THREE.MeshBasicMaterial({ color }) : new THREE.MeshStandardMaterial({ color, roughness: 0.8 })); m.position.set(x, y, z); m.receiveShadow = true; group.add(m); return m; };
-        // (both stand clear of the wall: a house built without a garage has a window there, and its frame sticks out)
-        const door = box(0.12, 2.55, 3.0, 0xd8d8d2, f * (plan.d / 2 + 0.24), 1.275, plan.w / 4);
-        [-0.6, 0, 0.6].forEach(y => { const line = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.04, 2.8), new THREE.MeshStandardMaterial({ color: 0x8a8a84 })); line.position.y = y; door.add(line); });
-        box(0.06, 2.55, 3.0, 0x0a0a0a, f * (plan.d / 2 + 0.15), 1.275, plan.w / 4, true);
-        box(g.drive, 0.5, 3.2, 0x55554f, f * (plan.d / 2 + g.drive / 2), 0.11, plan.w / 4);
         scene.add(group);
-        return { group, door, open: 0, want: 0 };
+        const bodies = [];
+        const solid = (mesh) => {                                            // a physics box where this mesh is
+            group.updateMatrixWorld(true);
+            const p = mesh.getWorldPosition(new THREE.Vector3()), q = mesh.getWorldQuaternion(new THREE.Quaternion()), size = mesh.geometry.parameters;
+            const body = new CANNON.Body({ mass: 0, material: world.groundMaterial });
+            body.addShape(new CANNON.Box(new CANNON.Vec3(size.width / 2, size.height / 2, size.depth / 2)));
+            body.position.set(p.x, p.y, p.z); body.quaternion.set(q.x, q.y, q.z, q.w);
+            world.addBody(body); bodies.push(body);
+            return body;
+        };
+        const box = (w, h, d, color, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color, roughness: 0.85 })); m.position.set(x, y, z); m.receiveShadow = true; group.add(m); return m; };
+        // a strip of drive from local x `xa` at height `ya` to `xb` at `yb` (heights over the house's ground)
+        const strip = (xa, ya, xb, yb) => {
+            const run = Math.abs(xb - xa), len = Math.hypot(run, yb - ya), m = box(len, 0.3, 3.4, 0x6a6a64, (xa + xb) / 2, (ya + yb) / 2 - 0.15, bay.z);
+            m.rotation.z = Math.atan2(yb - ya, xb - xa);
+            solid(m);
+        };
+        const wall = plan.d / 2, edge = 8;                                    // (the block ends 8 m out from the house's middle)
+        const landAt = (x) => { const p = g.city.toWorld(plan.lx + f * x, g.z); return Terrain.height(p.x, p.z) - plan.ground; };   // the land there, against the house's ground
+        const yEdge = landAt(edge) + 0.36, xRoad = wall + g.drive + 0.8, yRoad = landAt(xRoad) + 0.16;
+        strip(f * wall, bay.floor, f * edge, yEdge);
+        strip(f * edge, yEdge, f * xRoad, yRoad);
+        // the door: it hangs in the doorway and rolls up
+        const door = box(0.14, bay.high, bay.wide - 0.1, 0xd8d8d2, f * (wall - 0.05), bay.floor + bay.high / 2, bay.z);
+        [-0.6, 0, 0.6].forEach(y => { const line = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.04, bay.wide - 0.3), new THREE.MeshStandardMaterial({ color: 0x8a8a84 })); line.position.y = y; door.add(line); });
+        const doorBody = solid(door);
+        return { group, door, doorBody, doorY: doorBody.position.y, bodies, open: 0, want: 0, g, o };
     }
-    function dropGarage(key) { const g = garages[key]; if (!g) return; scene.remove(g.group); g.group.traverse(m => { if (m.geometry) m.geometry.dispose(); }); delete garages[key]; }
-    const setDoor = (key, open) => { if (garages[key]) garages[key].want = open; };
-    // The car is moved by hand while it parks or leaves (it passes through the house wall, which
-    // is solid): held frozen, as it is under a train, and put where the move says each frame.
-    let move = null, busy = false, garaged = null;                           // garaged: { key, o } while the car is inside
+    function dropGarage(key) {
+        const g = garages[key]; if (!g) return;
+        scene.remove(g.group); g.group.traverse(m => { if (m.geometry) m.geometry.dispose(); });
+        g.bodies.forEach(b => game.world.removeBody(b));
+        delete garages[key];
+    }
+    const flat = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+    // the house whose garage the car is standing in, if it is ({ key, o })
+    S.garaged = function () {
+        if (!Car.body) return null;
+        for (const key of Object.keys(garages)) { const G = garages[key]; if (flat(Car.body.position, G.g.inside) < 1.9 && Math.abs(Car.body.position.y - G.g.inside.y) < 3) return { key, o: G.o }; }
+        return null;
+    };
+    // Backing in for you: the car is moved by hand (frozen, as it is under a train) to the
+    // street by the drive, tail to the house, and then back up the drive into the bay.
+    let move = null, busy = false;
     const turnY = new CANNON.Vec3(0, 1, 0);
     function setCar(p, yaw) {
         const b = Car.body;
@@ -417,33 +459,29 @@ window.Shop = (function () {
         b.quaternion.setFromAxisAngle(turnY, yaw);
     }
     function glide(p1, y1, seconds, then) { const b = Car.body; move = { t: 0, seconds, p0: new THREE.Vector3(b.position.x, b.position.y, b.position.z), y0: Car.yaw(), p1, y1, then }; }
-    // the camera stands across the street and watches the garage while the car goes in or out
+    // the camera stands across the street and watches the garage while the car goes in
     // (a frozen car does not move the camera, so it stays where this puts it)
     function watch(g) {
         const out = new THREE.Vector3(Math.sin(g.yawOut), 0, Math.cos(g.yawOut)), side = new THREE.Vector3(out.z, 0, -out.x);
         const cam = game.camera;
         cam.position.copy(g.mouth).addScaledVector(out, 9).addScaledVector(side, 7); cam.position.y += 4.5;
-        cam.lookAt(g.inside.x + out.x * 4, g.inside.y + 1, g.inside.z + out.z * 4);
+        cam.lookAt(g.door.x, g.door.y + 1, g.door.z);
     }
-    function showCar(on) { Car.group.visible = on; Car.wheels.forEach(w => { w.visible = on; }); }
     // the house whose drive the car is stopped by, if any
     function driveNear() {
-        if (busy || garaged || !Car.body || Car.frozen || Car.parked || Math.abs(Car.mph) > 15) return null;
+        if (busy || !Car.body || Car.frozen || Car.parked || Math.abs(Car.mph) > 15 || S.garaged()) return null;
         const p = Car.body.position;
-        for (const o of houses) {
-            const city = cityOf(o.city); if (!city || !city.loaded) continue;
-            const g = garageOf(o);
-            if (Math.hypot(g.mouth.x - p.x, g.mouth.z - p.z) < 10 && Math.abs(g.mouth.y - p.y) < 4) return { o, g };
-        }
+        for (const key of Object.keys(garages)) { const G = garages[key]; if (flat(G.g.mouth, p) < 10 && Math.abs(G.g.mouth.y - p.y) < 4) return G; }
         return null;
     }
     // what the big button offers while driving (places.js asks): backing into your garage
     S.garagePrompt = function () {
-        const near = driveNear();
-        return near ? { label: 'BACK INTO YOUR GARAGE', key: 'P', run: () => park(near.o, near.g) } : null;
+        const G = driveNear();
+        return G ? { label: 'BACK INTO YOUR GARAGE', key: 'P', run: () => park(G) } : null;
     };
     S.parkKey = function () { const p = S.garagePrompt(); if (p) p.run(); };
-    function park(o, g) {
+    function park(G) {
+        const g = G.g;
         busy = true;
         if (window.SelfDrive && SelfDrive.active) SelfDrive.cancel(true);
         Car.cruise = null; Object.assign(Car.keys, { fwd: false, back: false, left: false, right: false, drift: false });
@@ -451,31 +489,20 @@ window.Shop = (function () {
         const ride = Math.max(0.3, Math.min(1.2, Car.body.position.y - (Terrain.height(Car.body.position.x, Car.body.position.z) + 0.12)));
         const mouth = g.mouth.clone(); mouth.y += ride;
         const inside = g.inside.clone(); inside.y += ride;
-        Car.frozen = true;
-        setDoor(o.key, 1); watch(g);
+        Car.frozen = true; watch(g);
         glide(mouth, g.yawOut, 1.6, () => glide(inside, g.yawOut, 2.8, () => {
-            setDoor(o.key, 0);
-            garaged = { key: o.key, o, g, at: inside, yaw: g.yawOut, mouth };
-            showCar(false); busy = false;
+            Car.frozen = false; busy = false;                              // (it stands on the bay floor now, like any parked car)
             Walk.getOut();                                                  // out of the car, and through into the house
-            const home = { o, city: g.city, plan: g.plan };
-            Places.goHome(home);
-            UI.toast('Parked in your garage. The grey door in the back wall drives the car out again.', 5000);
+            Places.goHome({ o: G.o, city: g.city, plan: g.plan });
+            UI.toast('Parked in your garage. The grey door in the back wall takes you to the car.', 5000);
         }));
     }
-    S.garaged = () => garaged;
-    // out of the garage: from inside the house (the grey door) or with G by the garage
+    // from inside the house (the grey door) or with G by the garage: into the car, where it stands
     S.driveOut = function () {
-        const g = garaged; if (!g || busy) return;
-        busy = true; garaged = null;
+        if (busy || !S.garaged()) return;
         if (window.Places && Places.inside) Places.leave();
         if (Walk.active) Walk.getIn();
-        Car.frozen = true; showCar(true); setCar(g.at, g.yaw);
-        setDoor(g.key, 1); watch(g.g);
-        // out to the street, then round onto it: into the near lane, the house on the driver's right
-        const along = g.yaw - Math.PI / 2, onRoad = g.mouth.clone();
-        onRoad.x += Math.sin(along) * 6; onRoad.z += Math.cos(along) * 6;
-        glide(g.mouth, g.yaw, 2.4, () => { setDoor(g.key, 0); glide(onRoad, along, 1.5, () => { Car.frozen = false; busy = false; UI.toast('Out of the garage. Off you go.', 2500); }); });
+        UI.toast('In your car. The garage door is open: drive out.', 3000);
     };
     function garageFrame(dt) {
         if (!Car.body) return;
@@ -485,19 +512,29 @@ window.Shop = (function () {
             let turn = move.y1 - move.y0; while (turn > Math.PI) turn -= 2 * Math.PI; while (turn < -Math.PI) turn += 2 * Math.PI;
             setCar(new THREE.Vector3().lerpVectors(move.p0, move.p1, e), move.y0 + turn * e);
             if (k >= 1) { const then = move.then; move = null; if (then) then(); }
-        } else if (garaged) {
-            // the car sits in the garage, out of sight. If something else has moved it (fast
-            // travel, the tow truck, a train), it is not in the garage any more.
-            const b = Car.body.position;
-            if (Math.hypot(b.x - garaged.at.x, b.z - garaged.at.z) > 4) { garaged = null; if (!(window.Train && Train.riding)) { Car.frozen = false; showCar(true); } }
-            else { Car.frozen = true; setCar(garaged.at, garaged.yaw); showCar(false); }
         }
-        Object.keys(garages).forEach(key => {                                // the doors roll up and down
-            const g = garages[key];
-            if (g.open === g.want) return;
-            g.open += Math.sign(g.want - g.open) * Math.min(Math.abs(g.want - g.open), dt * 1.6);
-            g.door.scale.y = 1 - 0.93 * g.open; g.door.position.y = 2.55 - 1.275 * g.door.scale.y;
+        const walking = window.Walk && Walk.active, indoors = walking && Walk.room;
+        Object.keys(garages).forEach(key => {
+            const G = garages[key];
+            // the door is up while your car is at the house, or you are standing at it; down otherwise
+            G.want = busy || (!walking && flat(Car.body.position, G.g.door) < 13) || (walking && !indoors && flat(Walk.pos, G.g.door) < 4) ? 1 : 0;
+            if (G.open !== G.want) {
+                G.open += Math.sign(G.want - G.open) * Math.min(Math.abs(G.want - G.open), dt * 1.6);
+                G.door.scale.y = 1 - 0.93 * G.open; G.door.position.y = G.g.bay.floor + G.g.bay.high - G.g.bay.high / 2 * G.door.scale.y;
+                G.doorBody.position.y = G.doorY + (G.open > 0.5 ? 30 : 0);  // (an open door is out of the car's way)
+            }
         });
+        // inside the house the rooms stand where the garage is: the car is not drawn in the living room
+        if (indoors && S.garaged()) { Car.group.visible = false; Car.wheels.forEach(w => { w.visible = false; }); }
+    }
+    // Buying or selling a house changes how it is built (with a garage in it, or without), so
+    // its city is taken down and put straight back up.
+    function rebuildCity(city) {
+        if (!city || !city.loaded) return;
+        houses.forEach(o => { if (o.city === city.id) dropGarage(o.key); });
+        Object.keys(garages).forEach(key => { if (garages[key].g.city === city) dropGarage(key); });
+        City.unload(city); if (city.satellite) City.unload(city.satellite);
+        World.update(Car.body.position, true);
     }
 
     // A YOUR HOUSE board over the door of every house you own, and its garage, while its city is built.
