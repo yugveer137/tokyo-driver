@@ -452,7 +452,7 @@ window.City = (function () {
         // A house the player owns has a real garage in it: a bay open to the street that a car
         // can be driven into (C.bay gives its size; shop.js adds the door and the drive). So its
         // walls are four blocks round the bay instead of one, and so is what the car bumps into.
-        const bay = window.Shop && Shop.owns && Shop.owns(plan.key) ? C.bay(plan) : null;
+        const bay = window.Shop && Shop.hasGarage && Shop.hasGarage(plan.key) ? C.bay(plan) : null;   // (yours, or another player's in the room)
         const cosH = Math.cos(yaw), sinH = Math.sin(yaw);
         // a block of the house: size along the house's own x, y, z, centred at local (x, y, z); solid, and seen
         const block = (sx, sy, sz, x, y, z, solid) => {

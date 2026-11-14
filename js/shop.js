@@ -339,7 +339,23 @@ window.Shop = (function () {
     // the keys of my houses, for the others; and theirs, as Multiplayer hands them over
     S.myHouses = () => houses.slice(0, 6).map(o => o.key);
     let others = [];                                                         // [{ id, name, keys }]
-    S.setOthers = function (list) { others = Array.isArray(list) ? list : []; };
+    // Their houses have garages too, built the same way as mine, so a city is rebuilt when the
+    // list of them changes (someone joins, leaves, buys or sells); and each says which of their
+    // garage doors are up, so a door opens on every screen at once.
+    let friendKeys = {}, doorsUp = {};
+    S.hasGarage = (key) => S.owns(key) || !!friendKeys[key];
+    S.setOthers = function (list) {
+        others = Array.isArray(list) ? list : [];
+        const now = {}; friendsHouses().forEach(h => { now[h.key] = h.city; });
+        const changed = [];
+        Object.keys(now).forEach(key => { if (!friendKeys[key]) changed.push(now[key]); });
+        Object.keys(friendKeys).forEach(key => { if (!now[key]) changed.push(friendKeys[key]); });
+        friendKeys = now;
+        doorsUp = {}; others.forEach(p => (Array.isArray(p.open) ? p.open : []).slice(0, 6).forEach(key => { doorsUp[String(key)] = true; }));
+        changed.filter((c, i) => changed.indexOf(c) === i).forEach(rebuildCity);
+    };
+    // my garage doors that are up, for the others
+    S.myOpen = () => Object.keys(garages).filter(key => !garages[key].friend && (garages[key].up || busy));
     // A house key is "city:i:j:side:k". One that comes from another player is checked before it
     // is believed: a real city, a block of houses in it, a real house on that block.
     function planFromKey(key) {
@@ -434,7 +450,7 @@ window.Shop = (function () {
         const door = box(0.14, bay.high, bay.wide - 0.1, 0xd8d8d2, f * (wall - 0.05), bay.floor + bay.high / 2, bay.z);
         [-0.6, 0, 0.6].forEach(y => { const line = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.04, bay.wide - 0.3), new THREE.MeshStandardMaterial({ color: 0x8a8a84 })); line.position.y = y; door.add(line); });
         const doorBody = solid(door);
-        return { group, door, doorBody, doorY: doorBody.position.y, bodies, open: 0, want: 0, up: false, g, o };
+        return { group, door, doorBody, doorY: doorBody.position.y, bodies, open: 0, want: 0, up: false, g, o, friend: !S.owns(o.key) };
     }
     function dropGarage(key) {
         const g = garages[key]; if (!g) return;
@@ -446,7 +462,7 @@ window.Shop = (function () {
     // the house whose garage the car is standing in, if it is ({ key, o })
     S.garaged = function () {
         if (!Car.body) return null;
-        for (const key of Object.keys(garages)) { const G = garages[key]; if (flat(Car.body.position, G.g.inside) < 1.9 && Math.abs(Car.body.position.y - G.g.inside.y) < 3) return { key, o: G.o }; }
+        for (const key of Object.keys(garages)) { const G = garages[key]; if (!G.friend && flat(Car.body.position, G.g.inside) < 1.9 && Math.abs(Car.body.position.y - G.g.inside.y) < 3) return { key, o: G.o }; }
         return null;
     };
     // Backing in for you: the car is moved by hand (frozen, as it is under a train) to the
@@ -471,7 +487,7 @@ window.Shop = (function () {
     function driveNear() {
         if (busy || !Car.body || Car.frozen || Car.parked || Math.abs(Car.mph) > 15 || S.garaged()) return null;
         const p = Car.body.position;
-        for (const key of Object.keys(garages)) { const G = garages[key]; if (flat(G.g.mouth, p) < 10 && Math.abs(G.g.mouth.y - p.y) < 4) return G; }
+        for (const key of Object.keys(garages)) { const G = garages[key]; if (!G.friend && flat(G.g.mouth, p) < 10 && Math.abs(G.g.mouth.y - p.y) < 4) return G; }
         return null;
     }
     // what the big button offers while driving (places.js asks): backing into your garage
@@ -518,7 +534,7 @@ window.Shop = (function () {
         Object.keys(garages).forEach(key => {
             const G = garages[key];
             // the door goes up and down when you say (the OPEN THE GARAGE button), and for a car being backed in for you
-            G.want = busy || G.up ? 1 : 0;
+            G.want = G.friend ? (doorsUp[key] ? 1 : 0) : (busy || G.up ? 1 : 0);   // (another player's door does what they say)
             if (G.open !== G.want) {
                 G.open += Math.sign(G.want - G.open) * Math.min(Math.abs(G.want - G.open), dt * 1.6);
                 G.door.scale.y = 1 - 0.93 * G.open; G.door.position.y = G.g.bay.floor + G.g.bay.high - G.g.bay.high / 2 * G.door.scale.y;
@@ -528,7 +544,7 @@ window.Shop = (function () {
         // the OPEN / CLOSE THE GARAGE button on the side, while you (or your car) are within 30 m of your garage
         const me = walking && !indoors ? Walk.pos : Car.body.position;
         let near = null, nd = 30;
-        if (!indoors) Object.keys(garages).forEach(key => { const d = flat(me, garages[key].g.door); if (d < nd) { nd = d; near = garages[key]; } });
+        if (!indoors) Object.keys(garages).forEach(key => { if (garages[key].friend) return; const d = flat(me, garages[key].g.door); if (d < nd) { nd = d; near = garages[key]; } });
         doorButton = doorButton || $('garagedoor-btn');
         if (doorButton) {
             const text = near ? (near.up ? 'CLOSE THE GARAGE' : 'OPEN THE GARAGE') : '';
@@ -569,7 +585,13 @@ window.Shop = (function () {
         if (S.viewing && !S.viewing.city.loaded) endViewing();
         // (a house you have sold loses its board)
         Object.keys(boards).forEach(key => { if (!S.owns(key)) { scene.remove(boards[key]); boards[key].geometry.dispose(); delete boards[key]; } });
-        Object.keys(garages).forEach(key => { if (!S.owns(key)) dropGarage(key); });
+        // the other players' garages: door and drive, like mine
+        friendsHouses().forEach(h => {
+            const p = h.plan, up = h.city.loaded;
+            if (up && !garages[h.key]) garages[h.key] = buildGarage({ key: h.key, city: h.city.id, i: p.i, j: p.j, side: p.side, k: p.k });
+            else if (!up && garages[h.key]) dropGarage(h.key);
+        });
+        Object.keys(garages).forEach(key => { if (!S.hasGarage(key)) dropGarage(key); });
     };
 
     S.init = function (sc) {

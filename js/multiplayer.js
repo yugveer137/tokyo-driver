@@ -323,14 +323,14 @@ window.Multiplayer = (function () {
     }
     function myState() {
         const p = Car.body.position, q = Car.body.quaternion;
-        const me = { t: 'p', x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w, car: Car.data.id, name: myName(), riding: !!((window.Walk && Walk.passenger) || (window.Shop && Shop.garaged && Shop.garaged())) };   // (riding with someone, or parked in the garage: not drawn)
+        const me = { t: 'p', x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w, car: Car.data.id, name: myName(), riding: !!(window.Walk && Walk.passenger) };
         // on foot out of doors: where I am walking [x, y, z, heading, 0 still / 1 walking / 2 running]
         const W = window.Walk;
         if (W && W.active && !W.passenger) {
             me.w = [Math.round(W.pos.x * 100) / 100, Math.round(W.pos.y * 100) / 100, Math.round(W.pos.z * 100) / 100, Math.round(W.yaw * 100) / 100, W.moving ? (W.running ? 2 : 1) : 0];
             if (W.room) me.rm = W.room.id || 'private';                      // indoors: which room (see `sameRoom`)
         }
-        if (window.Shop && Shop.myHouses) me.own = Shop.myHouses();          // the houses that are mine, for their name boards and for visiting
+        if (window.Shop && Shop.myHouses) { me.own = Shop.myHouses(); me.gd = Shop.myOpen(); }   // the houses that are mine (name boards, visiting, garages), and which garage doors are up
         return me;
     }
     // the screens before driving, if this player is still on them
@@ -609,7 +609,7 @@ window.Multiplayer = (function () {
             showWalker(c, dt);
         });
         // which houses belong to whom, for shop.js (now and then: it changes seldom)
-        if (ownTimer++ % 30 === 0 && window.Shop && Shop.setOthers) Shop.setOthers(Object.keys(cars).map(id => ({ id, name: cars[id].label, keys: cars[id].d.own })));
+        if (ownTimer++ % 10 === 0 && window.Shop && Shop.setOthers) Shop.setOthers(Object.keys(cars).map(id => ({ id, name: cars[id].label, keys: cars[id].d.own, open: cars[id].d.gd })));
     };
 
     M.init = function (sc) {
