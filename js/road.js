@@ -261,9 +261,18 @@ window.Road = (function () {
         } else {
             for (let l = 0; l < type.lanes; l++) rec.lanes.push({ offset: -halfW + type.shoulder + type.laneW * (l + 0.5), dir: 1, index: l });
         }
+        // A number that names this road the same way on every player's machine (multiplayer
+        // traffic says which road a car is on by it): made from the road's type and where it
+        // starts and ends, since the same roads are built in the same places for everyone.
+        const a = fr[0].p, b = fr[fr.length - 1].p;
+        const text = spec.type + ':' + Math.round(a.x) + ',' + Math.round(a.z) + ':' + Math.round(b.x) + ',' + Math.round(b.z);
+        let uid = 7; for (const ch of text) uid = (uid * 31 + ch.charCodeAt(0)) >>> 0;
+        rec.uid = uid; uids[uid] = rec;
         R.all.push(rec);
         return rec;
     };
+    const uids = {};
+    R.byUid = (uid) => uids[uid] || null;
 
     // Build meshes + physics for the stretch [s0, s1] of a defined road. Returns the chunk key.
     R.buildRange = function (rec, s0, s1, key) {
@@ -474,6 +483,7 @@ window.Road = (function () {
     R.remove = function (rec) {
         Object.keys(rec.chunks).forEach(k => R.dropRange(rec, k));
         const i = R.all.indexOf(rec); if (i >= 0) R.all.splice(i, 1);
+        if (uids[rec.uid] === rec) delete uids[rec.uid];
     };
 
     // Point / frame at arc-length s along a road, offset laterally (right+) and vertically

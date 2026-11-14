@@ -17,7 +17,7 @@ window.Multiplayer = (function () {
     let LOBBY_ID = 'bay-area-driver-lobby-1';
     try { LOBBY_ID += localStorage.getItem('td_lobby') || ''; } catch (e) { /* (a test can use a lobby of its own) */ }
 
-    let scene, sendTimer = 0;
+    let scene, sendTimer = 0, trafficTimer = 0;
     let hostConn = null, hostHeard = 0;   // guest: the connection to the host, and when it last said anything
     let guests = [];                // host: [{ conn, id, n, d }] (d = that guest's latest car state)
     let nextN = 2, myN = 1;         // player numbers: the host is 1
@@ -248,7 +248,7 @@ window.Multiplayer = (function () {
         const carId = d.car || 'starter', label = labelOf(d);
         if (!c || c.mesh.userData.carId !== carId || c.label !== label) {       // (a new car, or they changed their name)
             const fresh = !c;
-            if (c) scene.remove(c.mesh);
+            if (c) { scene.remove(c.mesh); if (c.avatar) scene.remove(c.avatar); }   // (the person is made again with the new name tag)
             const was = c && { p: c.mesh.position.clone(), q: c.mesh.quaternion.clone(), at: c.at, speed: c.speed };
             c = cars[id] = { mesh: makePeerCar(carId, label), label, d, fresh };
             if (was) { c.mesh.position.copy(was.p); c.mesh.quaternion.copy(was.q); c.at = was.at; c.speed = was.speed; }   // (the new car stands where the old one did)
@@ -261,6 +261,42 @@ window.Multiplayer = (function () {
     }
     // where the other players are, for the driving aids
     M.others = () => Object.values(cars).filter(c => !c.d.riding).map(c => ({ x: c.d.x, z: c.d.z, speed: c.speed || 0 }));
+    // The clock the whole room goes by: the host's. A guest works out how far its own clock is
+    // from the host's from the time stamped on the host's messages (the nearest it has seen,
+    // which is the one that spent least time on the way). The people on the sidewalks and the
+    // traffic lights run off it, so they are in step on every screen. Alone, it is just the time.
+    let clockAhead = 0, clockKnown = false;
+    M.now = () => Date.now() + clockAhead;
+    function hearClock(hostNow) {
+        const ahead = Number(hostNow) - Date.now();
+        if (!isFinite(ahead)) return;
+        clockAhead = clockKnown ? Math.max(clockAhead, ahead) : ahead; clockKnown = true;
+    }
+    // A player on foot is drawn as a person where they say they are (their car stays parked).
+    function showWalker(c, dt) {
+        const w = c.d.w;
+        if (!w) { if (c.avatar) c.avatar.visible = false; return; }
+        if (!c.avatar) {
+            c.avatar = Peds.person(Peds.lookFor('player:' + c.label));
+            const tag = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.48), c.mesh.userData.tag.material); tag.position.y = 2.1; c.avatar.add(tag); c.avatar.userData.tag = tag;
+            c.avatar.position.set(w[0], w[1], w[2]); scene.add(c.avatar);
+        }
+        const a = c.avatar; a.visible = true;
+        if (a.position.distanceTo(tmpV.set(w[0], w[1], w[2])) > 12) a.position.copy(tmpV); else a.position.lerp(tmpV, 0.35);
+        let turn = w[3] - a.rotation.y; while (turn > Math.PI) turn -= 2 * Math.PI; while (turn < -Math.PI) turn += 2 * Math.PI;
+        a.rotation.y += turn * 0.35;
+        Peds.animate(a, dt, w[4] > 0, w[4] > 1);
+        a.userData.tag.quaternion.copy(a.quaternion).invert().multiply(game.camera.quaternion);
+    }
+    const tmpV = new THREE.Vector3();
+    // (host) one player's traffic goes to the players near enough to see it
+    function passTraffic(from, at, list) {
+        if (!Array.isArray(list) || !at) return;
+        const near = (p) => p && Math.hypot(p.x - at.x, p.z - at.z) < 1800;
+        const note = { t: 'tr', from, cars: list.slice(0, 60) };
+        guests.forEach(g => { if (g.id !== from && near(g.d)) send(g.conn, note); });
+        if (from !== 'host' && near(Car.body.position)) Traffic.foreign(from, note.cars);
+    }
     // Riding with another player (walk.js): the car to get into, where it is now, and a word to
     // its driver. A player who is riding reports `riding`, and their own car is not drawn.
     M.carNear = function (pos, reach) {
@@ -272,10 +308,19 @@ window.Multiplayer = (function () {
     M.tell = function (id, text) { if (M.role && cars[id]) post({ t: 'msg', to: id, text }); };
     // what to call a player: the name they picked, else HOST or PLAYER 2, 3...
     const labelOf = (d) => cleanName(d.name) || (d.n === 1 ? 'HOST' : 'PLAYER ' + d.n);
-    function removeCar(id) { if (cars[id]) { scene.remove(cars[id].mesh); delete cars[id]; } }
+    function removeCar(id) {
+        if (!cars[id]) return;
+        scene.remove(cars[id].mesh); if (cars[id].avatar) scene.remove(cars[id].avatar);
+        delete cars[id];
+        Traffic.dropForeign(id);
+    }
     function myState() {
         const p = Car.body.position, q = Car.body.quaternion;
-        return { t: 'p', x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w, car: Car.data.id, name: myName(), riding: !!(window.Walk && Walk.passenger) };
+        const me = { t: 'p', x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w, car: Car.data.id, name: myName(), riding: !!(window.Walk && Walk.passenger) };
+        // on foot out of doors: where I am walking [x, y, z, heading, 0 still / 1 walking / 2 running]
+        const W = window.Walk;
+        if (W && W.active && !W.room && !W.passenger) me.w = [Math.round(W.pos.x * 100) / 100, Math.round(W.pos.y * 100) / 100, Math.round(W.pos.z * 100) / 100, Math.round(W.yaw * 100) / 100, W.moving ? (W.running ? 2 : 1) : 0];
+        return me;
     }
     // the screens before driving, if this player is still on them
     function startDriving() {
@@ -317,6 +362,7 @@ window.Multiplayer = (function () {
             g.heard = Date.now();
             if (!d || !g.n) return;
             if (d.t === 'p') { d.n = g.n; g.d = d; placeCar(g.id, d); }
+            else if (d.t === 'tr') passTraffic(g.id, g.d, d.cars);
             else if (d.t === 'msg' || d.t === 'coins') passOn(g, d);
         });
         conn.on('close', () => guestGone(g));
@@ -362,7 +408,9 @@ window.Multiplayer = (function () {
         if (d.t === 'full') { status('That room is full.', RED, 5000); return; }
         if (d.t === 'hi') { myN = d.n; if (cleanName(d.host)) status('You are in ' + cleanName(d.host) + "'s room.", GREEN, 4000); goNear(d); return; }
         if (d.t === 'msg' || d.t === 'coins') { receive(d); return; }
+        if (d.t === 'tr') { Traffic.foreign(String(d.from), d.cars); return; }
         if (d.t !== 'all') return;
+        hearClock(d.now);
         const here = {};
         d.ps.forEach(s => { here[s.id] = true; placeCar(s.id, s); });
         Object.keys(cars).forEach(id => { if (!here[id]) removeCar(id); });   // (someone left)
@@ -482,6 +530,7 @@ window.Multiplayer = (function () {
         if (M.role === 'host') { announce(false); guests.forEach(g => { try { g.conn.close(); } catch (e) { /* (gone already) */ } }); guests = []; }
         if (hostConn) { const c = hostConn; hostConn = null; try { c.close(); } catch (e) { /* (gone already) */ } }
         Object.keys(cars).forEach(removeCar);
+        Traffic.dropForeign(); clockAhead = 0; clockKnown = false;
         M.role = null; M.ready = false;
         $('mp-waiting').style.display = 'none';
         status(msg || 'You left the room.', msg ? RED : null, 4000);
@@ -519,8 +568,15 @@ window.Multiplayer = (function () {
                     // everyone's car to everyone else: the host is 'host', a guest goes by their peer id
                     const all = [Object.assign({ id: 'host', n: 1 }, me)];
                     guests.forEach(g => { if (g.d) all.push(Object.assign({ id: g.id }, g.d)); });
-                    guests.forEach(g => send(g.conn, { t: 'all', ps: all.filter(s => s.id !== g.id) }));
+                    guests.forEach(g => send(g.conn, { t: 'all', now: Date.now(), ps: all.filter(s => s.id !== g.id) }));
                 }
+            }
+            // my traffic, five times a second, while there is anyone to tell
+            trafficTimer += dt;
+            if (trafficTimer >= 0.2 && Object.keys(cars).length) {
+                trafficTimer = 0;
+                const list = Traffic.report();
+                if (M.role === 'guest') send(hostConn, { t: 'tr', cars: list }); else passTraffic('host', Car.body.position, list);
             }
         }
         Object.values(cars).forEach(c => {
@@ -530,6 +586,7 @@ window.Multiplayer = (function () {
             else { c.mesh.position.lerp(to, 0.5); c.mesh.quaternion.slerp(rot, 0.5); }
             // (the name tag faces the camera whatever way the car points)
             c.mesh.userData.tag.quaternion.copy(c.mesh.quaternion).invert().multiply(game.camera.quaternion);
+            showWalker(c, dt);
         });
     };
 

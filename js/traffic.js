@@ -1,6 +1,12 @@
 // tokyo-driver1 v2 — AI traffic. Cars follow road lanes (Road records), keep their distance,
 // stop at red lights, turn at intersections, take exits and merge from on-ramps, and are
 // recycled around the player. Each car has a kinematic physics box so the player can hit it.
+//
+// In a multiplayer room every player runs the traffic round themselves and tells the others
+// about it (T.report, five times a second, through Multiplayer), and shows the cars the others
+// are running (T.foreign): those just roll along their lane at the speed last heard, so both
+// players see the same car in the same place. Players near each other share the MAX between
+// them, or the road would hold twice the cars.
 window.Traffic = (function () {
     const T = { cars: [], MAX: 34, SPAWN_R: 650, DESPAWN_R: 1000, links: [] };
     let scene, world;
@@ -8,6 +14,8 @@ window.Traffic = (function () {
     const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
     const COLORS = [0xd8d8d8, 0x202428, 0x8a8f94, 0xb0121b, 0x1a3f8f, 0xf2f2f2, 0x5a6b3a, 0xc27a1e, 0x3a3f44, 0xe8c547];
     const tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler();
+    let nextId = 1, frame = 0;
+    const theirs = {};                                                    // other players' cars here, by owner:id
 
     T.init = function (sc, w) { scene = sc; world = w; };
 
@@ -25,12 +33,18 @@ window.Traffic = (function () {
     // ---------- visuals ----------
     // real car shapes from the Kenney kit when the loader is there; a van or a truck now and then
     const KINDS = ['sedan', 'sedan', 'sedan', 'sedan-sports', 'hatchback-sports', 'suv', 'suv', 'suv-luxury', 'taxi', 'van', 'police', 'truck', 'delivery'];
-    function makeMesh(color) {
-        const kind = Math.random();
-        const long = kind < 0.15 ? 5.2 : 4.2, tall = kind < 0.15 ? 1.9 : 1.35;
+    // what a car looks like, as three numbers that can be sent to another player: its colour,
+    // its model, and whether it is a big one (a truck or a van)
+    function newLook() {
+        const big = Math.random() < 0.15;
+        return [Math.floor(Math.random() * COLORS.length), big ? KINDS.indexOf(Math.random() < 0.5 ? 'truck' : 'delivery') : Math.floor(Math.random() * KINDS.length), big ? 1 : 0];
+    }
+    function makeMesh(look) {
+        const color = COLORS[look[0]] || COLORS[0], big = !!look[2];
+        const long = big ? 5.2 : 4.2, tall = big ? 1.9 : 1.35;
         let g;
         if (window.Models && Models.ready) {
-            const name = kind < 0.15 ? (Math.random() < 0.5 ? 'truck' : 'delivery') : KINDS[Math.floor(Math.random() * KINDS.length)];
+            const name = KINDS[look[1]] || 'sedan';
             // the model's own wheels are hidden; traffic cars get simple spinning-free wheels
             g = Models.car(name, color, long, { keepColors: name === 'taxi' || name === 'police' || name === 'delivery', wheels: true });
         } else {
@@ -81,19 +95,62 @@ window.Traffic = (function () {
         }
         if (s === null) return;
         if (T.cars.some(c => c.road === r && c.lane === lane && Math.abs(c.s - s) < 18)) return;
-        const mesh = makeMesh(pick(COLORS));
+        const look = newLook(), made = build(look);
+        const limit = r.type === 'freeway' ? rnd(26, 34) : rnd(11, 16);   // units/s (~60-75 mph, ~25-35 mph)
+        T.cars.push({ id: nextId++, look, road: r, lane, s, dir: lane.dir, speed: limit * 0.8, limit, mesh: made.mesh, body: made.body, cross: null, cooldown: 0 });
+    }
+    // the mesh and the kinematic box of a car that looks like `look`
+    function build(look) {
+        const mesh = makeMesh(look);
         scene.add(mesh);
         const size = mesh.userData.size;
         const body = new CANNON.Body({ mass: 0, type: CANNON.Body.KINEMATIC });
         body.addShape(new CANNON.Box(new CANNON.Vec3(size[0] / 2, size[1] / 2, size[2] / 2)), new CANNON.Vec3(0, size[1] / 2 + 0.3, 0));
         world.addBody(body);
-        const limit = r.type === 'freeway' ? rnd(26, 34) : rnd(11, 16);   // units/s (~60-75 mph, ~25-35 mph)
-        T.cars.push({ road: r, lane, s, dir: lane.dir, speed: limit * 0.8, limit, mesh, body, cross: null, cooldown: 0 });
+        return { mesh, body };
     }
 
     function remove(car) {
         scene.remove(car.mesh); world.removeBody(car.body);
         const i = T.cars.indexOf(car); if (i >= 0) T.cars.splice(i, 1);
+        if (car.key) delete theirs[car.key];
+    }
+
+    // ---------- multiplayer ----------
+    // my own cars, for the other players: [id, road, lane, s, speed, dir, colour, model, big]
+    T.report = function () {
+        const out = [];
+        T.cars.forEach(c => { if (!c.foreign) out.push([c.id, c.road.uid, c.road.lanes.indexOf(c.lane), Math.round(c.s * 10) / 10, Math.round(c.speed * 10) / 10, c.dir, c.look[0], c.look[1], c.look[2]]); });
+        return out;
+    };
+    // another player's cars as they last reported them: new ones appear, the ones they no longer
+    // list go, and the rest are nudged to where they say they are (or put there, if far out)
+    T.foreign = function (owner, list) {
+        if (!Array.isArray(list)) return;
+        const seen = {}, now = Date.now();
+        list.slice(0, 60).forEach(a => {
+            if (!Array.isArray(a)) return;
+            const key = owner + ':' + a[0], road = Road.byUid(a[1]), lane = road && road.lanes[a[2]];
+            if (!road || !lane || !Object.keys(road.chunks).length) return;   // (a road that is not built here: they are further off than we can see)
+            const s = Math.max(0, Math.min(road.length, Number(a[3]) || 0)), dir = a[5] === -1 ? -1 : 1;
+            seen[key] = true;
+            let c = theirs[key];
+            if (!c) {
+                const look = [a[6] | 0, a[7] | 0, a[8] ? 1 : 0], made = build(look);
+                c = theirs[key] = { foreign: owner, key, look, mesh: made.mesh, body: made.body, road, lane, dir, s, speed: 0, limit: 0, cross: null, cooldown: 0 };
+                T.cars.push(c);
+            } else if (c.road !== road || c.lane !== lane || c.dir !== dir || Math.abs(c.s - s) > 12) { c.road = road; c.lane = lane; c.dir = dir; c.s = s; }
+            else c.s += (s - c.s) * 0.35;
+            c.speed = Math.max(0, Math.min(60, Number(a[4]) || 0)); c.stamp = now;
+        });
+        Object.keys(theirs).forEach(key => { if (theirs[key].foreign === owner && !seen[key]) remove(theirs[key]); });
+    };
+    // a player has left (or, with no owner, the room is over): their cars go
+    T.dropForeign = function (owner) { Object.keys(theirs).forEach(key => { if (!owner || theirs[key].foreign === owner) remove(theirs[key]); }); };
+    // the other players near enough to share this stretch of road with
+    function sharers(playerPos) {
+        if (!window.Multiplayer || !Multiplayer.others) return [];
+        return Multiplayer.others().filter(o => Math.hypot(o.x - playerPos.x, o.z - playerPos.z) < T.SPAWN_R * 1.5);
     }
 
     // ---------- navigation ----------
@@ -149,31 +206,53 @@ window.Traffic = (function () {
             const gap = (o.s - car.s) * car.dir;
             if (gap > 0 && gap < 60 && (!best || gap < best.gap)) best = { gap, speed: o.speed };
         }
-        // the player: project onto this road (lateral offset from the frame, not 3D distance,
-        // because frames are 8 units apart along the road)
-        const n = Road.nearest(car.road, playerPos);
-        if (n.dist < car.road.width) {
+        // the player, and any other player near: project onto this road (lateral offset from the
+        // frame, not 3D distance, because frames are 8 units apart along the road)
+        const person = (pos, speed) => {
+            const n = Road.nearest(car.road, pos);
+            if (n.dist >= car.road.width) return;
             const f = n.frame;
-            const dx = playerPos.x - f.p.x, dz = playerPos.z - f.p.z;
+            const dx = pos.x - f.p.x, dz = pos.z - f.p.z;
             const along = dx * f.tan.x + dz * f.tan.z;
             const lateral = dx * f.right.x + dz * f.right.z;
             const gap = (n.s + along - car.s) * car.dir;
-            if (gap > 0 && gap < 60 && Math.abs(lateral - car.lane.offset) < 2.6 && (!best || gap < best.gap)) best = { gap, speed: Math.max(0, playerSpeed) };
-        }
+            if (gap > 0 && gap < 60 && Math.abs(lateral - car.lane.offset) < 2.6 && (!best || gap < best.gap)) best = { gap, speed: Math.max(0, speed) };
+        };
+        person(playerPos, playerSpeed);
+        for (let i = 0; i < near.length; i++) { probe.set(near[i].x, playerPos.y, near[i].z); person(probe, near[i].speed); }
         return best;
     }
+    let near = [];                                                        // the other players sharing the road (set once a frame)
+    const probe = new THREE.Vector3();
 
     T.update = function (dt, playerPos, playerSpeed) {
-        // recycle
+        // recycle: my own cars when they are far from me, another player's when they have not
+        // been heard of for a moment (that player went away, or the car left what we both see)
+        const now = Date.now();
+        let own = 0;
         for (let i = T.cars.length - 1; i >= 0; i--) {
             const c = T.cars[i];
-            if (c.mesh.position.distanceTo(playerPos) > T.DESPAWN_R || Object.keys(c.road.chunks).length === 0) remove(c);
+            if (Object.keys(c.road.chunks).length === 0 || (c.foreign ? now - c.stamp > 1500 : c.mesh.position.distanceTo(playerPos) > T.DESPAWN_R)) remove(c);
+            else if (!c.foreign) own++;
         }
-        if (T.cars.length < T.MAX && Math.random() < 0.5) spawn(playerPos);
+        // players near each other share the MAX between them
+        near = sharers(playerPos);
+        const mine = Math.ceil(T.MAX / (1 + near.length));
+        if (own < mine && Math.random() < 0.5) spawn(playerPos);
+        else if (own > mine && frame++ % 20 === 0) {                      // too many now that someone has come near: the farthest of mine goes
+            let far = null, fd = 80;
+            T.cars.forEach(c => { if (c.foreign) return; const d = c.mesh.position.distanceTo(playerPos); if (d > fd) { fd = d; far = c; } });
+            if (far) remove(far);
+        }
 
         const night = window.Sky ? Sky.night : 0;
         for (let i = 0; i < T.cars.length; i++) {
             const c = T.cars[i];
+            if (c.foreign) {                                              // another player's car: it only rolls on at the speed they gave
+                c.s = Math.max(0, Math.min(c.road.length, c.s + c.dir * c.speed * dt));
+                settle(c, night);
+                continue;
+            }
             c.cooldown = Math.max(0, c.cooldown - dt);
             if (c.cross) {
                 c.cross.t += c.speed * dt / c.cross.len;
@@ -224,17 +303,20 @@ window.Traffic = (function () {
                 if (!nextRoad(c)) { remove(c); i--; continue; }
                 continue;
             }
-            const f = Road.at(c.road, c.s, c.lane.offset);
-            c.mesh.position.copy(f.p);
-            c.mesh.rotation.set(0, Math.atan2(f.tan.x * c.dir, f.tan.z * c.dir), 0);
-            // tilt with the road slope
-            const pitch = Math.asin(Math.max(-1, Math.min(1, f.tan.y))) * c.dir;
-            c.mesh.rotation.x = -pitch;
-            placeBody(c);
-            c.mesh.userData.lights.head.emissiveIntensity = night * 1.2;
-            c.mesh.userData.lights.tail.emissiveIntensity = 0.15 + night * 0.8;
+            settle(c, night);
         }
     };
+    // put a car's mesh and box where its road, lane and s say, tilted with the slope, lights on at night
+    function settle(c, night) {
+        const f = Road.at(c.road, c.s, c.lane.offset);
+        c.mesh.position.copy(f.p);
+        c.mesh.rotation.set(0, Math.atan2(f.tan.x * c.dir, f.tan.z * c.dir), 0);
+        const pitch = Math.asin(Math.max(-1, Math.min(1, f.tan.y))) * c.dir;
+        c.mesh.rotation.x = -pitch;
+        placeBody(c);
+        c.mesh.userData.lights.head.emissiveIntensity = night * 1.2;
+        c.mesh.userData.lights.tail.emissiveIntensity = 0.15 + night * 0.8;
+    }
 
     function placeBody(c) {
         c.body.position.set(c.mesh.position.x, c.mesh.position.y, c.mesh.position.z);

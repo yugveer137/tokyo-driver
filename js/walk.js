@@ -140,7 +140,7 @@ window.Walk = (function () {
         const riding = !!(W.passenger && rideAlong());                       // in another player's car
         if (riding) mv = 0;
         if (mv) { W.pos.x += Math.sin(W.yaw) * mv * dt; W.pos.z += Math.cos(W.yaw) * mv * dt; }
-        W.running = !!(run && mv);
+        W.running = !!(run && mv); W.moving = mv !== 0;
         if (W.room) W.room.clamp(W.pos);
         if (W.room) W.gy = W.room.floorY;
         else if (W.ride || riding) W.gy = W.pos.y;

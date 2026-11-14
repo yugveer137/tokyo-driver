@@ -7,8 +7,17 @@ window.City = (function () {
     const C = { all: [], nightMats: [], lights: [] };
     let scene, world;
     const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-    const rnd = (a, b) => a + Math.random() * (b - a);
-    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    // Every choice made while a city is built comes from `rand`, which is that city's own
+    // generator seeded from its id (see `steps`): so the same city is the same city every time
+    // it loads, and for every player in a multiplayer room (one player's hotel was another's
+    // market). Outside a build it is plain Math.random.
+    function seeded(a) {
+        return function () { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    }
+    const hashOf = (text) => { let h = 9; for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
+    let rand = Math.random;
+    const rnd = (a, b) => a + rand() * (b - a);
+    const pick = (arr) => arr[Math.floor(rand() * arr.length)];
 
     C.init = function (sc, w) { scene = sc; world = w; buildTextures(); };
 
@@ -262,10 +271,10 @@ window.City = (function () {
         const [minH, maxH] = city.skyline(dNorm);
         for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) {
             const lx = cx - B / 2 + margin + lot * (a + 0.5), lz = cz - B / 2 + margin + lot * (b + 0.5);
-            if (a === 1 && b === 1 && Math.random() < 0.6) continue;         // courtyard gap
+            if (a === 1 && b === 1 && rand() < 0.6) continue;         // courtyard gap
             const w = lot * rnd(0.6, 0.92), d = lot * rnd(0.6, 0.92);
             let h = rnd(minH, maxH);
-            if (Math.random() < 0.08) h *= 1.5;                               // the odd standout tower
+            if (rand() < 0.08) h *= 1.5;                               // the odd standout tower
             // which street the lot looks onto: the nearest edge of its block (the middle lot looks onto none)
             const face = a !== 1 ? [a - 1, 0] : b !== 1 ? [0, b - 1] : null;
             buildBuilding(city, lx, lz, w, h, d, dNorm, face);
@@ -290,7 +299,7 @@ window.City = (function () {
     const shade = (hex, k) => new THREE.Color(hex).multiplyScalar(k).getHex();
     // a shopfront band: every wall shows a whole number of shops, starting at a random one of the four
     function shopBand(w, h, d) {
-        const geom = new THREE.BoxGeometry(w, h, d), uv = geom.attributes.uv, start = Math.floor(Math.random() * SHOPS);
+        const geom = new THREE.BoxGeometry(w, h, d), uv = geom.attributes.uv, start = Math.floor(rand() * SHOPS);
         [d, d, 0, 0, w, w].forEach((across, f) => {
             const shops = Math.max(1, Math.round(across / SHOP_W));
             for (let k = 0; k < 4; k++) {
@@ -311,10 +320,10 @@ window.City = (function () {
     function buildBuilding(city, lx, lz, w, h, d, dNorm, face) {
         const p = city.toWorld(lx, lz);
         const ground = Terrain.height(p.x, p.z) + 0.3;
-        const tall = h > 45, glassy = tall && Math.random() < 0.5;
-        const color = glassy ? 0x6a8fb0 : Math.random() < 0.45 ? pick(WARM_WALLS) : pick(city.palette);
+        const tall = h > 45, glassy = tall && rand() < 0.5;
+        const color = glassy ? 0x6a8fb0 : rand() < 0.45 ? pick(WARM_WALLS) : pick(city.palette);
         const roofColor = glassy ? 0x39424d : shade(color, 0.6);
-        const mat = wallMat(Math.floor(Math.random() * windowSets.length), tall);
+        const mat = wallMat(Math.floor(rand() * windowSets.length), tall);
         const cosH = Math.cos(city.heading), sinH = Math.sin(city.heading);
         // one part of the building: `y` above the ground, moved (ox, oz) in the building's own axes
         const part = (geom, material, y, col, ox, oz) => {
@@ -327,7 +336,7 @@ window.City = (function () {
         };
         // A tower steps back twice on its way up; anything lower is one block. Every step ends
         // in a roof slab a little wider than its walls, so each roof line has an edge.
-        const tiers = tall && Math.random() < 0.6 ? [[1, 0.58], [0.78, 0.85], [0.56, 1]] : [[1, 1]];   // [share of the footprint, top as a share of the height]
+        const tiers = tall && rand() < 0.6 ? [[1, 0.58], [0.78, 0.85], [0.56, 1]] : [[1, 1]];   // [share of the footprint, top as a share of the height]
         let from = -FOUND, tw = w, td = d;
         tiers.forEach(([share, top]) => {
             const to = h * top, hh = to - from; tw = w * share; td = d * share;
@@ -358,16 +367,16 @@ window.City = (function () {
             city.places.push({ city, kind, name, p: at, centre: p.clone(), yaw: city.heading + Math.atan2(fx, fz) });
         }
         // what stands on the roof
-        const spot = () => [(Math.random() - 0.5) * tw * 0.45, (Math.random() - 0.5) * td * 0.45];
+        const spot = () => [(rand() - 0.5) * tw * 0.45, (rand() - 0.5) * td * 0.45];
         if (tall) {
             const mast = h * 0.12;
             part(new THREE.BoxGeometry(tw * 0.4, 2.2, td * 0.4), trimMat, h + 1.4, shade(roofColor, 1.3));   // the lift machinery
             part(new THREE.CylinderGeometry(0.15, 0.3, mast, 6), poleMat, h + 2.5 + mast / 2);
             part(new THREE.SphereGeometry(0.45, 8, 6), beaconMat, h + 2.5 + mast);
         } else {
-            if (Math.random() < 0.6) { const [x, z] = spot(); part(new THREE.BoxGeometry(w * 0.28, 1.2, d * 0.28), trimMat, h + 0.95, 0x8a8f94, x, z); }      // air conditioning
-            if (Math.random() < 0.3) { const [x, z] = spot(); part(new THREE.BoxGeometry(3, 2.4, 3), trimMat, h + 1.55, shade(color, 0.85), x, z); }           // the door to the stairs
-            if (h > 14 && Math.random() < 0.25) {                                                                                                                // a water tank on its stand
+            if (rand() < 0.6) { const [x, z] = spot(); part(new THREE.BoxGeometry(w * 0.28, 1.2, d * 0.28), trimMat, h + 0.95, 0x8a8f94, x, z); }      // air conditioning
+            if (rand() < 0.3) { const [x, z] = spot(); part(new THREE.BoxGeometry(3, 2.4, 3), trimMat, h + 1.55, shade(color, 0.85), x, z); }           // the door to the stairs
+            if (h > 14 && rand() < 0.25) {                                                                                                                // a water tank on its stand
                 const [x, z] = spot();
                 part(new THREE.BoxGeometry(2.2, 1.2, 2.2), trimMat, h + 0.95, 0x55585c, x, z);
                 part(new THREE.CylinderGeometry(1.3, 1.3, 2.4, 10), trimMat, h + 2.75, 0x7a5a40, x, z);
@@ -380,7 +389,8 @@ window.City = (function () {
     // A residential block: a row of little houses along each of its two north-south streets,
     // each with a door onto the sidewalk, lit windows at night and a tree in the back garden.
     // Every house is listed in city.houses with its address, for the robbery mode.
-    const HOUSE_COLORS = [0xd9c9a6, 0xc9b490, 0xa9bdc9, 0xd4b4a4, 0xb7c6a4, 0xdcd3bd, 0xc4ae9c, 0x9fb0bd, 0xd8b8a0, 0xb5a98f];
+    const HOUSE_COLORS = [0xd9c9a6, 0xc9b490, 0xa9bdc9, 0xd4b4a4, 0xb7c6a4, 0xdcd3bd, 0xc4ae9c, 0x9fb0bd, 0xd8b8a0, 0xb5a98f,
+                          0xe2a6a0, 0x9cc0d8, 0xf0e2a0, 0xc8b0d8, 0xa0c8a0, 0xd88a70, 0xf4f1ea, 0x7fa0b8, 0xe8c070, 0x8fb89a];   // (the second row: bolder paint)
     const ROOF_COLORS = [0x5a3d2e, 0x3c3c44, 0x6a4a3a, 0x334050, 0x4c3a32];
     // The colours above are written as they should look. The renderer takes a hex colour as
     // light, not as paint, and shows it paler (every house came out near-white with a pink
@@ -406,6 +416,13 @@ window.City = (function () {
         [-1, 1].forEach(side => { for (let k = 0; k < n; k++) buildHouse(city, C.housePlan(city, i, j, side, k)); });   // -1 faces street j, +1 faces street j+1
         buildTrees(city, cx, cz, B - 30, 3);
     }
+    // Every house is built from its own key, so it is the same house each time the city loads
+    // and for every player, and no two side by side are alike: one storey or two, a hip, gable
+    // or flat roof, a garage or a front window, a porch, shutters, a hedge or a picket fence.
+    // (The door and the plan's size never change: the robbery, the realtor and the rooms inside
+    // all work from City.housePlan.)
+    const ACCENTS = [0x7a1f1f, 0x1f3f6a, 0x2f5a3a, 0x3a2a20, 0x6a3f7a, 0xd9a03f, 0x1f1f1f, 0xb5482a];
+    let gableGeom = null;
     function buildHouse(city, plan) {
         if (!houseWindowMat) {
             houseWindowMat = new THREE.MeshStandardMaterial({ color: 0x1c2a3c, emissive: 0xffe2a8, emissiveIntensity: 0, roughness: 0.3 });
@@ -417,27 +434,79 @@ window.City = (function () {
         // (painted stucco and roof tiles: one material each for every house, the colour goes into the vertices)
         if (!houseWallMat) { houseWallMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }); houseRoofMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }); }
         if (!houseTrimMat) { houseTrimMat = new THREE.MeshStandardMaterial({ color: 0xf7f7f2, roughness: 0.7 }); housePathMat = new THREE.MeshStandardMaterial({ color: 0x9a9a94, roughness: 1 }); houseChimneyMat = new THREE.MeshStandardMaterial({ color: 0x8a5a48, roughness: 0.95 }); }
+        // this house's own choices
+        const r = seeded(hashOf(plan.key)), choose = (arr) => arr[Math.floor(r() * arr.length)];
+        const floors = r() < 0.35 ? 2 : 1, H = floors === 2 ? h + 2.9 : h;      // the wall height
+        const roofKind = choose(['hip', 'hip', 'gable', 'gable', 'flat']);
+        const garage = r() < 0.4, porch = r() < 0.5, shutters = r() < 0.45, edge = choose(['none', 'none', 'hedge', 'fence']);
+        const wallColor = asPainted(choose(HOUSE_COLORS)), roofColor = asPainted(choose(ROOF_COLORS)), accent = asPainted(choose(ACCENTS));
         const g = new THREE.Group(); g.position.set(p.x, ground, p.z); g.rotation.y = yaw;
-        const put = (geom, mat, x, y, z) => { const m = new THREE.Mesh(geom, mat); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; g.add(m); return m; };
-        put(new THREE.BoxGeometry(d, h + 1, w), houseWallMat, 0, h / 2 - 0.5, 0).userData.color = asPainted(pick(HOUSE_COLORS));   // the house (local x = toward the street side)
-        put(new THREE.BoxGeometry(d + 0.5, 0.18, w + 0.5), houseTrimMat, 0, h + 0.05, 0);   // the eaves
-        const roof = put(new THREE.ConeGeometry(Math.hypot(d, w) / 2 + 0.6, 2.6, 4), houseRoofMat, 0, h + 1.3, 0); roof.userData.color = asPainted(pick(ROOF_COLORS));
-        roof.rotation.y = Math.PI / 4; roof.scale.set(d / Math.hypot(d, w) * 1.42, 1, w / Math.hypot(d, w) * 1.42);
-        put(new THREE.BoxGeometry(0.7, 1.6, 0.7), houseChimneyMat, -facing * 1.2, h + 1.6, w / 2 - 1.4);   // chimney
+        const put = (geom, mat, x, y, z, color) => { const m = new THREE.Mesh(geom, mat); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; if (color !== undefined) m.userData.color = color; g.add(m); return m; };
+        put(new THREE.BoxGeometry(d, H + 1, w), houseWallMat, 0, H / 2 - 0.5, 0, wallColor);   // the house (local x = toward the street side)
+        if (floors === 2) put(new THREE.BoxGeometry(d + 0.12, 0.14, w + 0.12), houseTrimMat, 0, h, 0);   // a band between the storeys
+        put(new THREE.BoxGeometry(d + 0.5, 0.18, w + 0.5), houseTrimMat, 0, H + 0.05, 0);   // the eaves
+        if (roofKind === 'hip') {
+            const roof = put(new THREE.ConeGeometry(Math.hypot(d, w) / 2 + 0.6, 2.6, 4), houseRoofMat, 0, H + 1.3, 0, roofColor);
+            roof.rotation.y = Math.PI / 4; roof.scale.set(d / Math.hypot(d, w) * 1.42, 1, w / Math.hypot(d, w) * 1.42);
+        } else if (roofKind === 'gable') {
+            // a triangular prism, ridge along the street: a three-sided cylinder laid on its side
+            if (!gableGeom) { gableGeom = new THREE.CylinderGeometry(1, 1, 1, 3); gableGeom.rotateX(-Math.PI / 2); }
+            const roof = put(gableGeom, houseRoofMat, 0, H + 0.14 + 0.8, 0, roofColor);
+            roof.scale.set((d / 2 + 0.45) / 0.866, 1.6, w + 0.6);
+        } else {
+            put(new THREE.BoxGeometry(d + 0.7, 0.3, w + 0.7), houseRoofMat, 0, H + 0.28, 0, roofColor);          // a flat roof with a low wall round it
+            put(new THREE.BoxGeometry(d * 0.5, 0.5, w * 0.4), trimMat, -facing * d * 0.1, H + 0.68, w * 0.12, wallColor);
+        }
+        if (roofKind !== 'flat') put(new THREE.BoxGeometry(0.7, 1.6, 0.7), houseChimneyMat, -facing * 1.2, H + 1.6, w / 2 - 1.4);   // chimney
         const fx = facing * (d / 2 + 0.03);                                      // the street-facing wall
-        // door with its frame and a little porch roof, windows in white frames
+        // the door in its frame, in this house's own colour, under a porch roof (on posts, if it has a porch)
         put(new THREE.BoxGeometry(0.1, 2.3, 1.25), houseTrimMat, fx, 1.15, -w / 4);
-        put(new THREE.BoxGeometry(0.08, 2.1, 1.0), houseDoorMat, fx + facing * 0.03, 1.05, -w / 4);
-        put(new THREE.BoxGeometry(1.1, 0.12, 1.8), houseTrimMat, fx + facing * 0.5, 2.4, -w / 4);
+        put(new THREE.BoxGeometry(0.08, 2.1, 1.0), trimMat, fx + facing * 0.03, 1.05, -w / 4, accent);
+        if (porch) {
+            put(new THREE.BoxGeometry(1.7, 0.14, 3.0), houseTrimMat, fx + facing * 0.85, 2.5, -w / 4);
+            [-1.35, 1.35].forEach(dz => put(new THREE.BoxGeometry(0.13, 2.45, 0.13), houseTrimMat, fx + facing * 1.55, 1.23, -w / 4 + dz));
+            put(new THREE.BoxGeometry(1.7, 0.12, 3.0), housePathMat, fx + facing * 0.85, 0.06, -w / 4);
+        } else put(new THREE.BoxGeometry(1.1, 0.12, 1.8), houseTrimMat, fx + facing * 0.5, 2.4, -w / 4);
         const win = (x, y, z, wide, tall, alongZ) => { put(alongZ ? new THREE.BoxGeometry(0.1, tall + 0.24, wide + 0.24) : new THREE.BoxGeometry(wide + 0.24, tall + 0.24, 0.1), houseTrimMat, x, y, z); put(alongZ ? new THREE.BoxGeometry(0.08, tall, wide) : new THREE.BoxGeometry(wide, tall, 0.08), houseWindowMat, x + (alongZ ? Math.sign(x) * 0.03 : 0), y, z + (alongZ ? 0 : Math.sign(z) * 0.03)); };
-        win(fx, 1.9, w / 4, 1.4, 1.0, true);                                     // front window
+        // a front window with shutters either side of it
+        const frontWin = (y, z, wide) => {
+            win(fx, y, z, wide, 1.0, true);
+            if (shutters) [-1, 1].forEach(sd => put(new THREE.BoxGeometry(0.06, 1.15, 0.32), trimMat, fx + facing * 0.04, y, z + sd * (wide / 2 + 0.32), accent));
+        };
+        const pathLen = 8 - d / 2 - 1.3;
+        if (garage) {
+            // a garage door in place of the front window, and a drive down to the street
+            put(new THREE.BoxGeometry(0.1, 2.3, 3.0), houseTrimMat, fx, 1.15, w / 4);
+            [0.5, 1.05, 1.6].forEach(y => put(new THREE.BoxGeometry(0.06, 0.04, 2.8), housePathMat, fx + facing * 0.05, y, w / 4));
+            put(new THREE.BoxGeometry(pathLen, 0.06, 3.0), housePathMat, fx + facing * pathLen / 2, 0.03, w / 4);
+        } else frontWin(1.9, w / 4, r() < 0.5 ? 2.2 : 1.4);
         win(-fx, 1.9, 0, 1.2, 1.0, true);                                        // back window
         [-1, 1].forEach(s => win(0, 1.9, s * (w / 2 + 0.03), 1.2, 1.0, false));  // side windows
+        if (floors === 2) {                                                      // upstairs: two windows to the street, one to the back and each side
+            [-w / 4, w / 4].forEach(z => frontWin(1.9 + 2.9, z, 1.3));
+            win(-fx, 1.9 + 2.9, 0, 1.2, 1.0, true);
+            [-1, 1].forEach(s => win(0, 1.9 + 2.9, s * (w / 2 + 0.03), 1.2, 1.0, false));
+        }
         // a path from the door across the lawn to the sidewalk
-        const pathLen = 8 - d / 2 - 1.3;
         put(new THREE.BoxGeometry(pathLen, 0.06, 1.3), housePathMat, fx + facing * pathLen / 2, 0.03, -w / 4);
+        // along the front of the lawn: a hedge or a white picket fence, with gaps for the path and the drive
+        if (edge !== 'none') {
+            const gaps = [[-w / 4 - 0.9, -w / 4 + 0.9]]; if (garage) gaps.push([w / 4 - 1.7, w / 4 + 1.7]);
+            const runs = []; let from = -w / 2;
+            gaps.forEach(([a, b]) => { if (a > from) runs.push([from, a]); from = b; });
+            if (from < w / 2) runs.push([from, w / 2]);
+            const x = fx + facing * (pathLen - 0.45);
+            runs.forEach(([a, b]) => {
+                const len = b - a, mid = (a + b) / 2;
+                if (edge === 'hedge') put(new THREE.BoxGeometry(0.6, 0.85, len), trimMat, x, 0.42, mid, asPainted(0x2f6a34));
+                else {
+                    [0.4, 0.75].forEach(y => put(new THREE.BoxGeometry(0.05, 0.07, len), houseTrimMat, x, y, mid));
+                    for (let z = a + 0.15; z < b; z += 0.45) put(new THREE.BoxGeometry(0.06, 0.9, 0.1), houseTrimMat, x, 0.45, z);
+                }
+            });
+        }
         addMesh(city, g, true);
-        addBox(city, d, h, w, p.x, ground + h / 2, p.z, yaw);
+        addBox(city, d, H, w, p.x, ground + H / 2, p.z, yaw);
         plan.group = g;
         city.houses.push(plan);
     }
@@ -673,7 +742,7 @@ window.City = (function () {
     }
     // a park: trees scattered over the lawn
     function buildTrees(city, cx, cz, span, count) {
-        for (let k = 0; k < count; k++) treeAt(city, cx + (Math.random() - 0.5) * span, cz + (Math.random() - 0.5) * span, rnd(0.9, 1.5));
+        for (let k = 0; k < count; k++) treeAt(city, cx + (rand() - 0.5) * span, cz + (rand() - 0.5) * span, rnd(0.9, 1.5));
     }
     // a downtown block: two small trees on the sidewalk along each of its four sides
     function streetTrees(city, cx, cz, B) {
@@ -715,7 +784,9 @@ window.City = (function () {
         const list = [() => { city.treeSpots = []; city.lenses = {}; city.places = []; first = city.meshes.length; city.still = new THREE.Group(); buildStreets(city, 0); }, () => buildStreets(city, 1), () => buildStreets(city, 2)];
         for (let i = 0; i < city.rows; i++) list.push(() => buildBlockRow(city, i));
         list.push(() => finish(city, first));
-        return list;
+        // (each step draws its random numbers from this city's own generator)
+        const own = seeded(hashOf(city.id));
+        return list.map(step => () => { rand = own; try { step(); } finally { rand = Math.random; } });
     }
     C.loadStep = function (city) {
         if (city.loaded) return true;
@@ -763,7 +834,8 @@ window.City = (function () {
         const night = window.Sky ? Sky.night : 0;
         for (let i = 0; i < C.nightMats.length; i++) C.nightMats[i].emissiveIntensity = night * 1.3;
         const pool = Tex.lightPool(); pool.opacity = night * 0.5; pool.visible = night > 0.03;   // the lamps' light on the road
-        cycleT = (cycleT + dt) % 8;
+        // (by the clock every player shares, so a light is red for both players at once)
+        cycleT = ((window.Multiplayer && Multiplayer.now ? Multiplayer.now() : Date.now()) / 1000) % 8;
         for (let i = 0; i < C.lights.length; i++) {
             const L = C.lights[i], t = (cycleT + L.phase) % 8;
             const nsState = t < 3.2 ? 2 : t < 4 ? 1 : 0;                 // green, yellow, red
