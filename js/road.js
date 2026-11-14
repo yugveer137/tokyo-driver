@@ -178,11 +178,11 @@ window.Road = (function () {
     }
     R.strip = strip; R.frames = frames;
 
+    // (a chunk's parts collect in chunk.still, which is merged and put in the scene when the chunk is done)
     function mesh(geom, mat, shadow, chunk) {
         const m = new THREE.Mesh(geom, mat);
         m.receiveShadow = true; m.castShadow = !!shadow;
-        scene.add(m);
-        chunk.meshes.push(m);
+        chunk.still.add(m);
         return m;
     }
 
@@ -273,7 +273,7 @@ window.Road = (function () {
         const i0 = Math.max(0, Math.floor(s0 / rec.segLen)), i1 = Math.min(rec.frames.length - 1, Math.ceil(s1 / rec.segLen));
         if (i1 - i0 < 1) return null;
         const fr = rec.frames.slice(i0, i1 + 1);
-        const chunk = { meshes: [], bodies: [] };
+        const chunk = { meshes: [], bodies: [], still: new THREE.Group() };
         rec.chunks[key] = chunk;
         // (where the chunk is and how far it reaches from there, for R.updatePhysics)
         chunk.centre = fr[Math.floor(fr.length / 2)].p.clone();
@@ -336,10 +336,8 @@ window.Road = (function () {
         }
         // Join the chunk's still parts into one mesh per material (batch.js): a 400 m stretch of
         // freeway was 140 meshes (every reflector, lamp and pier its own) and is now about eight.
-        const still = new THREE.Group();
-        chunk.meshes.forEach(m => still.add(m));
-        Batch.merge(still); scene.add(still);
-        chunk.meshes = [still];
+        Batch.merge(chunk.still); scene.add(chunk.still);
+        chunk.meshes = [chunk.still];
         raisePiers(chunk);
         return key;
     };
@@ -396,7 +394,7 @@ window.Road = (function () {
             const m = new THREE.Mesh(geom, mat);
             m.position.copy(f.p).addScaledVector(f.right, lat); m.position.y += up;
             m.rotation.y = yaw === undefined ? Math.atan2(f.tan.x, f.tan.z) : yaw;
-            scene.add(m); chunk.meshes.push(m);
+            chunk.still.add(m);
             return m;
         };
         // the light a lamp throws: a patch `wide` x `long` lying on the road around lateral `lat`
@@ -407,7 +405,7 @@ window.Road = (function () {
             g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
             g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 1, 1], 2));
             g.setIndex([0, 1, 2, 1, 3, 2]); g.computeVertexNormals();          // (wound to face up, as Road.strip is)
-            const m = new THREE.Mesh(g, Tex.lightPool()); scene.add(m); chunk.meshes.push(m);
+            chunk.still.add(new THREE.Mesh(g, Tex.lightPool()));
         };
         const every = (s, step) => Math.round(s) % step === 0;
         fr.forEach((f, i) => {

@@ -116,7 +116,7 @@ window.City = (function () {
         city.toWorld = (lx, lz) => new THREE.Vector3(city.center.x + lx * cosH + lz * sinH, 0, city.center.z - lx * sinH + lz * cosH);
         city.toLocal = (x, z) => { const dx = x - city.center.x, dz = z - city.center.z; return { lx: dx * cosH - dz * sinH, lz: dx * sinH + dz * cosH }; };
         // terrain: flatten to the plateau (plus the city's own hills), blended over 120 units outside
-        Terrain.shapers.push((x, z, h) => {
+        const plateau = (x, z, h) => {
             const l = city.toLocal(x, z);
             const ox = Math.max(0, Math.abs(l.lx) - city.W / 2 - 40), oz = Math.max(0, Math.abs(l.lz) - city.D / 2 - 40);
             const out = Math.hypot(ox, oz);
@@ -124,13 +124,18 @@ window.City = (function () {
             const inside = city.base + (city.hills ? city.hills(l.lx, l.lz) : 0);
             const k = smooth(0, 120, out);
             return inside * (1 - k) + h * k;
-        });
+        };
+        plateau.reach = { x: city.center.x, z: city.center.z, r: Math.hypot(city.W / 2 + 161, city.D / 2 + 161) };   // (it changes nothing further out: see Terrain.height)
+        Terrain.shapers.push(plateau);
         C.all.push(city);
         return city;
     };
 
     // ---------- building ----------
-    function addMesh(city, m, shadow) { m.castShadow = !!shadow; m.receiveShadow = true; scene.add(m); city.meshes.push(m); return m; }
+    // (while a city is being built its parts go straight into the group that is merged at the
+    // end, not through the scene: adding 20,000 things to the scene and taking them out again
+    // cost half a second)
+    function addMesh(city, m, shadow) { m.castShadow = !!shadow; m.receiveShadow = true; if (city.still) city.still.add(m); else { scene.add(m); city.meshes.push(m); } return m; }
     function addBox(city, w, h, d, x, y, z, yaw) {
         const body = new CANNON.Body({ mass: 0 });
         body.addShape(new CANNON.Box(new CANNON.Vec3(w / 2, h / 2, d / 2)));
@@ -142,10 +147,12 @@ window.City = (function () {
     C.addBox = addBox;                                                       // (world.js uses it for the police station)
     const groundAt = (city, lx, lz) => { const p = city.toWorld(lx, lz); return Terrain.height(p.x, p.z); };
 
-    function buildStreets(city) {
+    // The streets, in three parts (each is one step of building the city): the north-south
+    // streets, the east-west ones, then the intersections.
+    function buildStreets(city, part) {
         const ns = city.streets.ns, ew = city.streets.ew, half = city.street / 2;
         // street segments between intersections (so the ribbons never overlap at crossings)
-        for (let j = 0; j <= city.cols; j++) {
+        if (part === 0) for (let j = 0; j <= city.cols; j++) {
             const type = (j % 3 === 0) ? 'avenue' : 'street';
             for (let i = 0; i < city.rows; i++) {
                 const a = city.toWorld(city.streetX(j), city.streetZ(i) + half), b = city.toWorld(city.streetX(j), city.streetZ(i + 1) - half);
@@ -155,7 +162,7 @@ window.City = (function () {
                 city.roads.push(r);
             }
         }
-        for (let i = 0; i <= city.rows; i++) {
+        if (part === 1) for (let i = 0; i <= city.rows; i++) {
             const type = (i % 2 === 0) ? 'avenue' : 'street';
             for (let j = 0; j < city.cols; j++) {
                 const a = city.toWorld(city.streetX(j) + half, city.streetZ(i)), b = city.toWorld(city.streetX(j + 1) - half, city.streetZ(i));
@@ -165,6 +172,7 @@ window.City = (function () {
                 city.roads.push(r);
             }
         }
+        if (part !== 2) return;
         city.lightMap = {};
         city.lightAt = (i, j) => city.lightMap[i + ',' + j];
         // intersections: crosswalk patch, traffic lights, street blades, lamps
@@ -204,19 +212,21 @@ window.City = (function () {
             heads[axis].push(lenses);
             g.position.set(base.x, gy, base.z);
             g.rotation.y = city.heading + rot;
-            scene.add(g); city.meshes.push(g);
+            if (city.still) city.still.add(g); else { scene.add(g); city.meshes.push(g); }
         });
         const L = { city, heads, phase, nsGreen: true, ewGreen: false };
         C.lights.push(L);
         city.lightMap[i + ',' + j] = L;
     }
 
-    function buildBlocks(city) {
+    // one row of blocks (a city is built a row at a time: see C.loadStep)
+    let walkMat = null, parkMat = null;
+    function buildBlockRow(city, i) {
         const half = city.street / 2, B = city.block;
-        const walkMat = new THREE.MeshStandardMaterial({ color: 0xb5b5b0, map: Tex.concrete, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-        const parkMat = new THREE.MeshStandardMaterial({ color: 0x3a8030, map: Tex.grass, roughness: 1 });
+        walkMat = walkMat || new THREE.MeshStandardMaterial({ color: 0xb5b5b0, map: Tex.concrete, roughness: 0.95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+        parkMat = parkMat || new THREE.MeshStandardMaterial({ color: 0x3a8030, map: Tex.grass, roughness: 1 });
         const downtown = city.downtown || { lx: 0, lz: 0 };
-        for (let i = 0; i < city.rows; i++) for (let j = 0; j < city.cols; j++) {
+        for (let j = 0; j < city.cols; j++) {
             const cx = (city.streetX(j) + city.streetX(j + 1)) / 2, cz = (city.streetZ(i) + city.streetZ(i + 1)) / 2;
             const c = city.toWorld(cx, cz);
             if (j < city.suburbCols) {
@@ -696,25 +706,42 @@ window.City = (function () {
         }
     }
 
-    C.load = function (city) {
-        if (city.loaded) return; city.loaded = true;
-        city.treeSpots = []; city.lenses = {}; city.places = [];
-        const first = city.meshes.length;
-        buildStreets(city);
-        buildBlocks(city);
+    // Building a city, as a list of steps. A big downtown takes a few tenths of a second in
+    // all, a freeze if it happens in one frame, so a city streaming in while you drive is built
+    // one step a frame (C.loadStep, from World.update) and is `loaded` when the last is done.
+    // C.load does every step at once, for when the city is needed now (fast travel).
+    function steps(city) {
+        let first = 0;
+        const list = [() => { city.treeSpots = []; city.lenses = {}; city.places = []; first = city.meshes.length; city.still = new THREE.Group(); buildStreets(city, 0); }, () => buildStreets(city, 1), () => buildStreets(city, 2)];
+        for (let i = 0; i < city.rows; i++) list.push(() => buildBlockRow(city, i));
+        list.push(() => finish(city, first));
+        return list;
+    }
+    C.loadStep = function (city) {
+        if (city.loaded) return true;
+        if (!city.steps) city.steps = steps(city);
+        city.steps.shift()();
+        if (city.steps.length) return false;
+        city.steps = null; city.loaded = true;
+        return true;
+    };
+    C.load = function (city) { while (!C.loadStep(city)) { /* (all of it, now) */ } };
+    function finish(city, first) {
         buildLamps(city);
         city.trees = Trees.plant(city.treeSpots);
         city.landmarks.forEach(fn => { try { fn(city, { addMesh: (m, s) => addMesh(city, m, s), addBox: (...a) => addBox(city, ...a), glassMat, poleMat }); } catch (e) { console.error('landmark failed in ' + city.name, e); } });
         // Everything built above stands still: join it into one mesh per material (batch.js).
         // A city was 3,000 separate meshes before this, and that, not its triangles, was the cost.
-        const still = new THREE.Group();
-        city.meshes.splice(first).forEach(m => still.add(m));
+        const still = city.still; city.still = null;
+        city.meshes.splice(first).forEach(m => still.add(m));              // (the draped patches and name blades, which put themselves in the scene)
         Batch.merge(still);
         scene.add(still); city.meshes.push(still);
     };
 
     C.unload = function (city) {
-        if (!city.loaded) return; city.loaded = false;
+        if (!city.loaded && !city.steps) return;
+        if (city.steps) { city.steps = null; if (city.still) { city.still.traverse(o => { if (o.geometry) o.geometry.dispose(); }); city.still = null; } }   // (dropped while still being built)
+        city.loaded = false;
         if (window.Peds) Peds.unloadCity(city);
         city.workshop = null;
         city.station = false;                                             // the stop is rebuilt with the city

@@ -648,8 +648,9 @@ window.World = (function () {
                 // towns are small and close together: they come and go over a shorter range
                 const d = Math.abs(city.s - fw.lastS), pad = (city.loadPad || 0) - (city.town ? 800 : 0);
                 const holds = bridgeHolds(city, pos);                      // its bridge is in use: the city (which owns it) stays
-                if (!city.loaded && ((active && d < LOAD_DIST + 1500 + pad) || holds)) { City.load(city); loadCityRoads(city); }
-                else if (city.loaded && !holds && (!active || d > DROP_DIST + 1700 + pad)) { City.unload(city); if (city.satellite) City.unload(city.satellite); }
+                // (a city coming into range is built a step a frame: City.loadStep says when it is whole)
+                if (!city.loaded && ((active && d < LOAD_DIST + 1500 + pad) || holds)) { if (force) City.load(city); if (City.loadStep(city)) loadCityRoads(city); }
+                else if ((city.loaded || city.steps) && !holds && (!active || d > DROP_DIST + 1700 + pad)) { City.unload(city); if (city.satellite) City.unload(city.satellite); }
             });
         });
         if (force || frame % 10 === 1) updateConnectors(pos);

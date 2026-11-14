@@ -46,7 +46,7 @@ window.Peds = (function () {
     // sidewalk walkers for a city (called when the city loads)
     P.spawnCity = function (city) {
         if (!scene) return;
-        const n = Math.round(8 + city.rows * city.cols * 0.6);               // each person is a dozen draw calls: keep it modest
+        const n = Math.min(44, Math.round(8 + city.rows * city.cols * 0.6));   // each person is a dozen draw calls: keep it modest
         city.peds = city.peds || [];
         for (let k = 0; k < n; k++) {
             const ns = Math.random() < 0.5, side = Math.random() < 0.5 ? -1 : 1;

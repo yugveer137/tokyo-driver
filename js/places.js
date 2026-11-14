@@ -5,7 +5,9 @@
 //   a shop       shelves of goods, a cashier at the till, shoppers who look along the shelves,
 //                queue, pay and leave with a bag. E at the till buys something for a few coins.
 //   a hotel      the lobby: reception, sofas, the lifts, guests checking in and going up.
-//                E at the desk takes a room for the night (and it is morning when you wake).
+//                E at the desk takes a room; E at the lifts goes up to it: a bed, a desk, a
+//                window over the city. E at the bed rests (and it is morning when you wake),
+//                E at the room's door goes back down.
 //   an apartment somebody's flat: sofa and TV, kitchen, table, bed. E says hello.
 // Places.prompt also runs the one big button at the bottom of the screen (GO IN, LEAVE, BUY,
 // RIDE WITH a player), so all of this works without a keyboard.
@@ -214,15 +216,21 @@ window.Places = (function () {
         room.solid(0.45, 0.7, 0.3, 0x7a2f2f, 1.9, 0.35, -1.7); room.solid(0.4, 0.55, 0.28, 0x2f4f7a, 2.4, 0.28, -1.7);
         // a chandelier
         room.glow(0.5, 0.35, 0.5, 0xffe9b0, 0, 3.6, 0.6); [[-0.5, 0], [0.5, 0], [0, -0.5], [0, 0.5]].forEach(([x, z]) => room.glow(0.2, 0.2, 0.2, 0xffe9b0, x, 3.45, 0.6 + z));
+        // the desk gives you a room (once a stay), the lifts take you up to it
         room.actions.push({ x: 0, z: -1.7, reach: 1.7, label: 'TAKE A ROOM', run: () => {
+            const stay = P.inside;
+            if (stay.key) { UI.toast('"You are in room ' + stay.key + '. The lifts are on your right."', 3000); return; }
             if (Game.state.coins < NIGHT) { UI.toast('"A room for the night is ' + NIGHT + ' coins." You have ' + Game.state.coins + '.', 3000); return; }
             Game.addCoins(-NIGHT);
-            // sleep until just after sunrise (Sky.update moves the clock on by the time it is given)
-            const cycle = CFG.CYCLE.day + CFG.CYCLE.night, morning = 0.04;
-            Sky.update(((morning - Sky.t + 1) % 1) * cycle / (Sky.speed || 1), Car.body.position);
-            UI.toast('You took a room for ' + NIGHT + ' coins and slept like a log. Good morning!', 4000);
+            stay.key = 200 + Math.floor(Math.random() * 40) + 1;
+            UI.toast('"Room ' + stay.key + ', on the second floor. Take the lift." You paid ' + NIGHT + ' coins.', 4500);
         } });
-        room.hint = 'Reception is straight ahead: E at the desk takes a room. E at the door to leave.';
+        room.actions.push({ x: 3.6, z: -0.1, reach: 1.6, label: 'TAKE THE LIFT', lift: true, run: () => {
+            if (!P.inside.key) { UI.toast('The rooms are for guests: take one at the desk first.', 3000); return; }
+            moveTo(hotelRoom(place));
+            UI.toast('Room ' + P.inside.key + '. E at the bed to rest. E at the door goes back down.', 4500);
+        } });
+        room.hint = 'Reception is straight ahead: E at the desk takes a room, then E at the lifts goes up to it. E at the door to leave.';
         // guests arrive, check in and go up in the lift; others come down and go out
         const arriving = () => [{ x: 0, z: 3.5 }, { x: rnd(-1, 1), z: -1.75, wait: rnd(4, 7), face: Math.PI }, { x: 3.7, z: 0.7, wait: 1.5, face: Math.PI / 2, leave: true }];
         const going = () => [{ x: 3.7, z: -0.9 }, { x: 0.4, z: 0.5, wait: rnd(0, 2) }, { x: 0, z: 3.2 }, { x: 0, z: 4.1, leave: true }];
@@ -231,6 +239,59 @@ window.Places = (function () {
             stander(room, -3.6, 0.2, Math.PI / 2, null, true);                   // someone waiting on the sofa
             walker(room, arriving, 1); walker(room, going, 5); walker(room, arriving, 12);
         });
+    }
+
+    // ---------- your room upstairs ----------
+    function hotelRoom(place) {
+        const room = startRoom(place, 7, 6, 3, 0xe9dfcf, 0x7a5a48);
+        room.box(6.6, 0.03, 5.6, 0x8a3a3a, 0, 0.11, 0);                                       // carpet, wall to wall
+        // the bed against the left wall: headboard, covers, two pillows, a lamp on each side table
+        room.solid(2.1, 0.5, 1.9, 0x6b4a32, -2.35, 0.25, -0.4); room.box(0.12, 1.2, 2.0, 0x5a3a26, -3.4, 0.6, -0.4);
+        room.box(2.0, 0.16, 1.8, 0xf4f1ea, -2.3, 0.58, -0.4); room.box(1.3, 0.2, 1.84, 0x2f5a8a, -2.0, 0.64, -0.4);
+        [-0.85, 0.05].forEach(z => room.box(0.45, 0.14, 0.7, 0xffffff, -3.05, 0.73, z));
+        [-1.7, 0.9].forEach(z => { room.solid(0.5, 0.55, 0.45, 0x6b4a32, -3.2, 0.28, z); room.glow(0.2, 0.26, 0.2, 0xffe2a8, -3.2, 0.72, z); });
+        // a window over the city in the back wall: the sky, and the tops of the towers across the street
+        room.box(3.2, 1.7, 0.06, 0xf4f1ea, 0.6, 1.7, -2.93); room.glow(3.0, 1.5, 0.04, 0xbfe3ff, 0.6, 1.7, -2.9);
+        [[-0.5, 0.9, 0x6f86a0], [0.2, 0.55, 0x8fa1b3], [0.9, 1.15, 0x5f7690], [1.6, 0.7, 0x7f93a8]].forEach(([x, h, c]) => room.glow(0.55, h, 0.02, c, x, 0.95 + h / 2, -2.87));
+        [-1.15, 2.35].forEach(x => room.box(0.4, 2.1, 0.1, 0x8a3a3a, x, 1.75, -2.85));        // curtains
+        // a desk and chair under the TV on the right wall, the wardrobe by the door, your suitcase
+        room.solid(0.6, 0.75, 1.5, 0x6b4a32, 3.05, 0.375, -0.9); room.solid(0.45, 0.48, 0.45, 0x4a3524, 2.3, 0.24, -0.9); room.box(0.06, 0.5, 0.45, 0x4a3524, 2.08, 0.72, -0.9);
+        room.box(0.06, 0.7, 1.2, 0x111111, 3.42, 1.75, -0.9); room.glow(0.02, 0.6, 1.1, 0x7fb4ff, 3.38, 1.75, -0.9);
+        room.solid(0.65, 2.1, 1.3, 0x5a3a26, 3.05, 1.05, 1.9);
+        room.solid(0.45, 0.6, 0.28, 0x7a2f2f, -0.9, 0.3, 1.6);
+        room.box(0.06, 2.1, 0.9, 0xf4f1ea, -3.42, 1.05, 2.2);                                 // the bathroom door
+        room.actions.push({ x: -0.9, z: -0.4, reach: 1.5, label: 'REST', run: rest });
+        room.hint = 'This is your room. E at the bed to rest. E at the door goes back down to the lobby.';
+        room.door = { label: 'BACK TO THE LOBBY', run: () => { const lobby = hotel(place); moveTo(lobby, lobby.actions.find(a => a.lift).at); } };
+        return finishRoom(room, () => {});
+    }
+    // from one room of a building to another (the lobby and your room): the new one is built,
+    // you are put in it (at its door, or `at`), and the old one is dropped
+    function moveTo(room, at) {
+        const stay = P.inside, old = stay.room;
+        stay.room = room;
+        Walk.enterRoom(room);
+        if (at) { Walk.pos.x = at.x; Walk.pos.z = at.z; }
+        old.remove();
+    }
+    // Resting: the screen goes dark for a moment, and it is morning when it comes back.
+    let fade = null, resting = false;
+    function rest() {
+        if (resting) return;
+        resting = true;
+        if (!fade) {
+            fade = document.createElement('div');
+            fade.style.cssText = 'position:fixed;inset:0;z-index:40;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:800;letter-spacing:0.08em;opacity:0;pointer-events:none;transition:opacity 0.7s';
+            document.body.appendChild(fade);
+        }
+        fade.textContent = 'Zzz...'; fade.style.opacity = '1';
+        setTimeout(() => {
+            // on to just after sunrise (Sky.update moves the clock on by the time it is given)
+            const cycle = CFG.CYCLE.day + CFG.CYCLE.night, morning = 0.04;
+            Sky.update(((morning - Sky.t + 1) % 1) * cycle / (Sky.speed || 1), Car.body.position);
+            fade.textContent = 'Good morning!';
+        }, 1100);
+        setTimeout(() => { fade.style.opacity = '0'; resting = false; UI.toast('You slept like a log. It is morning.', 3000); }, 2300);
     }
 
     // ---------- an apartment ----------
@@ -284,7 +345,7 @@ window.Places = (function () {
         if (!window.Walk || !Walk.active || !Game.started) return null;
         if (P.inside) {
             const r = P.inside.room, me = Walk.pos;
-            if (flat(me, r.doorIn) < 1.7) return { label: 'LEAVE', run: leave };
+            if (flat(me, r.doorIn) < 1.7) return r.door || { label: 'LEAVE', run: leave };
             const a = r.actions.find(a => flat(me, a.at) < a.reach);
             return a ? { label: a.label, run: a.run } : { label: '', run: () => UI.toast(r.hint, 2500) };
         }

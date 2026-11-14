@@ -50,10 +50,11 @@ window.Batch = (function () {
             normalMatrix.getNormalMatrix(p.matrix);
             if (col) { if (p.mesh.userData.color === undefined) tint.copy(white); else tint.set(p.mesh.userData.color); }
             for (let i = 0; i < n; i++) {
-                v.fromBufferAttribute(gp, i).applyMatrix4(p.matrix); pos.set([v.x, v.y, v.z], (at + i) * 3);
-                v.fromBufferAttribute(gn, i).applyMatrix3(normalMatrix).normalize(); nor.set([v.x, v.y, v.z], (at + i) * 3);
+                const k3 = (at + i) * 3;
+                v.fromBufferAttribute(gp, i).applyMatrix4(p.matrix); pos[k3] = v.x; pos[k3 + 1] = v.y; pos[k3 + 2] = v.z;
+                v.fromBufferAttribute(gn, i).applyMatrix3(normalMatrix).normalize(); nor[k3] = v.x; nor[k3 + 1] = v.y; nor[k3 + 2] = v.z;
                 if (gu) { uv[(at + i) * 2] = gu.getX(i); uv[(at + i) * 2 + 1] = gu.getY(i); }
-                if (col) { const k = shaded ? 0.62 + 0.38 * Math.max(0, v.dot(LIGHT)) : 1; col.set([tint.r * k, tint.g * k, tint.b * k], (at + i) * 3); }   // (v is the normal here)
+                if (col) { const k = shaded ? 0.62 + 0.38 * Math.max(0, v.dot(LIGHT)) : 1; col[k3] = tint.r * k; col[k3 + 1] = tint.g * k; col[k3 + 2] = tint.b * k; }   // (v is the normal here)
             }
             // a mirrored part (negative scale) has its triangles wound the other way: turn them back
             const mirrored = p.matrix.determinant() < 0, count = g.index ? g.index.count : n;
@@ -86,14 +87,21 @@ window.Batch = (function () {
             const m = p.mesh, key = m.material.uuid + (m.castShadow ? 's' : '-') + (m.receiveShadow ? 'r' : '-');
             (buckets[key] = buckets[key] || []).push(p);
         });
+        const made = [], gone = new Set(), parents = new Set();
         Object.values(buckets).forEach(list => {
             const first = list[0].mesh, colored = !!first.material.vertexColors;
             if (list.length < 2 && !colored) return;                      // nothing to join it with
             const merged = new THREE.Mesh(join(list, colored, colored && first.material.userData.shaded), first.material);
             merged.castShadow = first.castShadow; merged.receiveShadow = first.receiveShadow;
-            list.forEach(p => { const up = p.mesh.parent; up.remove(p.mesh); p.mesh.geometry.dispose(); prune(up, root); });
-            root.add(merged);
+            made.push(merged);
+            list.forEach(p => { gone.add(p.mesh); parents.add(p.mesh.parent); p.mesh.geometry.dispose(); });
         });
+        // Take the joined parts out in one sweep per parent: Object3D.remove searches the whole
+        // list of children every time, and a city is 20,000 parts under one group (half a second).
+        parents.forEach(up => { up.children = up.children.filter(c => !gone.has(c)); });
+        gone.forEach(m => { m.parent = null; });
+        parents.forEach(up => prune(up, root));
+        made.forEach(m => root.add(m));
         return root;
     };
 

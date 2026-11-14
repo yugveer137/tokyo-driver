@@ -127,7 +127,7 @@ window.CITIES = (function () {
     function sausalito(city) {
         const c = city.toWorld(0, city.D / 2 + 720 + 132 + 10);
         return {
-            id: 'sausalito', name: 'Sausalito', sub: 'Marin County', rows: 4, cols: 4, block: 50, street: 16,
+            id: 'sausalito', name: 'Sausalito', sub: 'Marin County', rows: 4, cols: 6, block: 50, street: 16,   // (an even number of columns: the bridge arrives by the middle street)
             center: { x: c.x, z: c.z }, heading: city.heading, base: city.base, fw: city.fw, s: city.s, side: city.side,
             streets: { ns: ['Bridgeway', 'Caledonia St', 'Spring St', 'Nevada St', 'Tomales St'], ew: ['Princess St', 'Napa St', 'Johnson St', 'Bay St', 'Harbor Dr'] },
             skyline: () => [5, 12], palette: [0xf4ead8, 0xe8d9c0, 0xd6c3a8, 0xcad6df, 0xf7f3ea], landmarks: [], parks: [[1, 1]]
@@ -235,70 +235,70 @@ window.CITIES = (function () {
     // between two cities (world.js puts two in every gap, in list order). ---
     return [
         {
-            id: 'ssf', name: 'South San Francisco', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, side: -1,
+            id: 'ssf', name: 'South San Francisco', sub: 'Downtown', town: true, rows: 5, cols: 2, suburb: 3, block: 44, street: 14, side: -1,
             streets: { ns: ['Spruce Ave', 'Maple Ave', 'Linden Ave', 'Grand Ave', 'Airport Blvd'], ew: ['Baden Ave', 'Miller Ave', 'Lux Ave', 'Armour Ave'] },
             skyline: () => [5, 10],
             palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
             landmarks: [], exitNumber: 423
         },
         {
-            id: 'burlingame', name: 'Burlingame', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, side: -1,
+            id: 'burlingame', name: 'Burlingame', sub: 'Downtown', town: true, rows: 5, cols: 2, suburb: 3, block: 44, street: 14, side: -1,
             streets: { ns: ['Primrose Rd', 'Lorton Ave', 'Park Rd', 'Burlingame Ave', 'California Dr'], ew: ['Howard Ave', 'Bellevue Ave', 'Chapin Ave', 'Oak Grove Ave'] },
             skyline: () => [5, 10],
             palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
             landmarks: [], exitNumber: 419
         },
         {
-            id: 'sancarlos', name: 'San Carlos', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, side: -1,
+            id: 'sancarlos', name: 'San Carlos', sub: 'Downtown', town: true, rows: 5, cols: 2, suburb: 3, block: 44, street: 14, side: -1,
             streets: { ns: ['Cherry St', 'Cedar St', 'Walnut St', 'Elm St', 'Laurel St'], ew: ['San Carlos Ave', 'Holly St', 'Arroyo Ave', 'Brittan Ave'] },
             skyline: () => [5, 10],
             palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
             landmarks: [], exitNumber: 409
         },
         {
-            id: 'redwood', name: 'Redwood City', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, side: -1,
+            id: 'redwood', name: 'Redwood City', sub: 'Downtown', town: true, rows: 5, cols: 2, suburb: 3, block: 44, street: 14, side: -1,
             streets: { ns: ['Marshall St', 'Jefferson Ave', 'Middlefield Rd', 'Main St', 'Broadway'], ew: ['Woodside Rd', 'Whipple Ave', 'Brewster Ave', 'Arguello St'] },
             skyline: () => [5, 10],
             palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
             landmarks: [], exitNumber: 406
         },
         {
-            id: 'mountainview', name: 'Mountain View', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, side: -1,
+            id: 'mountainview', name: 'Mountain View', sub: 'Downtown', town: true, rows: 5, cols: 2, suburb: 3, block: 44, street: 14, side: -1,
             streets: { ns: ['Bryant St', 'View St', 'Hope St', 'Castro St', 'Shoreline Blvd'], ew: ['El Camino Real', 'Evelyn Ave', 'Villa St', 'Dana St'] },
             skyline: () => [5, 10],
             palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
             landmarks: [], exitNumber: 398
         },
         {
-            id: 'sunnyvale', name: 'Sunnyvale', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, side: -1,
+            id: 'sunnyvale', name: 'Sunnyvale', sub: 'Downtown', town: true, rows: 5, cols: 2, suburb: 3, block: 44, street: 14, side: -1,
             streets: { ns: ['Taaffe St', 'Frances St', 'Sunnyvale Ave', 'Murphy Ave', 'Mathilda Ave'], ew: ['Evelyn Ave', 'Washington Ave', 'McKinley Ave', 'Iowa Ave'] },
             skyline: () => [5, 10],
             palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
             landmarks: [], exitNumber: 394
         },
         {
-            id: 'sanleandro', name: 'San Leandro', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, fw: 1, side: 1,
+            id: 'sanleandro', name: 'San Leandro', sub: 'Downtown', town: true, rows: 5, cols: 2, suburb: 3, block: 44, street: 14, fw: 1, side: 1,
             streets: { ns: ['Callan Ave', 'Estudillo Ave', 'Davis St', 'Washington Ave', 'E 14th St'], ew: ['Marina Blvd', 'Williams St', 'Juana Ave', 'Dutton Ave'] },
             skyline: () => [5, 10],
             palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
             landmarks: [], exitNumber: 37
         },
         {
-            id: 'sanlorenzo', name: 'San Lorenzo', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, fw: 1, side: 1,
+            id: 'sanlorenzo', name: 'San Lorenzo', sub: 'Downtown', town: true, rows: 5, cols: 2, suburb: 3, block: 44, street: 14, fw: 1, side: 1,
             streets: { ns: ['Via Mercado', 'Paseo Grande', 'Grant Ave', 'Bockman Rd', 'Hesperian Blvd'], ew: ['Lewelling Blvd', 'Via Alamitos', 'Via Toledo', 'Via Arriba'] },
             skyline: () => [5, 10],
             palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
             landmarks: [], exitNumber: 33
         },
         {
-            id: 'unioncity', name: 'Union City', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, fw: 1, side: 1,
+            id: 'unioncity', name: 'Union City', sub: 'Downtown', town: true, rows: 5, cols: 2, suburb: 3, block: 44, street: 14, fw: 1, side: 1,
             streets: { ns: ['Dyer St', 'Decoto Rd', 'Alvarado Blvd', 'Union City Blvd', 'Mission Blvd'], ew: ['Whipple Rd', 'Alvarado-Niles Rd', 'Smith St', 'Lowry Rd'] },
             skyline: () => [5, 10],
             palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
             landmarks: [], exitNumber: 26
         },
         {
-            id: 'newark', name: 'Newark', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, fw: 1, side: 1,
+            id: 'newark', name: 'Newark', sub: 'Downtown', town: true, rows: 5, cols: 2, suburb: 3, block: 44, street: 14, fw: 1, side: 1,
             streets: { ns: ['Cherry St', 'Jarvis Ave', 'Cedar Blvd', 'Thornton Ave', 'Newark Blvd'], ew: ['Mowry Ave', 'Central Ave', 'Sycamore St', 'Lake Blvd'] },
             skyline: () => [5, 10],
             palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
@@ -306,16 +306,16 @@ window.CITIES = (function () {
         },
 
         {
-            id: 'sf', name: 'San Francisco', sub: 'Downtown', rows: 6, cols: 6, block: 56, street: 18, suburb: 2,
+            id: 'sf', name: 'San Francisco', sub: 'Downtown', rows: 8, cols: 8, block: 56, street: 18, suburb: 2,   // (keep cols + suburb even: the Golden Gate leaves by the middle street)
             hills: (lx, lz) => 4.5 * Math.sin(lx / 80) * Math.cos(lz / 65) + 2 * Math.sin((lx + lz) / 50),
             streets: { ns: ['Divisadero St', 'Fillmore St', 'Van Ness Ave', 'Polk St', 'Powell St', 'Grant Ave', 'Kearny St', 'Montgomery St', 'Embarcadero'],
                        ew: ['Market St', 'Mission St', 'Geary St', 'Lombard St', 'Bush St', 'California St', 'Broadway'] },
             skyline: (d) => d < 0.3 ? [60, 150] : d < 0.6 ? [15, 40] : [8, 16],
             palette: [0xf2ead9, 0xe6d9c4, 0xd9c8b4, 0xbfc9d6, 0xf7f3ea],
-            landmarks: [transamerica, goldenGate], extraRoads: goldenGateRoad, shape: sfBay, satellite: sausalito, side: -1, bridge: { to: 'oakland', name: 'I-80 Bay Bridge', style: 'suspension' }, exitNumber: 1, parks: [[1, 4], [4, 1]]
+            landmarks: [transamerica, goldenGate], extraRoads: goldenGateRoad, shape: sfBay, satellite: sausalito, side: -1, bridge: { to: 'oakland', name: 'I-80 Bay Bridge', style: 'suspension' }, exitNumber: 1, parks: [[1, 4], [4, 1], [6, 6]]
         },
         {
-            id: 'sanmateo', name: 'San Mateo', sub: 'Downtown', rows: 4, cols: 5, block: 56, street: 18, side: -1, suburb: 2,
+            id: 'sanmateo', name: 'San Mateo', sub: 'Downtown', rows: 6, cols: 7, block: 56, street: 18, side: -1, suburb: 2,
             streets: { ns: ['Alameda de las Pulgas', 'Norfolk St', 'El Camino Real', 'B St', 'Delaware St', 'Claremont St', 'Humboldt St', 'Railroad Ave'],
                        ew: ['3rd Ave', '4th Ave', 'Baldwin Ave', 'Tilton Ave', 'Peninsula Ave'] },
             skyline: (d) => d < 0.3 ? [14, 36] : [6, 14],
@@ -323,7 +323,7 @@ window.CITIES = (function () {
             landmarks: [], bridge: { to: 'hayward', name: 'CA-92 San Mateo-Hayward Bridge', style: 'trestle' }, exitNumber: 414, parks: [[1, 2]]
         },
         {
-            id: 'paloalto', name: 'Palo Alto', sub: 'University Ave', rows: 4, cols: 5, block: 56, street: 18, suburb: 2, side: -1,
+            id: 'paloalto', name: 'Palo Alto', sub: 'University Ave', rows: 6, cols: 7, block: 56, street: 18, suburb: 2, side: -1,
             streets: { ns: ['Cowper St', 'Webster St', 'El Camino Real', 'Alma St', 'Emerson St', 'Bryant St', 'Waverley St', 'Middlefield Rd'],
                        ew: ['University Ave', 'Hamilton Ave', 'Lytton Ave', 'Forest Ave', 'Homer Ave'] },
             skyline: () => [6, 16],
@@ -331,15 +331,15 @@ window.CITIES = (function () {
             landmarks: [hooverTower], bridge: { to: 'fremont', name: 'CA-84 Dumbarton Bridge', style: 'low' }, exitNumber: 402, parks: [[2, 1]]
         },
         {
-            id: 'sanjose', name: 'San Jose', sub: 'Downtown', rows: 6, cols: 6, block: 56, street: 18, side: -1, suburb: 2,
+            id: 'sanjose', name: 'San Jose', sub: 'Downtown', rows: 8, cols: 8, block: 56, street: 18, side: -1, suburb: 2,
             streets: { ns: ['Bird Ave', 'Vine St', 'Market St', '1st St', '2nd St', '3rd St', '4th St', 'Almaden Blvd', 'Guadalupe Pkwy'],
                        ew: ['Santa Clara St', 'San Fernando St', 'San Carlos St', 'Julian St', 'St James St', 'Park Ave', 'William St'] },
             skyline: (d) => d < 0.35 ? [30, 90] : d < 0.7 ? [10, 26] : [6, 14],
             palette: [0xe8dfd0, 0xd9ccb6, 0xbfc8d0, 0xf1ece2, 0x9aa3ad],
-            landmarks: [], exitNumber: 385, parks: [[2, 3]]
+            landmarks: [], exitNumber: 385, parks: [[2, 3], [6, 5]]
         },
         {
-            id: 'oakland', name: 'Oakland', sub: 'Jack London Square', rows: 5, cols: 5, block: 60, street: 18, suburb: 2,
+            id: 'oakland', name: 'Oakland', sub: 'Jack London Square', rows: 7, cols: 7, block: 60, street: 18, suburb: 2,
             streets: { ns: ['Park Blvd', 'Fruitvale Ave', 'Broadway', 'Telegraph Ave', 'Webster St', 'Harrison St', 'Franklin St', 'Lakeside Dr'],
                        ew: ['Grand Ave', '14th St', '12th St', 'MacArthur Blvd', 'Embarcadero West', 'Lake Merritt Blvd'] },
             skyline: (d) => d < 0.3 ? [30, 90] : d < 0.6 ? [12, 30] : [7, 14],
@@ -347,7 +347,7 @@ window.CITIES = (function () {
             landmarks: [oaklandCranes], fw: 1, side: 1, exitNumber: 42, parks: [[2, 2]]
         },
         {
-            id: 'hayward', name: 'Hayward', sub: 'Downtown', rows: 4, cols: 5, block: 56, street: 18, fw: 1, side: 1, suburb: 2,
+            id: 'hayward', name: 'Hayward', sub: 'Downtown', rows: 6, cols: 7, block: 56, street: 18, fw: 1, side: 1, suburb: 2,
             streets: { ns: ['Soto Rd', 'Harder Rd', 'Foothill Blvd', 'Mission Blvd', 'Main St', 'Watkins St', 'Grand St', 'Jackson St'],
                        ew: ['A St', 'B St', 'C St', 'D St', 'Tennyson Rd'] },
             skyline: () => [6, 16],
@@ -355,7 +355,7 @@ window.CITIES = (function () {
             landmarks: [], exitNumber: 31, parks: [[1, 1]]
         },
         {
-            id: 'fremont', name: 'Fremont', sub: 'Centerville', rows: 4, cols: 5, block: 56, street: 18, fw: 1, side: 1, suburb: 2,
+            id: 'fremont', name: 'Fremont', sub: 'Centerville', rows: 6, cols: 7, block: 56, street: 18, fw: 1, side: 1, suburb: 2,
             streets: { ns: ['Blacow Rd', 'Gomes Rd', 'Fremont Blvd', 'Paseo Padre Pkwy', 'Mowry Ave', 'Peralta Blvd', 'Thornton Ave', 'Central Ave'],
                        ew: ['Stevenson Blvd', 'Walnut Ave', 'Capitol Ave', 'Liberty St', 'Beacon Ave'] },
             skyline: () => [5, 14],
@@ -366,42 +366,42 @@ window.CITIES = (function () {
         // level with the US-101 city named in `beside`, on the side of its freeway that faces
         // US-101; world.js joins the pairs with country roads. ---
         {
-            id: 'dalycity', name: 'Daly City', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, fw: 2, side: 1, beside: 'sf',
+            id: 'dalycity', name: 'Daly City', sub: 'Downtown', town: true, rows: 5, cols: 2, suburb: 3, block: 44, street: 14, fw: 2, side: 1, beside: 'sf',
             streets: { ns: ['Mission St', 'Junipero Serra Blvd', 'Hillside Blvd', 'Southgate Ave', 'Skyline Blvd'], ew: ['John Daly Blvd', 'Westlake Ave', 'Eastmoor Ave', 'School St'] },
             skyline: () => [5, 10],
             palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
             landmarks: [], exitNumber: 47
         },
         {
-            id: 'crystalsprings', name: 'Crystal Springs', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, fw: 2, side: 1, beside: 'sanmateo',
+            id: 'crystalsprings', name: 'Crystal Springs', sub: 'Downtown', town: true, rows: 5, cols: 2, suburb: 3, block: 44, street: 14, fw: 2, side: 1, beside: 'sanmateo',
             streets: { ns: ['Skyline Blvd', 'Polhemus Rd', 'Bunker Hill Dr', 'Parrott Dr', 'Canada Rd'], ew: ['Crystal Springs Rd', 'Hayne Rd', 'Black Mountain Rd', 'Ralston Ave'] },
             skyline: () => [5, 10],
             palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
             landmarks: [], exitNumber: 34
         },
         {
-            id: 'woodside', name: 'Woodside', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, fw: 2, side: 1, beside: 'paloalto',
+            id: 'woodside', name: 'Woodside', sub: 'Downtown', town: true, rows: 5, cols: 2, suburb: 3, block: 44, street: 14, fw: 2, side: 1, beside: 'paloalto',
             streets: { ns: ['Canada Rd', 'Mountain Home Rd', 'Kings Mountain Rd', 'Albion Ave', 'Whiskey Hill Rd'], ew: ['Woodside Rd', 'Tripp Rd', 'Raymundo Dr', 'Glenwood Ave'] },
             skyline: () => [5, 10],
             palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
             landmarks: [], exitNumber: 25
         },
         {
-            id: 'cupertino', name: 'Cupertino', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, fw: 2, side: 1, beside: 'sanjose',
+            id: 'cupertino', name: 'Cupertino', sub: 'Downtown', town: true, rows: 5, cols: 2, suburb: 3, block: 44, street: 14, fw: 2, side: 1, beside: 'sanjose',
             streets: { ns: ['De Anza Blvd', 'Stelling Rd', 'Wolfe Rd', 'Blaney Ave', 'Bubb Rd'], ew: ['Stevens Creek Blvd', 'Homestead Rd', 'McClellan Rd', 'Bollinger Rd'] },
             skyline: () => [5, 10],
             palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
             landmarks: [], exitNumber: 12
         },
         {
-            id: 'pacifica', name: 'Pacifica', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, fw: 3, side: 1, beside: 'sf',
+            id: 'pacifica', name: 'Pacifica', sub: 'Downtown', town: true, rows: 5, cols: 2, suburb: 3, block: 44, street: 14, fw: 3, side: 1, beside: 'sf',
             streets: { ns: ['Palmetto Ave', 'Oceana Blvd', 'Francisco Blvd', 'Esplanade Ave', 'Monterey Rd'], ew: ['Paloma Ave', 'Clarendon Rd', 'Sharp Park Rd', 'Manor Dr'] },
             skyline: () => [5, 10],
             palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],
             landmarks: [], exitNumber: 505
         },
         {
-            id: 'halfmoonbay', name: 'Half Moon Bay', sub: 'Downtown', town: true, rows: 3, cols: 1, suburb: 3, block: 44, street: 14, fw: 3, side: 1, beside: 'sanmateo',
+            id: 'halfmoonbay', name: 'Half Moon Bay', sub: 'Downtown', town: true, rows: 5, cols: 2, suburb: 3, block: 44, street: 14, fw: 3, side: 1, beside: 'sanmateo',
             streets: { ns: ['Main St', 'Purissima St', 'Church St', 'Johnston St', 'Cabrillo Hwy'], ew: ['Kelly Ave', 'Mill St', 'Correas St', 'Filbert St'] },
             skyline: () => [5, 10],
             palette: [0xf1e8d6, 0xe3d6c0, 0xd6c9b2, 0xc6d0da, 0xf5f1e8],

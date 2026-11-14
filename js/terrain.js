@@ -18,10 +18,17 @@ window.Terrain = (function () {
             + 1.0 * Math.sin(z * 0.05 + x * 0.013));
     }
 
-    // Shapers: { apply(x, z, h) -> h } for cities (flatten a plateau), hills, etc.
+    // Shapers: (x, z, h) -> h, for cities (flatten a plateau), the bay, etc. A shaper that only
+    // changes the land near one spot says so in `reach` ({ x, z, r }) and is skipped beyond it:
+    // there is one per city, and a city asks for the height tens of thousands of times as it is
+    // built, each time running every other city's shaper for nothing.
     T.height = function (x, z) {
         let h = baseHeight(x, z);
-        for (let i = 0; i < T.shapers.length; i++) h = T.shapers[i](x, z, h);
+        for (let i = 0; i < T.shapers.length; i++) {
+            const s = T.shapers[i], b = s.reach;
+            if (b && (x - b.x) * (x - b.x) + (z - b.z) * (z - b.z) > b.r * b.r) continue;
+            h = s(x, z, h);
+        }
         return h;
     };
 
