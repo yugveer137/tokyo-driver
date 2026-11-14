@@ -520,6 +520,8 @@ window.Places = (function () {
         }
         // the big button follows what can be done here
         if (frame++ % 6) return;
+        const getIn = document.getElementById('getin-btn');                 // (shown only while you are on foot)
+        if (getIn) getIn.style.display = window.Walk && Walk.active ? '' : 'none';
         button = button || document.getElementById('place-btn'); if (!button) return;
         const p = P.prompt(), text = p && p.label ? p.label + ' (' + (p.key || 'E') + ')' : '';
         if (text === shown) return;

@@ -123,6 +123,11 @@ window.UI = (function () {
         $('boost-btn').onclick = () => { if (Game.started) Car.boostStart(); };
         $('fix-btn').onclick = () => { if (Game.started) Features.fixAtWorkshop(); };
         $('damage-btn').onclick = () => { Features.renderDamage(); $('damage-modal').classList.add('open'); };
+        // on foot (a phone has no G key): straight back into the car, wherever it is parked
+        $('getin-btn').onclick = () => {
+            const W = window.Walk; if (!W || !W.active) return;
+            if (W.room || W.ride || W.cuffed || W.passenger || W.pos.distanceTo(Car.body.position) < 5) W.toggle(); else W.getIn();
+        };
         $('saves-btn').onclick = () => { Save.backup(); U.renderSaves(); $('saves-modal').classList.add('open'); };
         $('reset-btn').onclick = () => { if (Game.started) Car.reset(); };
         $('tow-btn').onclick = () => { if (Game.started) Features.callTow(); };
