@@ -8,6 +8,9 @@
 //                 what you bid; lose and it is theirs, and you bid on the next house. You can
 //                 never bid more coins than you have. A house you own gets a YOUR HOUSE board, E
 //                 at its door goes in (places.js builds the inside), GO THERE drives you to it.
+//   SELL HOUSE    put a house you own up for sale at any price you like. Buyers come along one
+//                 after another and bid round that price, each with a name, and you choose whose
+//                 bid to take: their coins are yours and the house is theirs.
 // Saved per account: `bag` ([{ name, food, n }]), `houses` ([{ key, city, i, j, side, k, ... }])
 // and `housesLost` (the keys of the houses the other buyer got).
 window.Shop = (function () {
@@ -161,6 +164,82 @@ window.Shop = (function () {
     }
     S.openHouses = function () { bidding = null; result = ''; renderHouses(); $('house-modal').classList.add('open'); };
 
+    // ---------- selling ----------
+    // A house up for sale: the price you put on it and the bids so far. The buyers bid round
+    // your price, whatever it is (the owner of the game wanted to be able to ask a trillion),
+    // and the seller picks the winner, who need not be the highest.
+    const BUYERS = ['Maya', 'Leo', 'Priya', 'Sam', 'Mr. Tanaka', 'Grandma Rose', 'Diego', 'Zoe', 'Captain Bill', 'Nina'];
+    const MAX_PRICE = 1e15;                                                  // (whole numbers are exact well past this)
+    const coinsText = (n) => n.toLocaleString('en-US') + ' coins';
+    const listings = {};
+    let selling = null;                                                      // the house whose price box is open
+    function putUp(o, price) {
+        const l = listings[o.key] = { price, bids: [], more: 4, names: BUYERS.slice().sort(() => Math.random() - 0.5) };
+        const next = () => {
+            if (listings[o.key] !== l || !l.more) return;                     // (sold or taken off the market meanwhile)
+            // a bid somewhere from 60% to 110% of the asking price, in round numbers
+            const raw = price * (0.6 + Math.random() * 0.5), unit = Math.pow(10, Math.max(0, Math.floor(Math.log10(raw)) - 1));
+            l.bids.push({ name: l.names[l.bids.length], amount: Math.max(1, Math.round(raw / unit) * unit) });
+            l.more--;
+            if ($('sell-modal').classList.contains('open')) renderSell();
+            if (l.more) setTimeout(next, 1400 + Math.random() * 1200);
+        };
+        setTimeout(next, 1200);
+    }
+    function sellTo(o, b) {
+        Game.addCoins(b.amount);
+        houses = houses.filter(x => x.key !== o.key); Save.set('houses', houses);
+        lost.push(o.key); Save.set('housesLost', lost);                      // (it is somebody else's now, not for sale again)
+        delete listings[o.key];
+        UI.toast('SOLD! ' + b.name + ' bought ' + o.address + ' for ' + coinsText(b.amount) + '.', 6000);
+        renderSell();
+    }
+    function renderSell(message) {
+        const body = $('sell-body'); body.innerHTML = '';
+        $('sell-coins').textContent = coinsText(Game.state.coins);
+        body.appendChild(el('div', 'YOUR HOUSES', 'own-head'));
+        if (!houses.length) body.appendChild(el('div', 'You do not own a house yet. BUY A HOUSE gets you one to sell.', 'own-row'));
+        houses.forEach(o => {
+            const l = listings[o.key], open = selling === o.key;
+            const r = el('div', undefined, 'own-row'); r.appendChild(el('span', o.address + ', ' + o.cityName + (l ? '   for sale at ' + coinsText(l.price) : '')));
+            if (!l) { const b = el('button', open ? 'CLOSE' : 'SELL', 'toggle-btn'); b.onclick = () => { selling = open ? null : o.key; renderSell(); }; r.appendChild(b); }
+            body.appendChild(r);
+            if (l) {
+                // the bids so far: pick whose to take
+                const box = el('div', undefined, 'own-bid');
+                if (!l.bids.length) box.appendChild(el('div', 'Waiting for the first buyer...'));
+                l.bids.forEach(b => {
+                    const row = el('div', undefined, 'own-row'); row.appendChild(el('span', b.name + ' bids ' + coinsText(b.amount)));
+                    const take = el('button', 'SELL TO ' + b.name.toUpperCase(), 'toggle-btn'); take.onclick = () => sellTo(o, b); row.appendChild(take);
+                    box.appendChild(row);
+                });
+                if (l.bids.length && l.more) box.appendChild(el('div', 'More buyers are on their way...'));
+                if (l.bids.length && !l.more) box.appendChild(el('div', 'Those are all the bids. You choose who gets the house.', 'own-note'));
+                const off = el('button', 'TAKE IT OFF THE MARKET', 'toggle-btn'); off.onclick = () => { delete listings[o.key]; renderSell(); };
+                const line = el('div', undefined, 'own-menu'); line.appendChild(off); box.appendChild(line);
+                body.appendChild(box);
+            } else if (open) {
+                // name your price: anything you like
+                const box = el('div', undefined, 'own-bid');
+                box.appendChild(el('div', 'What price do you want for it? Any price you like. You paid ' + coinsText(o.paid) + '.'));
+                const line = el('div', undefined, 'own-menu');
+                const input = el('input'); input.type = 'number'; input.min = 1; input.placeholder = 'your price'; input.style.width = '200px';
+                const go = el('button', 'PUT IT UP FOR SALE', 'toggle-btn');
+                const list = () => {
+                    const price = Math.floor(Number(input.value));
+                    if (!(price >= 1)) { renderSell('Type the price you want, in coins.'); return; }
+                    if (price > MAX_PRICE) { renderSell('That is more coins than there are. The most you can ask is ' + coinsText(MAX_PRICE) + '.'); return; }
+                    selling = null; putUp(o, price); renderSell();
+                };
+                go.onclick = list; input.onkeydown = (e) => { if (e.key === 'Enter') list(); };
+                line.appendChild(input); line.appendChild(go); box.appendChild(line);
+                if (message) box.appendChild(el('div', message, 'own-note'));
+                body.appendChild(box);
+            }
+        });
+    }
+    S.openSell = function () { selling = null; renderSell(); $('sell-modal').classList.add('open'); };
+
     // drive to a house you own: the car is put on the street outside it
     S.goHome = function (o) {
         const city = cityOf(o.city); if (!city) return;
@@ -198,6 +277,8 @@ window.Shop = (function () {
                 scene.add(board); boards[o.key] = board;
             } else if (!up && boards[o.key]) { scene.remove(boards[o.key]); boards[o.key].geometry.dispose(); delete boards[o.key]; }
         });
+        // (a house you have sold loses its board)
+        Object.keys(boards).forEach(key => { if (!S.owns(key)) { scene.remove(boards[key]); boards[key].geometry.dispose(); delete boards[key]; } });
     };
 
     S.init = function (sc) {
@@ -207,6 +288,7 @@ window.Shop = (function () {
         lost = Save.get('housesLost', []); if (!Array.isArray(lost)) lost = [];
         $('shop-btn').onclick = () => { if (Game.started) S.open(); };
         $('house-btn').onclick = () => { if (Game.started) S.openHouses(); };
+        $('sell-btn').onclick = () => { if (Game.started) S.openSell(); };
     };
     return S;
 })();
