@@ -494,6 +494,7 @@ window.Multiplayer = (function () {
         if (!M.role || !cars[to]) { note.textContent = 'Pick a player who is in the room.'; refreshPeople(); return; }
         if (!(n >= 1)) { note.textContent = 'Type how many coins to give.'; return; }
         if (n > Game.state.coins) { note.textContent = 'You only have ' + Game.state.coins + ' coins.'; return; }
+        if (n >= 100) Save.backup();                                        // (a big gift: the save as it was can be had back from SAVES)
         Game.addCoins(-n);
         post({ t: 'coins', to, amount: n });
         note.textContent = 'You gave ' + n + ' coins to ' + labelFor(to) + '.';

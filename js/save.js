@@ -358,6 +358,7 @@
     function isCreator() { return account() === 'creator'; }
     function nsKey(name) { return 'td:' + account() + ':' + name; }
 
+    let frozen = false;                                                     // (set once a backup has been put back: see restore)
     function readRaw(k, fallback) {
         let raw = null;
         try { raw = localStorage.getItem(k); } catch (e) {}
@@ -365,6 +366,7 @@
         try { return JSON.parse(raw); } catch (e) { return raw; }
     }
     function writeRaw(k, value) {
+        if (frozen) return;                                                 // (a save has just been put back: nothing may write over it before the page reloads)
         try {
             if (value === undefined || value === null) localStorage.removeItem(k);
             else localStorage.setItem(k, typeof value === 'string' ? value : JSON.stringify(value));
@@ -705,7 +707,61 @@
         location.reload();
     }
 
+    // ---------- backups ----------
+    // The save is one copy, written over as you play: bid every coin on a house by mistake and
+    // they are gone. So a snapshot of the whole save is kept now and then (when a game starts,
+    // every ten minutes of play and just before a big spend, whenever anything has changed) and
+    // the SAVES panel puts one back. Kept: the four newest, then the last one of each hour of
+    // the past half day, then the last one of each earlier day, twelve in all.
+    const BACKUPS = 'backups', NOT_BACKED_UP = [BACKUPS, 'paid2', 'trialUntil', 'trialUsed', 'trialDays'];
+    // this account's save as it stands: { key: the stored text }
+    function saveNow() {
+        const prefix = 'td:' + account() + ':', out = {};
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                if (k && k.indexOf(prefix) === 0 && NOT_BACKED_UP.indexOf(k.slice(prefix.length)) === -1) out[k.slice(prefix.length)] = localStorage.getItem(k);
+            }
+        } catch (e) {}
+        return out;
+    }
+    function backupList() { const list = readRaw(nsKey(BACKUPS), []); return Array.isArray(list) ? list : []; }
+    function backup() {
+        const data = saveNow(), list = backupList();
+        if (!Object.keys(data).length) return;
+        if (list.length && JSON.stringify(list[0].data) === JSON.stringify(data)) return;     // nothing has changed since the last one
+        list.unshift({ at: Date.now(), data: data });
+        const keep = list.slice(0, 4), seen = {}, now = Date.now();
+        list.slice(4).forEach(function (b) {                                   // (newest first, so the first of each hour or day is its last)
+            const d = new Date(b.at), slot = now - b.at < 12 * 3600000 ? d.toDateString() + ' ' + d.getHours() : d.toDateString();
+            if (!seen[slot] && keep.length < 12) { seen[slot] = true; keep.push(b); }
+        });
+        writeRaw(nsKey(BACKUPS), keep);
+    }
+    // the backups, newest first, with what the SAVES panel shows of each
+    function backups() {
+        const count = function (text) { try { const v = JSON.parse(text); return Array.isArray(v) ? v.length : 0; } catch (e) { return 0; } };
+        return backupList().map(function (b) { return { at: b.at, coins: Number(b.data.coins) || 0, cars: count(b.data.ownedCars) || 1, houses: count(b.data.houses) }; });
+    }
+    // Put the backup taken at `at` back as the save. What you have now is backed up first, so
+    // this can itself be undone. The page must reload straight after (nothing writes until then).
+    function restore(at) {
+        const b = backupList().find(function (x) { return x.at === at; });
+        if (!b) return false;
+        backup();
+        const prefix = 'td:' + account() + ':';
+        try {
+            Object.keys(saveNow()).forEach(function (name) { if (!(name in b.data)) localStorage.removeItem(prefix + name); });
+            Object.keys(b.data).forEach(function (name) { localStorage.setItem(prefix + name, b.data[name]); });
+        } catch (e) { return false; }
+        frozen = true;
+        return true;
+    }
+
     const Save = {
+        backup: backup,
+        backups: backups,
+        restore: restore,
         boot: boot,
         account: account,
         isCreator: isCreator,

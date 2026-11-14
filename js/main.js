@@ -123,6 +123,9 @@
         Minimap.init();
         World.build();
         Game.load();
+        // a snapshot of the save now, and every ten minutes of play (save.js: the SAVES panel restores one)
+        Save.backup();
+        setInterval(() => { if (Game.started) Save.backup(); }, 600000);
 
         Terrain.update(World.spawn);
         World.update(World.spawn);

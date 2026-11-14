@@ -327,7 +327,10 @@ window.Places = (function () {
         room.solid(1.5, 0.45, 2.1, 0x8a6a4a, 3.4, 0.23, 1.3); room.box(1.4, 0.14, 2.0, 0xf2efe6, 3.4, 0.52, 1.3); room.box(1.4, 0.2, 1.3, 0x3f8a5a, 3.4, 0.62, 1.0); room.box(0.9, 0.14, 0.4, 0xffffff, 3.4, 0.66, 2.1);
         if (!view) {
             room.actions.push({ x: 2.3, z: 1.3, reach: 1.3, label: 'REST', run: rest });
-            room.hint = 'Your own house. E at the bed rests, E at the fridge opens your food. E at the door to leave.';
+            // the door through to the garage, in the corner past the bed: your cars, to pick the one parked outside
+            room.box(0.06, 2.1, 0.9, 0x8a8f94, 4.24, 1.05, 2.6); room.glow(0.04, 0.16, 0.5, 0xffd24a, 4.22, 2.3, 2.6);
+            room.actions.push({ x: 3.4, z: 2.75, reach: 1.1, label: 'OPEN YOUR GARAGE', run: () => { UI.renderGarage(); document.getElementById('garage-modal').classList.add('open'); } });
+            room.hint = 'Your own house. E at the bed rests, E at the fridge opens your food, E at the grey door by the bed opens your garage. E at the door to leave.';
             return finishRoom(room, () => {});
         }
         // a viewing: the papers are on the table (E there to bid), and E anywhere else asks the realtor

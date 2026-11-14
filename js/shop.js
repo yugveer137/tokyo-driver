@@ -120,6 +120,7 @@ window.Shop = (function () {
         const coins = Game.state.coins;
         if (!(amount >= 10)) return 'Type how many coins you bid.';
         if (amount > coins) return 'You only have ' + coins + ' coins.';
+        if (amount >= 100) Save.backup();                                 // (a big spend: the save as it was can be had back from SAVES)
         let theirs = rivalBid(h);
         if (lossStreak >= 2 && amount <= theirs) theirs = Math.max(0, Math.floor(amount * 0.9 / 10) * 10);
         if (amount > theirs) {

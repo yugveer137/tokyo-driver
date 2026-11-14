@@ -122,6 +122,7 @@ window.UI = (function () {
         $('boost-btn').onclick = () => { if (Game.started) Car.boostStart(); };
         $('fix-btn').onclick = () => { if (Game.started) Features.fixAtWorkshop(); };
         $('damage-btn').onclick = () => { Features.renderDamage(); $('damage-modal').classList.add('open'); };
+        $('saves-btn').onclick = () => { Save.backup(); U.renderSaves(); $('saves-modal').classList.add('open'); };
         $('reset-btn').onclick = () => { if (Game.started) Car.reset(); };
         $('tow-btn').onclick = () => { if (Game.started) Features.callTow(); };
         document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => $(b.dataset.close).classList.remove('open'));
@@ -152,6 +153,29 @@ window.UI = (function () {
 
     U.showMenu = function () { $('start-screen').style.display = 'flex'; };
     U.enterDriveReady = function () { $('start-screen').style.display = 'none'; $('drive-btn').style.display = 'block'; };
+    // The SAVES panel: the backups of this account's save (save.js), newest first. RESTORE puts
+    // one back and reloads the game on it.
+    U.renderSaves = function () {
+        const body = $('saves-body'); body.innerHTML = '';
+        const list = Save.backups();
+        const say = document.createElement('div'); say.className = 'own-row';
+        say.textContent = list.length ? 'The game keeps copies of your save as you play. Pick one to go back to it: your coins, cars, houses and things as they were then.' : 'No saved copies yet. One is made when a game starts and every ten minutes after.';
+        body.appendChild(say);
+        const today = new Date().toDateString();
+        list.forEach(b => {
+            const d = new Date(b.at), day = d.toDateString() === today ? 'Today' : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+            const row = document.createElement('div'); row.className = 'own-row';
+            const text = document.createElement('span');
+            text.textContent = day + ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) + '   ' + b.coins.toLocaleString('en-US') + ' coins, ' + b.cars + (b.cars === 1 ? ' car' : ' cars') + (b.houses ? ', ' + b.houses + (b.houses === 1 ? ' house' : ' houses') : '');
+            const go = document.createElement('button'); go.className = 'toggle-btn'; go.textContent = 'RESTORE';
+            go.onclick = () => {
+                if (!confirm('Go back to this save? You will have ' + b.coins.toLocaleString('en-US') + ' coins again. The save you have now is kept in this list too.')) return;
+                if (Save.restore(b.at)) location.reload(); else U.toast('That save could not be put back.', 3000);
+            };
+            row.appendChild(text); row.appendChild(go); body.appendChild(row);
+        });
+    };
+
     U.closeModals = function () { document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open')); };
 
     U.toast = function (text, ms) {
