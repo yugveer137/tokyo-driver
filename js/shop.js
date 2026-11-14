@@ -2,15 +2,17 @@
 //   SHOP          a panel of what is in your bag: the food (EAT eats one) and the other things,
 //                 and a short list to buy from on the spot. The shops downtown (places.js) put
 //                 what you buy there into the same bag.
-//   BUY A HOUSE   the small houses of the city you are in, a few of them for sale. You bid: a
-//                 bid that beats the other buyer's limit wins the house for that many coins,
-//                 anything less and the other buyer goes higher. You can never bid more coins
-//                 than you have. A house you own gets a YOUR HOUSE board, E at its door goes in
-//                 (places.js builds the inside), and GO THERE in the panel drives you to it.
-// Saved per account: `bag` ([{ name, food, n }]) and `houses` ([{ key, city, i, j, side, k, ... }]).
+//   BUY A HOUSE   the small houses of the city you are in, a few of them for sale. Another
+//                 buyer wants each one too. You get ONE bid on a house and so do they, neither
+//                 seeing the other's: the higher bid gets the house. Win and it is yours for
+//                 what you bid; lose and it is theirs, and you bid on the next house. You can
+//                 never bid more coins than you have. A house you own gets a YOUR HOUSE board, E
+//                 at its door goes in (places.js builds the inside), GO THERE drives you to it.
+// Saved per account: `bag` ([{ name, food, n }]), `houses` ([{ key, city, i, j, side, k, ... }])
+// and `housesLost` (the keys of the houses the other buyer got).
 window.Shop = (function () {
     const S = {};
-    let scene, bag = [], houses = [];
+    let scene, bag = [], houses = [], lost = [];
     const $ = (id) => document.getElementById(id);
     const el = (tag, text, cls) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; };
     const round10 = (n) => Math.max(10, Math.round(n / 10) * 10);
@@ -86,41 +88,45 @@ window.Shop = (function () {
         World.cities.forEach(c => { if (!c.suburbCols) return; const d = Math.hypot(c.center.x - pos.x, c.center.z - pos.z); if (d < bd) { bd = d; best = c; } });
         return best;
     }
-    // eight of a city's houses are for sale (always the same eight)
+    // eight of a city's houses are for sale at a time: the first eight, in an order that is
+    // always the same, that nobody has bought yet
     function forSale(city) {
         const all = [];
         for (let i = 0; i < city.rows; i++) for (let j = 0; j < city.suburbCols; j++) [-1, 1].forEach(side => {
             for (let k = 0; k < City.housesPerBlock(city); k++) all.push({ i, j, side, k, key: city.id + ':' + i + ':' + j + ':' + side + ':' + k });
         });
-        return all.sort((a, b) => chance(a.key, 3) - chance(b.key, 3)).slice(0, 8)
-            .filter(h => !S.owns(h.key))
+        return all.sort((a, b) => chance(a.key, 3) - chance(b.key, 3))
+            .filter(h => !S.owns(h.key) && lost.indexOf(h.key) === -1).slice(0, 8)
             .map(h => { const plan = City.housePlan(city, h.i, h.j, h.side, h.k); return Object.assign(h, { address: plan.address, price: priceOf(city, plan) }); });
     }
-    // The bidding on a house: the other buyer has bid `high` and will go no higher than `limit`
-    // (somewhere round the asking price, and you are not told where).
-    const auctions = {};
-    function auction(h) {
-        return auctions[h.key] || (auctions[h.key] = { high: round10(h.price * 0.7), limit: round10(h.price * (0.85 + chance(h.key, 11) * 0.4)) });
-    }
+    // The bidding on a house. The other buyer's bid is fixed for the house (somewhere round the
+    // asking price) and you are not told it. You bid once: higher than theirs and the house is
+    // yours for what you bid, otherwise it is theirs and gone from the list. Returns what to tell
+    // the player if the bid could not be placed at all, else null.
+    const rivalBid = (h) => round10(h.price * (0.85 + chance(h.key, 11) * 0.4));
     function bid(city, h, amount) {
-        const a = auction(h), coins = Game.state.coins;
-        if (!(amount > a.high)) return 'Bid more than ' + a.high + ' coins: that is what the other buyer has offered.';
+        const coins = Game.state.coins;
+        if (!(amount >= 10)) return 'Type how many coins you bid.';
         if (amount > coins) return 'You only have ' + coins + ' coins.';
-        if (amount < a.limit) {                                              // not enough: the other buyer goes higher
-            a.high = Math.min(a.limit, round10(amount + h.price * (0.04 + Math.random() * 0.06)));
-            return 'The other buyer bid ' + a.high + ' coins. Bid again?';
+        const theirs = rivalBid(h);
+        if (amount > theirs) {
+            Game.addCoins(-amount);
+            houses.push({ key: h.key, city: city.id, i: h.i, j: h.j, side: h.side, k: h.k, address: h.address, cityName: city.name, paid: amount });
+            Save.set('houses', houses);
+            result = 'SOLD to you! You bid ' + amount + ' coins and the other buyer bid ' + theirs + '. ' + h.address + ' is yours.';
+        } else {
+            lost.push(h.key); Save.set('housesLost', lost);
+            result = 'The other buyer got ' + h.address + ': they bid ' + theirs + ' coins and you bid ' + amount + '. Bid on another house.';
         }
-        Game.addCoins(-amount);
-        houses.push({ key: h.key, city: city.id, i: h.i, j: h.j, side: h.side, k: h.k, address: h.address, cityName: city.name, paid: amount });
-        Save.set('houses', houses);
-        delete auctions[h.key];
-        UI.toast('SOLD! ' + h.address + ' in ' + city.name + ' is yours for ' + amount + ' coins.', 5000);
+        UI.toast(result, 6000);
         return null;
     }
+    let result = '';                                                         // how the last bidding ended, shown at the top of the panel
     let bidding = null;                                                      // the house whose bidding is open in the panel
     function renderHouses(message) {
         const body = $('house-body'); body.innerHTML = '';
         $('house-coins').textContent = Game.state.coins + ' coins';
+        if (result) body.appendChild(el('div', result, 'own-note'));
         body.appendChild(el('div', 'YOUR HOUSES', 'own-head'));
         if (!houses.length) body.appendChild(el('div', 'You do not own a house yet.', 'own-row'));
         houses.forEach(o => {
@@ -139,12 +145,12 @@ window.Shop = (function () {
             const b = el('button', open ? 'CLOSE' : 'BID', 'toggle-btn'); b.onclick = () => { bidding = open ? null : h.key; renderHouses(); }; r.appendChild(b);
             body.appendChild(r);
             if (!open) return;
-            // the bidding for this house: what the other buyer has offered, your bid, and what came of it
-            const a = auction(h), box = el('div', undefined, 'own-bid');
-            box.appendChild(el('div', 'Another buyer has offered ' + a.high + ' coins. The highest bid gets the house. You have ' + Game.state.coins + ' coins.'));
+            // the bidding for this house: one bid, and no second go
+            const box = el('div', undefined, 'own-bid');
+            box.appendChild(el('div', 'Another buyer is bidding for this house too. You each get ONE bid and the higher bid gets the house. You have ' + Game.state.coins + ' coins.'));
             const line = el('div', undefined, 'own-menu');
-            const input = el('input'); input.type = 'number'; input.min = a.high + 10; input.step = 10; input.value = a.high + 10;
-            const go = el('button', 'PLACE BID', 'toggle-btn');
+            const input = el('input'); input.type = 'number'; input.min = 10; input.step = 10; input.placeholder = 'your bid';
+            const go = el('button', 'PLACE MY ONE BID', 'toggle-btn');
             const place = () => { const said = bid(city, h, Math.floor(Number(input.value))); if (said === null) bidding = null; renderHouses(said); };
             go.onclick = place; input.onkeydown = (e) => { if (e.key === 'Enter') place(); };
             line.appendChild(input); line.appendChild(go);
@@ -153,7 +159,7 @@ window.Shop = (function () {
             body.appendChild(box);
         });
     }
-    S.openHouses = function () { bidding = null; renderHouses(); $('house-modal').classList.add('open'); };
+    S.openHouses = function () { bidding = null; result = ''; renderHouses(); $('house-modal').classList.add('open'); };
 
     // drive to a house you own: the car is put on the street outside it
     S.goHome = function (o) {
@@ -198,6 +204,7 @@ window.Shop = (function () {
         scene = sc;
         bag = Save.get('bag', []); if (!Array.isArray(bag)) bag = [];
         houses = Save.get('houses', []); if (!Array.isArray(houses)) houses = [];
+        lost = Save.get('housesLost', []); if (!Array.isArray(lost)) lost = [];
         $('shop-btn').onclick = () => { if (Game.started) S.open(); };
         $('house-btn').onclick = () => { if (Game.started) S.openHouses(); };
     };
