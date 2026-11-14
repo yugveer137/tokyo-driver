@@ -534,7 +534,10 @@ window.Shop = (function () {
         Object.keys(garages).forEach(key => {
             const G = garages[key];
             // the door goes up and down when you say (the OPEN THE GARAGE button), and for a car being backed in for you
-            G.want = G.friend ? (doorsUp[key] ? 1 : 0) : (busy || G.up ? 1 : 0);   // (another player's door does what they say)
+            // (another player's door does what they say. So does one you both own: every player is
+            // offered the same houses, so two friends often own the same one, and then each only
+            // saw their own door move)
+            G.want = (!G.friend && (busy || G.up)) || doorsUp[key] ? 1 : 0;
             if (G.open !== G.want) {
                 G.open += Math.sign(G.want - G.open) * Math.min(Math.abs(G.want - G.open), dt * 1.6);
                 G.door.scale.y = 1 - 0.93 * G.open; G.door.position.y = G.g.bay.floor + G.g.bay.high - G.g.bay.high / 2 * G.door.scale.y;
