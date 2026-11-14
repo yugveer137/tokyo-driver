@@ -5,7 +5,8 @@
 //   BUY A HOUSE   the small houses of the city you are in, a few of them for sale. Another
 //                 buyer wants each one too. You get ONE bid on a house and so do they, neither
 //                 seeing the other's: the higher bid gets the house. Win and it is yours for
-//                 what you bid; lose and it is theirs, and you bid on the next house. You can
+//                 what you bid; lose and it is theirs, and you bid on the next house (after two
+//                 lost in a row the third is yours whatever you bid). You can
 //                 never bid more coins than you have. A house you own gets a YOUR HOUSE board, E
 //                 at its door goes in (places.js builds the inside), GO THERE drives you to it.
 //   SELL HOUSE    you call the realtor (Rita, of Bay Area Homes) about a house you own and tell
@@ -109,21 +110,30 @@ window.Shop = (function () {
     // asking price) and you are not told it. You bid once: higher than theirs and the house is
     // yours for what you bid, otherwise it is theirs and gone from the list. Returns what to tell
     // the player if the bid could not be placed at all, else null.
-    const rivalBid = (h) => round10(h.price * (0.85 + chance(h.key, 11) * 0.4));
+    // (70% to 105% of the asking price: at 85-125% a bid of the full asking price lost more often
+    // than not, and the owner lost house after house)
+    const rivalBid = (h) => round10(h.price * (0.7 + chance(h.key, 11) * 0.35));
+    // And the other buyer never wins three times running: after two houses lost in a row, your
+    // next bid gets the house whatever it is (they come in a little under you).
+    let lossStreak = 0;
     function bid(city, h, amount) {
         const coins = Game.state.coins;
         if (!(amount >= 10)) return 'Type how many coins you bid.';
         if (amount > coins) return 'You only have ' + coins + ' coins.';
-        const theirs = rivalBid(h);
+        let theirs = rivalBid(h);
+        if (lossStreak >= 2 && amount <= theirs) theirs = Math.max(0, Math.floor(amount * 0.9 / 10) * 10);
         if (amount > theirs) {
+            lossStreak = 0;
             Game.addCoins(-amount);
             houses.push({ key: h.key, city: city.id, i: h.i, j: h.j, side: h.side, k: h.k, address: h.address, cityName: city.name, paid: amount });
             Save.set('houses', houses);
             result = 'SOLD to you! You bid ' + amount + ' coins and the other buyer bid ' + theirs + '. ' + h.address + ' is yours.';
         } else {
+            lossStreak++;
             lost.push(h.key); Save.set('housesLost', lost);
             result = 'The other buyer got ' + h.address + ': they bid ' + theirs + ' coins and you bid ' + amount + '. Bid on another house.';
         }
+        Save.set('houseLosses', lossStreak);
         UI.toast(result, 6000);
         if (S.viewing && S.viewing.h.key === h.key) endViewing();           // (the realtor's work on this house is done)
         return null;
@@ -157,6 +167,7 @@ window.Shop = (function () {
             // the bidding for this house: one bid, and no second go
             const box = el('div', undefined, 'own-bid');
             box.appendChild(el('div', 'Another buyer is bidding for this house too. You each get ONE bid and the higher bid gets the house. You have ' + Game.state.coins + ' coins.'));
+            if (lossStreak >= 2) box.appendChild(el('div', 'The other buyer got the last two houses. Rita: "Not this time. Make your bid and this one is yours."', 'own-note'));
             const line = el('div', undefined, 'own-menu');
             const input = el('input'); input.type = 'number'; input.min = 10; input.step = 10; input.placeholder = 'your bid';
             const go = el('button', 'PLACE MY ONE BID', 'toggle-btn');
@@ -337,6 +348,7 @@ window.Shop = (function () {
         bag = Save.get('bag', []); if (!Array.isArray(bag)) bag = [];
         houses = Save.get('houses', []); if (!Array.isArray(houses)) houses = [];
         lost = Save.get('housesLost', []); if (!Array.isArray(lost)) lost = [];
+        lossStreak = Number(Save.get('houseLosses', 0)) || 0;
         $('shop-btn').onclick = () => { if (Game.started) S.open(); };
         $('house-btn').onclick = () => { if (Game.started) S.openHouses(); };
         $('sell-btn').onclick = () => { if (Game.started) S.openSell(); };
