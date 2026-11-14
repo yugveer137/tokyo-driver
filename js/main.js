@@ -205,7 +205,7 @@
             }
             Minimap.update(Car.body.position, Car.yaw());
             Features.update(dt);
-            Walk.update(dt); Places.update(dt); Shop.update(); Peds.update(dt, Walk.active ? Walk.pos : focus); Police.update(dt); Robbery.update(dt);
+            Walk.update(dt); Places.update(dt); Shop.update(dt); Peds.update(dt, Walk.active ? Walk.pos : focus); Police.update(dt); Robbery.update(dt);
             Races.update(dt);
             SelfDrive.update(dt);
             Multiplayer.update(dt);

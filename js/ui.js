@@ -62,6 +62,7 @@ window.UI = (function () {
             if (e.code === 'KeyE') { if (window.Walk && Walk.active) { if (!(window.Places && Places.use())) Robbery.rob(); } else Features.setSignal('right'); }
             if (e.code === 'KeyH') Features.setSignal('hazard');
             if (e.code === 'KeyT') Train.toggle();
+            if (e.code === 'KeyP' && window.Shop) Shop.parkKey();           // back into your garage, when stopped by its drive
             if (e.code === 'KeyR') Car.reset();
             if (e.code === 'KeyM') { SelfDrive.draw(); $('map-modal').classList.toggle('open'); }
             if (e.code === 'Escape') U.closeModals();

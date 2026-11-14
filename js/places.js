@@ -346,7 +346,10 @@ window.Places = (function () {
             if (!upper) room.actions.push({ x: 2.3, z: 1.3, reach: 1.3, label: 'REST', run: rest });
             // the door through to the garage, in the back wall beside the kitchen: your cars, to pick the one parked outside
             room.box(0.9, 2.1, 0.06, 0x8a8f94, -2.4, 1.05, -3.04); room.glow(0.5, 0.16, 0.04, 0xffd24a, -2.4, 2.3, -3.02);
-            room.actions.push({ x: -2.4, z: -2.1, reach: 1.1, label: 'OPEN YOUR GARAGE', run: () => { UI.renderGarage(); document.getElementById('garage-modal').classList.add('open'); } });
+            // (with the car parked in this house's garage, the door drives it out; otherwise it is the list of your cars)
+            const inHere = () => { const g = Shop.garaged(); return !!(g && place.key && g.key === place.key); };
+            room.actions.push({ x: -2.4, z: -2.1, reach: 1.1, get label() { return inHere() ? 'DRIVE OUT OF THE GARAGE' : 'OPEN YOUR GARAGE'; },
+                run: () => { if (inHere()) Shop.driveOut(); else { UI.renderGarage(); document.getElementById('garage-modal').classList.add('open'); } } });
             room.hint = 'Your own house. ' + (upper ? 'The stairs by the door go up to the bedrooms. ' : 'E at the bed rests. ') + 'E at the fridge opens your food, E at the grey door in the back wall opens your garage. E at the door to leave.';
             return finishRoom(room, () => {});
         }
@@ -406,7 +409,7 @@ window.Places = (function () {
     }
     function enterHome(home) {
         const plan = home.plan;
-        const place = { kind: 'home', name: 'YOUR HOUSE', p: plan.p.clone(), centre: plan.centre.clone(), yaw: home.city.heading + plan.facing * Math.PI / 2, floors: plan.floors };
+        const place = { kind: 'home', name: 'YOUR HOUSE', p: plan.p.clone(), centre: plan.centre.clone(), yaw: home.city.heading + plan.facing * Math.PI / 2, floors: plan.floors, key: plan.key };
         const room = ownHouse(place);
         P.inside = { place, room };
         Walk.enterRoom(room);
@@ -458,10 +461,12 @@ window.Places = (function () {
         i.room.remove();
     }
     P.leave = leave;
+    P.goHome = (home) => enterHome(home);                                   // (shop.js: straight in from the garage)
 
     // What E (or the big button) would do right here, if anything: { label, run }.
     P.prompt = function () {
-        if (!window.Walk || !Walk.active || !Game.started) return null;
+        if (!window.Walk || !Game.started) return null;
+        if (!Walk.active) return window.Shop && Shop.garagePrompt && !(window.Train && Train.riding) ? Shop.garagePrompt() : null;   // (driving: your garage, if you are by it)
         if (P.inside) {
             const r = P.inside.room, me = Walk.pos;
             if (!r.noDoor && flat(me, r.doorIn) < 1.7) return r.door || { label: 'LEAVE', run: leave };
@@ -482,7 +487,7 @@ window.Places = (function () {
     // E on foot. True if there was something here to do (else the key goes on to the robbery).
     P.use = function () {
         const p = P.prompt();
-        if (!p || p.key === 'G') return false;
+        if (!p || p.key) return false;                                      // (G and P have their own keys)
         p.run(); return true;
     };
 

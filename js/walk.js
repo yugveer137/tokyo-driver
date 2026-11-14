@@ -40,6 +40,9 @@ window.Walk = (function () {
             if (W.cuffed) { UI.toast('You are handcuffed.'); return; }
             if (window.Robbery && Robbery.jumpInNearby && Robbery.jumpInNearby()) return;   // a robber friend's car (or your parked one) right here
             if (W.passenger) { W.stepOut(); return; }
+            // the car is in your garage: G by the garage drives it out
+            const garaged = window.Shop && Shop.garaged ? Shop.garaged() : null;
+            if (garaged && !W.room) { if (W.pos.distanceTo(Car.body.position) < 9) Shop.driveOut(); else UI.toast('Your car is in your garage at ' + garaged.o.address + '. Walk to the garage door and press G.'); return; }
             if (W.room) { UI.toast(W.room.jail ? 'The cell is locked. ESCAPE jumps out the window.' : 'Leave by the door first: E at the door'); return; }
             const other = W.rideOffer();
             if (other) W.rideWith(other);

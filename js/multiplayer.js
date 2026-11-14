@@ -316,7 +316,7 @@ window.Multiplayer = (function () {
     }
     function myState() {
         const p = Car.body.position, q = Car.body.quaternion;
-        const me = { t: 'p', x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w, car: Car.data.id, name: myName(), riding: !!(window.Walk && Walk.passenger) };
+        const me = { t: 'p', x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w, car: Car.data.id, name: myName(), riding: !!((window.Walk && Walk.passenger) || (window.Shop && Shop.garaged && Shop.garaged())) };   // (riding with someone, or parked in the garage: not drawn)
         // on foot out of doors: where I am walking [x, y, z, heading, 0 still / 1 walking / 2 running]
         const W = window.Walk;
         if (W && W.active && !W.room && !W.passenger) me.w = [Math.round(W.pos.x * 100) / 100, Math.round(W.pos.y * 100) / 100, Math.round(W.pos.z * 100) / 100, Math.round(W.yaw * 100) / 100, W.moving ? (W.running ? 2 : 1) : 0];
