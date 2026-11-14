@@ -320,7 +320,7 @@ window.Shop = (function () {
         UI.closeModals();
         if (window.Walk && Walk.active) { if (window.Places && Places.inside) Places.leave(); Walk.getIn(); }
         World.travelTo(city);
-        const p = city.toWorld(plan.lx + plan.side * (8 + city.street / 2 - 2.5), plan.lz);
+        const p = city.toWorld(plan.lx + plan.side * (City.SETBACK + city.street / 2 - 2.5), plan.lz);
         Terrain.update(p); World.update(p, true);
         Car.teleport(p.x, Terrain.height(p.x, p.z) + 1.2, p.z, city.heading);
     }
@@ -394,7 +394,7 @@ window.Shop = (function () {
         const city = cityOf(o.city), plan = planOf(o), f = plan.facing, bay = City.bay(plan), z = plan.lz + bay.z;
         const street = f < 0 ? plan.j : plan.j + 1;                              // the north-south street the house faces (every third is an avenue)
         const half = Road.widthOf(street % 3 === 0 ? 'avenue' : 'street') / 2;
-        const xWall = plan.lx + f * plan.d / 2, xRoad = plan.lx + f * (8 + city.street / 2 - half);   // the street wall, and the road's near edge
+        const xWall = plan.lx + f * plan.d / 2, xRoad = plan.lx + f * (City.SETBACK + city.street / 2 - half);   // the street wall, and the road's near edge
         const at = (lx, y) => { const p = city.toWorld(lx, z); p.y = y; return p; };
         const mouth = at(xRoad + f * 2.0, 0); mouth.y = Terrain.height(mouth.x, mouth.z) + 0.12;
         return { city, plan, bay, f, z, xWall, drive: Math.abs(xRoad - xWall), mouth, inside: at(xWall - f * bay.deep / 2, plan.ground + bay.floor),
@@ -425,7 +425,7 @@ window.Shop = (function () {
             m.rotation.z = Math.atan2(yb - ya, xb - xa);
             solid(m);
         };
-        const wall = plan.d / 2, edge = 8;                                    // (the block ends 8 m out from the house's middle)
+        const wall = plan.d / 2, edge = City.SETBACK;                         // (where the block ends, out from the house's middle)
         const landAt = (x) => { const p = g.city.toWorld(plan.lx + f * x, g.z); return Terrain.height(p.x, p.z) - plan.ground; };   // the land there, against the house's ground
         const yEdge = landAt(edge) + 0.36, xRoad = wall + g.drive + 0.8, yRoad = landAt(xRoad) + 0.16;
         strip(f * wall, bay.floor, f * edge, yEdge);
@@ -434,7 +434,7 @@ window.Shop = (function () {
         const door = box(0.14, bay.high, bay.wide - 0.1, 0xd8d8d2, f * (wall - 0.05), bay.floor + bay.high / 2, bay.z);
         [-0.6, 0, 0.6].forEach(y => { const line = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.04, bay.wide - 0.3), new THREE.MeshStandardMaterial({ color: 0x8a8a84 })); line.position.y = y; door.add(line); });
         const doorBody = solid(door);
-        return { group, door, doorBody, doorY: doorBody.position.y, bodies, open: 0, want: 0, g, o };
+        return { group, door, doorBody, doorY: doorBody.position.y, bodies, open: 0, want: 0, up: false, g, o };
     }
     function dropGarage(key) {
         const g = garages[key]; if (!g) return;
@@ -451,7 +451,7 @@ window.Shop = (function () {
     };
     // Backing in for you: the car is moved by hand (frozen, as it is under a train) to the
     // street by the drive, tail to the house, and then back up the drive into the bay.
-    let move = null, busy = false;
+    let move = null, busy = false, doorButton = null;
     const turnY = new CANNON.Vec3(0, 1, 0);
     function setCar(p, yaw) {
         const b = Car.body;
@@ -501,6 +501,7 @@ window.Shop = (function () {
     S.driveOut = function () {
         if (busy || !S.garaged()) return;
         if (window.Places && Places.inside) Places.leave();
+        const here = S.garaged(); if (here && garages[here.key]) garages[here.key].up = true;   // (the door goes up for you)
         if (Walk.active) Walk.getIn();
         UI.toast('In your car. The garage door is open: drive out.', 3000);
     };
@@ -516,14 +517,24 @@ window.Shop = (function () {
         const walking = window.Walk && Walk.active, indoors = walking && Walk.room;
         Object.keys(garages).forEach(key => {
             const G = garages[key];
-            // the door is up while your car is at the house, or you are standing at it; down otherwise
-            G.want = busy || (!walking && flat(Car.body.position, G.g.door) < 13) || (walking && !indoors && flat(Walk.pos, G.g.door) < 4) ? 1 : 0;
+            // the door goes up and down when you say (the OPEN THE GARAGE button), and for a car being backed in for you
+            G.want = busy || G.up ? 1 : 0;
             if (G.open !== G.want) {
                 G.open += Math.sign(G.want - G.open) * Math.min(Math.abs(G.want - G.open), dt * 1.6);
                 G.door.scale.y = 1 - 0.93 * G.open; G.door.position.y = G.g.bay.floor + G.g.bay.high - G.g.bay.high / 2 * G.door.scale.y;
                 G.doorBody.position.y = G.doorY + (G.open > 0.5 ? 30 : 0);  // (an open door is out of the car's way)
             }
         });
+        // the OPEN / CLOSE THE GARAGE button on the side, while you (or your car) are within 30 m of your garage
+        const me = walking && !indoors ? Walk.pos : Car.body.position;
+        let near = null, nd = 30;
+        if (!indoors) Object.keys(garages).forEach(key => { const d = flat(me, garages[key].g.door); if (d < nd) { nd = d; near = garages[key]; } });
+        doorButton = doorButton || $('garagedoor-btn');
+        if (doorButton) {
+            const text = near ? (near.up ? 'CLOSE THE GARAGE' : 'OPEN THE GARAGE') : '';
+            if (doorButton.textContent !== text || (doorButton.style.display === 'none') !== !near) { doorButton.textContent = text; doorButton.style.display = near ? '' : 'none'; }
+            doorButton.onclick = () => { if (near) near.up = !near.up; };
+        }
         // inside the house the rooms stand where the garage is: the car is not drawn in the living room
         if (indoors && S.garaged()) { Car.group.visible = false; Car.wheels.forEach(w => { w.visible = false; }); }
     }

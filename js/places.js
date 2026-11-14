@@ -46,8 +46,12 @@ window.Places = (function () {
         // the floor stands clear of the land under the whole room, even on a slope
         let y = -Infinity;
         [[0, 0], [-5, -5], [5, -5], [-5, 5], [5, 5]].forEach(([dx, dz]) => { y = Math.max(y, Terrain.height(c.x + dx, c.z + dz)); });
-        g.position.set(c.x, y + 0.4, c.z); g.rotation.y = place.yaw;
-        const room = { group: g, W, D, H, place, people: [], blocks: [], actions: [], payer: null };
+        // opts.below: the room is built that far under the ground instead (a house you own has
+        // a real garage inside it now, and rooms standing in the same space had the TV in the
+        // garage); opts.wider: the whole room and its furniture stretched that much sideways
+        g.position.set(c.x, y + 0.4 - (opts && opts.below || 0), c.z); g.rotation.y = place.yaw;
+        const wider = opts && opts.wider || 1; g.scale.set(wider, 1, wider);
+        const room = { group: g, W, D, H, place, people: [], blocks: [], actions: [], payer: null, wider };
         // which room this is, the same on every player's machine (it stands in the same place for
         // all of them): two players whose rooms have the same id are in the room together
         room.id = Math.round(c.x) + ':' + Math.round(c.z) + ':' + W + ':' + D + ':' + H + (opts && opts.noDoor ? ':up' : '');
@@ -98,6 +102,7 @@ window.Places = (function () {
     function stander(room, x, z, yaw, look, sitting) {
         const m = Peds.person(look);
         m.position.set(x, sitting ? -0.3 : 0.1, z); m.rotation.y = yaw;
+        m.scale.set(1 / room.wider, 1, 1 / room.wider);                       // (people are not stretched with the room)
         if (sitting) m.userData.legs.forEach(l => { l.rotation.x = -Math.PI / 2; });
         room.group.add(m);
         return m;
@@ -113,6 +118,7 @@ window.Places = (function () {
             if (w.mesh) room.group.remove(w.mesh);
             w.mesh = Peds.person(w.look); w.steps = script(); w.i = 0; w.t = 0;
             w.mesh.position.set(w.steps[0].x, 0.1, w.steps[0].z); w.mesh.visible = w.rest <= 0;
+            w.mesh.scale.set(1 / room.wider, 1, 1 / room.wider);
             room.group.add(w.mesh);
         };
         fresh(); w.fresh = fresh;
@@ -313,9 +319,10 @@ window.Places = (function () {
     // be, and the bedrooms are upstairs (`upperFloor`).
     // place.guestOf (another player's name) makes it their house, which you are visiting: the
     // same rooms, nothing of yours in them and nothing to use.
+    const HOUSE_ROOM = { below: 30, wider: 1.3 };                           // (see startRoom)
     function ownHouse(place, view) {
         const upper = place.floors === 2, mine = !view && !place.guestOf;
-        const room = startRoom(place, 8.6, 6.2, 3, 0xece6d8, 0x9a7a55);
+        const room = startRoom(place, 8.6, 6.2, 3, 0xece6d8, 0x9a7a55, HOUSE_ROOM);
         // the kitchen along the back wall; the fridge opens your bag of food
         room.solid(3.2, 0.9, 0.6, 0xf0efe8, 0.6, 0.45, -2.75); room.box(3.3, 0.05, 0.65, 0x2f2f2f, 0.6, 0.93, -2.75);
         room.box(0.6, 0.02, 0.45, 0x111111, -0.2, 0.97, -2.75);
@@ -380,7 +387,7 @@ window.Places = (function () {
     // Upstairs in a two-storey house: the big bedroom, a child's bed, a desk. You arrive at the
     // top of the stairs (the far end of the railed-off stairwell) and go back down from there.
     function upperFloor(place, view) {
-        const room = startRoom(place, 8.6, 6.2, 2.9, 0xe9e2d2, 0xa88a62, { noDoor: true });
+        const room = startRoom(place, 8.6, 6.2, 2.9, 0xe9e2d2, 0xa88a62, Object.assign({ noDoor: true }, HOUSE_ROOM));
         // the stairwell in the corner: a dark gap in the floor with a rail on its two open sides
         room.box(1.1, 0.02, 2.5, 0x1a1a1a, 3.7, 0.11, 1.2);
         for (let k = 0; k < 4; k++) room.box(1.1, 0.04, 0.28, 0x7a5a3c, 3.7, 0.08 - k * 0.02, 0.2 + k * 0.3);

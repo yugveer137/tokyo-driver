@@ -399,12 +399,13 @@ window.City = (function () {
     let houseWindowMat = null, houseDoorMat = null, houseTrimMat = null, housePathMat = null, houseChimneyMat = null, houseWallMat = null, houseRoofMat = null;
     // Where house k on `side` of block (i, j) stands, with its address: the same maths whether
     // or not the city is built, so the robbery can pick houses in a city that is not loaded yet.
+    C.SETBACK = 9;                                                           // from the edge of its block to the middle of a house
     C.housesPerBlock = (city) => Math.max(2, Math.floor(city.block / 14));
     C.housePlan = function (city, i, j, side, k) {
         const B = city.block, n = C.housesPerBlock(city), lot = B / n;
         const cx = (city.streetX(j) + city.streetX(j + 1)) / 2, cz = (city.streetZ(i) + city.streetZ(i + 1)) / 2;
-        const lz = cz - B / 2 + lot * (k + 0.5), lx = cx + side * (B / 2 - 8);
-        const w = Math.min(10, lot - 3), d = 7, h = 3.4;                         // w along the street, d toward the back
+        const lz = cz - B / 2 + lot * (k + 0.5), lx = cx + side * (B / 2 - C.SETBACK);
+        const w = Math.min(12, lot - 2), d = 9, h = 3.4;                         // w along the street, d toward the back
         const street = city.streets.ns, name = street[(side < 0 ? j : j + 1) % street.length];
         const no = 100 * (i + 1) + k * 2 + (side < 0 ? 1 : 2);                  // odd numbers one side, even the other
         const centre = city.toWorld(lx, lz), ground = Terrain.height(centre.x, centre.z) + 0.3;
@@ -498,7 +499,7 @@ window.City = (function () {
             win(fx, y, z, wide, 1.0, true);
             if (shutters) [-1, 1].forEach(sd => put(new THREE.BoxGeometry(0.06, 1.15, 0.32), trimMat, fx + facing * 0.04, y, z + sd * (wide / 2 + 0.32), accent));
         };
-        const pathLen = 8 - d / 2 - 1.3;
+        const pathLen = C.SETBACK - d / 2 - 1.3;
         if (bay) { /* (the bay is there: shop.js hangs its door and lays its drive) */ }
         else if (garage) {
             // a garage door in place of the front window, and a drive down to the street
