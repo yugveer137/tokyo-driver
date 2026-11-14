@@ -99,12 +99,14 @@ window.Places = (function () {
     }
     // Someone who walks a list of steps { x, z, wait, face, queue, pay, leave }: to each spot in
     // turn, there to stand `wait` seconds facing `face`. `script` writes a fresh list each time
-    // round; a step marked `leave` ends it, and a new person comes in a little later.
-    function walker(room, script, delay) {
-        const w = { script, rest: delay || 0 };
+    // round; a step marked `leave` ends it, and a new person comes in a little later. With
+    // opts.loop the same person goes round again instead (someone who lives or works there),
+    // opts.look dresses them, and a step's `say` is what they tell you when they get there.
+    function walker(room, script, delay, opts) {
+        const w = Object.assign({ script, rest: delay || 0 }, opts);
         const fresh = () => {
             if (w.mesh) room.group.remove(w.mesh);
-            w.mesh = Peds.person(); w.steps = script(); w.i = 0; w.t = 0;
+            w.mesh = Peds.person(w.look); w.steps = script(); w.i = 0; w.t = 0;
             w.mesh.position.set(w.steps[0].x, 0.1, w.steps[0].z); w.mesh.visible = w.rest <= 0;
             room.group.add(w.mesh);
         };
@@ -122,6 +124,7 @@ window.Places = (function () {
         }
         Peds.animate(m, dt, false);
         if (s.face !== undefined) m.rotation.y = s.face;
+        if (s.say && w.t === 0) UI.toast(s.say, 4000);
         if (s.queue && room.payer && room.payer !== w) return;               // somebody is at the till: wait your turn
         w.t += dt;
         if (w.t < (s.wait || 0)) return;
@@ -132,7 +135,8 @@ window.Places = (function () {
             bag.position.y = -0.75; m.userData.arms[1].add(bag);
         }
         w.t = 0; w.i++;
-        if (s.leave || w.i >= w.steps.length) { w.rest = rnd(2, 7); w.fresh(); }
+        if (w.loop && w.i >= w.steps.length) { w.i = 0; w.steps = w.script(); }
+        else if (s.leave || w.i >= w.steps.length) { w.rest = rnd(2, 7); w.fresh(); }
     }
 
     // ---------- a shop ----------
@@ -298,13 +302,15 @@ window.Places = (function () {
 
     // ---------- a house you own ----------
     // (shop.js keeps the list of them; `home` is { o, city, plan } from Shop.homeNear)
-    function ownHouse(place) {
+    // `view` (from Shop.viewNear) makes it a house you have come to see: the same rooms, with
+    // the realtor showing you round instead of your own things in them.
+    function ownHouse(place, view) {
         const room = startRoom(place, 8.6, 6.2, 3, 0xece6d8, 0x9a7a55);
         // the kitchen along the back wall; the fridge opens your bag of food
         room.solid(3.2, 0.9, 0.6, 0xf0efe8, 0.6, 0.45, -2.75); room.box(3.3, 0.05, 0.65, 0x2f2f2f, 0.6, 0.93, -2.75);
         room.box(0.6, 0.02, 0.45, 0x111111, -0.2, 0.97, -2.75);
         room.solid(0.8, 1.9, 0.7, 0xdfe3e6, 3.6, 0.95, -2.7);
-        room.actions.push({ x: 3.4, z: -1.6, reach: 1.4, label: 'OPEN THE FRIDGE', run: () => Shop.open() });
+        if (!view) room.actions.push({ x: 3.4, z: -1.6, reach: 1.4, label: 'OPEN THE FRIDGE', run: () => Shop.open() });
         // sofa, rug and TV
         room.box(2.6, 0.03, 1.8, 0x7a3a3a, -2.3, 0.11, 0.9);
         room.solid(2.2, 0.42, 0.85, 0x55708a, -2.3, 0.21, 2.2); room.box(2.2, 0.9, 0.2, 0x4a6278, -2.3, 0.45, 2.72);
@@ -313,15 +319,38 @@ window.Places = (function () {
         // a window, and a shelf that fills up with the things you have bought
         room.box(0.06, 1.5, 1.8, 0xf4f1ea, -4.23, 1.6, 1.0); room.glow(0.04, 1.3, 1.6, 0xbfe3ff, -4.2, 1.6, 1.0);
         room.solid(0.4, 1.8, 1.6, 0x6b4a32, -4.05, 0.9, -1.6);
-        let n = 0; Shop.things().forEach(x => { n += x.n; });
+        let n = 0; if (!view) Shop.things().forEach(x => { n += x.n; });
         for (let k = 0; k < Math.min(n, 12); k++) room.box(0.28, 0.3, 0.3, pick([0xe2362f, 0x2f6fe2, 0xf2d21e, 0x3fb24f, 0xd24fd0, 0xff8a1e]), -3.8, 0.5 + Math.floor(k / 4) * 0.5, -2.2 + (k % 4) * 0.4);
         // a table and chair, and your bed
         room.solid(1.2, 0.06, 0.8, 0x8a6a48, 0.9, 0.76, -0.4); [[0.4, -0.7], [1.4, -0.7], [0.4, -0.1], [1.4, -0.1]].forEach(([x, z]) => room.box(0.07, 0.74, 0.07, 0x6b4f3a, x, 0.37, z));
         room.box(0.45, 0.06, 0.45, 0x6b4f3a, 0.9, 0.46, 0.45); room.box(0.45, 0.5, 0.06, 0x6b4f3a, 0.9, 0.72, 0.66);
         room.solid(1.5, 0.45, 2.1, 0x8a6a4a, 3.4, 0.23, 1.3); room.box(1.4, 0.14, 2.0, 0xf2efe6, 3.4, 0.52, 1.3); room.box(1.4, 0.2, 1.3, 0x3f8a5a, 3.4, 0.62, 1.0); room.box(0.9, 0.14, 0.4, 0xffffff, 3.4, 0.66, 2.1);
-        room.actions.push({ x: 2.3, z: 1.3, reach: 1.3, label: 'REST', run: rest });
-        room.hint = 'Your own house. E at the bed rests, E at the fridge opens your food. E at the door to leave.';
-        return finishRoom(room, () => {});
+        if (!view) {
+            room.actions.push({ x: 2.3, z: 1.3, reach: 1.3, label: 'REST', run: rest });
+            room.hint = 'Your own house. E at the bed rests, E at the fridge opens your food. E at the door to leave.';
+            return finishRoom(room, () => {});
+        }
+        // a viewing: the papers are on the table (E there to bid), and E anywhere else asks the realtor
+        const who = Shop.realtor(), h = view.h;
+        room.box(0.5, 0.02, 0.35, 0xf4f1ea, 0.9, 0.8, -0.4);
+        room.actions.push({ x: 0.9, z: 0.5, reach: 1.3, label: 'BID FOR THIS HOUSE', run: () => Shop.openBid(h.key) });
+        const answers = ['"They are asking ' + h.price + ' coins. Another buyer wants it too."', '"You get one bid and so do they. The higher bid gets the house."', '"Two minutes from the freeway, and so quiet at night."', '"When you are ready, the papers are on the table."'];
+        let asked = 0;
+        room.anywhere = { label: 'ASK ' + who.name.toUpperCase(), run: () => UI.toast(who.name + ': ' + answers[asked++ % answers.length], 4000) };
+        room.hint = who.name + ' shows you round. E asks her about the house, E at the table bids for it. E at the door to leave.';
+        const tour = () => [
+            { x: -1.0, z: 0.9, wait: 5, face: -Math.PI / 2, say: who.name + ': "This is the living room. Lots of light."' },
+            { x: 1.6, z: -1.8, wait: 5, face: Math.PI, say: who.name + ': "The kitchen. Brand new, and the fridge stays."' },
+            { x: 2.2, z: 0.9, wait: 5, face: Math.PI / 2, say: who.name + ': "And here is the bedroom corner. Cosy!"' }];
+        return finishRoom(room, () => { walker(room, tour, 0, { loop: true, look: who.look }); });
+    }
+    function enterViewing(view) {
+        const plan = view.plan;
+        const place = { kind: 'viewing', name: 'HOUSE FOR SALE', p: plan.p.clone(), centre: plan.centre.clone(), yaw: view.city.heading + plan.facing * Math.PI / 2 };
+        const room = ownHouse(place, view);
+        P.inside = { place, room };
+        Walk.enterRoom(room);
+        UI.toast(view.h.address + ', asking ' + view.h.price + ' coins. ' + room.hint, 6000);
     }
     function enterHome(home) {
         const plan = home.plan;
@@ -359,7 +388,7 @@ window.Places = (function () {
         const pottering = () => [{ x: 1.0, z: -2.3, wait: rnd(3, 6), face: Math.PI }, { x: 2.6, z: -2.3, wait: rnd(2, 4), face: Math.PI }, { x: 2.3, z: -0.6, wait: rnd(2, 5), face: -Math.PI / 2 }];
         return finishRoom(room, () => {
             stander(room, -1.9, 2.55, Math.PI, null, true);                      // on the sofa, watching TV
-            walker(room, pottering, 0);
+            walker(room, pottering, 0, { loop: true });
         });
     }
 
@@ -385,10 +414,12 @@ window.Places = (function () {
             const r = P.inside.room, me = Walk.pos;
             if (flat(me, r.doorIn) < 1.7) return r.door || { label: 'LEAVE', run: leave };
             const a = r.actions.find(a => flat(me, a.at) < a.reach);
-            return a ? { label: a.label, run: a.run } : { label: '', run: () => UI.toast(r.hint, 2500) };
+            return a ? { label: a.label, run: a.run } : r.anywhere || { label: '', run: () => UI.toast(r.hint, 2500) };
         }
         if (Walk.passenger) return { label: 'GET OUT', run: () => Walk.toggle(), key: 'G' };
         if (Walk.room || Walk.ride || Walk.cuffed) return null;
+        const view = window.Shop ? Shop.viewNear(Walk.pos, REACH + 1) : null;   // a house for sale you came to see: the realtor is at the door
+        if (view) return { label: 'SEE THE HOUSE WITH THE REALTOR', run: () => enterViewing(view) };
         const home = window.Shop ? Shop.homeNear(Walk.pos, REACH) : null;    // the door of a house you own
         if (home) return { label: 'GO INTO YOUR HOUSE', run: () => enterHome(home) };
         const pl = P.near(Walk.pos, REACH);
