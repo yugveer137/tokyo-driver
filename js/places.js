@@ -137,11 +137,11 @@ window.Places = (function () {
 
     // ---------- a shop ----------
     const GOODS = {
-        'MARKET': { colors: [0xd8402f, 0xf2b01e, 0x3f9a4f, 0xe8e2d0, 0x2f6fd0, 0xf07f2a], buy: ['an apple', 'a carton of milk', 'a bag of chips', 'a bunch of bananas'] },
-        'BAKERY': { colors: [0xc98a4a, 0xe2b872, 0x9a6234, 0xf2dfb4, 0xd9a05a], buy: ['a croissant', 'a loaf of bread', 'a donut', 'a slice of cake'] },
+        'MARKET': { food: true, colors: [0xd8402f, 0xf2b01e, 0x3f9a4f, 0xe8e2d0, 0x2f6fd0, 0xf07f2a], buy: ['an apple', 'a carton of milk', 'a bag of chips', 'a bunch of bananas'] },
+        'BAKERY': { food: true, colors: [0xc98a4a, 0xe2b872, 0x9a6234, 0xf2dfb4, 0xd9a05a], buy: ['a croissant', 'a loaf of bread', 'a donut', 'a slice of cake'] },
         'TOY SHOP': { colors: [0xe2362f, 0x2f6fe2, 0xf2d21e, 0x3fb24f, 0xd24fd0, 0xff8a1e], buy: ['a toy car', 'a kite', 'a puzzle', 'a bouncy ball'] },
         'BOOKS': { colors: [0x7a2f2f, 0x2f4f7a, 0x3f6a3f, 0x8a6a2f, 0x4a3a6a, 0xd9cdb4], buy: ['a comic book', 'a map of the Bay Area', 'a book about cars'] },
-        'CAFE': { colors: [0x6a4028, 0xe8dcc4, 0xc98a4a, 0x2f2a26, 0xd24f3f], buy: ['a hot chocolate', 'a sandwich', 'a muffin', 'an orange juice'] },
+        'CAFE': { food: true, colors: [0x6a4028, 0xe8dcc4, 0xc98a4a, 0x2f2a26, 0xd24f3f], buy: ['a hot chocolate', 'a sandwich', 'a muffin', 'an orange juice'] },
         'CLOTHES': { colors: [0x2f3f6a, 0xd9d2c4, 0x8a2f3f, 0x3f6a5a, 0x1f1f1f, 0xd9a03f], buy: ['a cap', 'a pair of socks', 'a T-shirt', 'a scarf'] }
     };
     function shop(place) {
@@ -173,7 +173,9 @@ window.Places = (function () {
         room.glow(0.02, 0.2, 0.3, 0x7fffd0, 3.09, 1.24, 2.3);
         room.actions.push({ x: 2.3, z: 2.7, reach: 1.5, label: 'BUY', run: () => {
             if (Game.state.coins < PRICE) { UI.toast('That costs ' + PRICE + ' coins and you have ' + Game.state.coins + '.', 2500); return; }
-            Game.addCoins(-PRICE); UI.toast('You bought ' + pick(goods.buy) + ' for ' + PRICE + ' coins.', 2500);
+            const item = pick(goods.buy);
+            Game.addCoins(-PRICE); Shop.add(item, goods.food);               // (into your bag: the SHOP button shows it)
+            UI.toast('You bought ' + item + ' for ' + PRICE + ' coins.' + (goods.food ? ' SHOP lets you eat it.' : ' It is in your bag (SHOP).'), 3500);
         } });
         room.hint = 'The till is by the door: E there buys something. E at the door to leave.';
         const aisles = [-3.2, -1.0, 2.2];
@@ -294,6 +296,42 @@ window.Places = (function () {
         setTimeout(() => { fade.style.opacity = '0'; resting = false; UI.toast('You slept like a log. It is morning.', 3000); }, 2300);
     }
 
+    // ---------- a house you own ----------
+    // (shop.js keeps the list of them; `home` is { o, city, plan } from Shop.homeNear)
+    function ownHouse(place) {
+        const room = startRoom(place, 8.6, 6.2, 3, 0xece6d8, 0x9a7a55);
+        // the kitchen along the back wall; the fridge opens your bag of food
+        room.solid(3.2, 0.9, 0.6, 0xf0efe8, 0.6, 0.45, -2.75); room.box(3.3, 0.05, 0.65, 0x2f2f2f, 0.6, 0.93, -2.75);
+        room.box(0.6, 0.02, 0.45, 0x111111, -0.2, 0.97, -2.75);
+        room.solid(0.8, 1.9, 0.7, 0xdfe3e6, 3.6, 0.95, -2.7);
+        room.actions.push({ x: 3.4, z: -1.6, reach: 1.4, label: 'OPEN THE FRIDGE', run: () => Shop.open() });
+        // sofa, rug and TV
+        room.box(2.6, 0.03, 1.8, 0x7a3a3a, -2.3, 0.11, 0.9);
+        room.solid(2.2, 0.42, 0.85, 0x55708a, -2.3, 0.21, 2.2); room.box(2.2, 0.9, 0.2, 0x4a6278, -2.3, 0.45, 2.72);
+        room.solid(1.6, 0.5, 0.4, 0x4a3524, -2.3, 0.25, -0.5);
+        room.box(1.3, 0.75, 0.06, 0x111111, -2.3, 0.95, -0.5); room.glow(1.2, 0.66, 0.02, 0x7fb4ff, -2.3, 0.95, -0.46);
+        // a window, and a shelf that fills up with the things you have bought
+        room.box(0.06, 1.5, 1.8, 0xf4f1ea, -4.23, 1.6, 1.0); room.glow(0.04, 1.3, 1.6, 0xbfe3ff, -4.2, 1.6, 1.0);
+        room.solid(0.4, 1.8, 1.6, 0x6b4a32, -4.05, 0.9, -1.6);
+        let n = 0; Shop.things().forEach(x => { n += x.n; });
+        for (let k = 0; k < Math.min(n, 12); k++) room.box(0.28, 0.3, 0.3, pick([0xe2362f, 0x2f6fe2, 0xf2d21e, 0x3fb24f, 0xd24fd0, 0xff8a1e]), -3.8, 0.5 + Math.floor(k / 4) * 0.5, -2.2 + (k % 4) * 0.4);
+        // a table and chair, and your bed
+        room.solid(1.2, 0.06, 0.8, 0x8a6a48, 0.9, 0.76, -0.4); [[0.4, -0.7], [1.4, -0.7], [0.4, -0.1], [1.4, -0.1]].forEach(([x, z]) => room.box(0.07, 0.74, 0.07, 0x6b4f3a, x, 0.37, z));
+        room.box(0.45, 0.06, 0.45, 0x6b4f3a, 0.9, 0.46, 0.45); room.box(0.45, 0.5, 0.06, 0x6b4f3a, 0.9, 0.72, 0.66);
+        room.solid(1.5, 0.45, 2.1, 0x8a6a4a, 3.4, 0.23, 1.3); room.box(1.4, 0.14, 2.0, 0xf2efe6, 3.4, 0.52, 1.3); room.box(1.4, 0.2, 1.3, 0x3f8a5a, 3.4, 0.62, 1.0); room.box(0.9, 0.14, 0.4, 0xffffff, 3.4, 0.66, 2.1);
+        room.actions.push({ x: 2.3, z: 1.3, reach: 1.3, label: 'REST', run: rest });
+        room.hint = 'Your own house. E at the bed rests, E at the fridge opens your food. E at the door to leave.';
+        return finishRoom(room, () => {});
+    }
+    function enterHome(home) {
+        const plan = home.plan;
+        const place = { kind: 'home', name: 'YOUR HOUSE', p: plan.p.clone(), centre: plan.centre.clone(), yaw: home.city.heading + plan.facing * Math.PI / 2 };
+        const room = ownHouse(place);
+        P.inside = { place, room };
+        Walk.enterRoom(room);
+        UI.toast('Home: ' + home.o.address + '. ' + room.hint, 5000);
+    }
+
     // ---------- an apartment ----------
     function apartment(place) {
         const room = startRoom(place, 8, 7, 3, 0xe6e0d4, 0x9a7a55);
@@ -351,6 +389,8 @@ window.Places = (function () {
         }
         if (Walk.passenger) return { label: 'GET OUT', run: () => Walk.toggle(), key: 'G' };
         if (Walk.room || Walk.ride || Walk.cuffed) return null;
+        const home = window.Shop ? Shop.homeNear(Walk.pos, REACH) : null;    // the door of a house you own
+        if (home) return { label: 'GO INTO YOUR HOUSE', run: () => enterHome(home) };
         const pl = P.near(Walk.pos, REACH);
         if (pl) return { label: 'GO INTO THE ' + pl.name, run: () => enter(pl) };
         const c = Walk.rideOffer();                                         // another player's car right here: G rides along
