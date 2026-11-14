@@ -409,7 +409,9 @@ window.City = (function () {
         const no = 100 * (i + 1) + k * 2 + (side < 0 ? 1 : 2);                  // odd numbers one side, even the other
         const centre = city.toWorld(lx, lz), ground = Terrain.height(centre.x, centre.z) + 0.3;
         const door = city.toWorld(lx + side * (d / 2 + 1.6), lz - w / 4); door.y = ground;   // where you stand to go in
-        return { city, i, j, side, k, lx, lz, facing: side, w, d, h, ground, centre, p: door, address: no + ' ' + name, key: city.id + ':' + i + ':' + j + ':' + side + ':' + k };
+        const key = city.id + ':' + i + ':' + j + ':' + side + ':' + k;
+        // (one storey or two: the first draw of the house's own generator, as buildHouse makes it)
+        return { city, i, j, side, k, lx, lz, facing: side, w, d, h, ground, centre, p: door, address: no + ' ' + name, key, floors: seeded(hashOf(key))() < 0.35 ? 2 : 1 };
     };
     function buildHouses(city, i, j, cx, cz, B) {
         const n = C.housesPerBlock(city);

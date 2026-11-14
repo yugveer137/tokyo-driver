@@ -40,7 +40,7 @@ window.Places = (function () {
     // material (the colour goes into the vertices: batch.js) or a "glow" (lamps, screens). The
     // shared material is unlit with its shading painted on: lit by the game's sun, a room came
     // out bleached by day and black by night, and it has to look the same at any hour.
-    function startRoom(place, W, D, H, wallColor, floorColor) {
+    function startRoom(place, W, D, H, wallColor, floorColor, opts) {
         if (!paint) { paint = new THREE.MeshBasicMaterial({ vertexColors: true }); paint.userData.shaded = true; }
         const g = new THREE.Group(), c = place.centre;
         // the floor stands clear of the land under the whole room, even on a slope
@@ -57,8 +57,10 @@ window.Places = (function () {
         room.box(W, 0.1, D, floorColor, 0, 0.05, 0);
         room.box(W, 0.1, D, 0xf4f1ea, 0, H, 0);
         [-1, 1].forEach(s => { room.box(0.1, H, D, wallColor, s * W / 2, H / 2, 0); room.box(W, H, 0.1, wallColor, 0, H / 2, s * D / 2); });
-        room.box(1.6, 2.4, 0.06, 0x3a2a20, 0, 1.2, D / 2 - 0.09);
-        room.glow(0.7, 0.22, 0.05, 0x2fd06a, 0, 2.62, D / 2 - 0.09);                          // the green EXIT light over it
+        if (!(opts && opts.noDoor)) {                                                           // (an upstairs room has no door to the street)
+            room.box(1.6, 2.4, 0.06, 0x3a2a20, 0, 1.2, D / 2 - 0.09);
+            room.glow(0.7, 0.22, 0.05, 0x2fd06a, 0, 2.62, D / 2 - 0.09);                      // the green EXIT light over it
+        } else room.noDoor = true;
         for (let x = -W / 4; x <= W / 4; x += W / 2) for (let z = -D / 4; z <= D / 4; z += D / 2) room.glow(1.3, 0.05, 0.5, 0xfff4d6, x, H - 0.08, z);
         const lamp = new THREE.PointLight(0xfff0d8, 1.3, 18, 1.5); lamp.position.set(0, H - 0.7, 0); g.add(lamp);   // (for the people, who are lit)
         return room;
@@ -304,7 +306,10 @@ window.Places = (function () {
     // (shop.js keeps the list of them; `home` is { o, city, plan } from Shop.homeNear)
     // `view` (from Shop.viewNear) makes it a house you have come to see: the same rooms, with
     // the realtor showing you round instead of your own things in them.
+    // A house of two storeys (place.floors, from City.housePlan) has stairs where the bed would
+    // be, and the bedrooms are upstairs (`upperFloor`).
     function ownHouse(place, view) {
+        const upper = place.floors === 2;
         const room = startRoom(place, 8.6, 6.2, 3, 0xece6d8, 0x9a7a55);
         // the kitchen along the back wall; the fridge opens your bag of food
         room.solid(3.2, 0.9, 0.6, 0xf0efe8, 0.6, 0.45, -2.75); room.box(3.3, 0.05, 0.65, 0x2f2f2f, 0.6, 0.93, -2.75);
@@ -324,13 +329,25 @@ window.Places = (function () {
         // a table and chair, and your bed
         room.solid(1.2, 0.06, 0.8, 0x8a6a48, 0.9, 0.76, -0.4); [[0.4, -0.7], [1.4, -0.7], [0.4, -0.1], [1.4, -0.1]].forEach(([x, z]) => room.box(0.07, 0.74, 0.07, 0x6b4f3a, x, 0.37, z));
         room.box(0.45, 0.06, 0.45, 0x6b4f3a, 0.9, 0.46, 0.45); room.box(0.45, 0.5, 0.06, 0x6b4f3a, 0.9, 0.72, 0.66);
-        room.solid(1.5, 0.45, 2.1, 0x8a6a4a, 3.4, 0.23, 1.3); room.box(1.4, 0.14, 2.0, 0xf2efe6, 3.4, 0.52, 1.3); room.box(1.4, 0.2, 1.3, 0x3f8a5a, 3.4, 0.62, 1.0); room.box(0.9, 0.14, 0.4, 0xffffff, 3.4, 0.66, 2.1);
+        if (upper) {
+            // the stairs up, along the right-hand wall from by the front door: nine steps to a gap in the ceiling
+            for (let k = 0; k < 9; k++) room.box(1.1, (k + 1) * 0.31, 0.28, k % 2 ? 0x8a6a48 : 0x7a5a3c, 3.7, (k + 1) * 0.155, 2.3 - k * 0.28);
+            room.blocks.push({ x: 3.7, z: 1.18, hx: 0.55, hz: 1.27 });
+            room.box(0.06, 0.95, 0.06, 0x4a3524, 3.13, 0.48, 2.42); room.box(0.06, 0.95, 0.06, 0x4a3524, 3.13, 2.6, 0.1);
+            room.box(1.1, 0.05, 1.5, 0x242424, 3.7, 2.93, 0.5);
+            room.actions.push({ x: 3.7, z: 2.85, reach: 1.0, label: 'GO UPSTAIRS', stairs: true, run: () => {
+                moveTo(upperFloor(place, view));
+                UI.toast(P.inside.room.hint, 4500);
+            } });
+        } else {
+            room.solid(1.5, 0.45, 2.1, 0x8a6a4a, 3.4, 0.23, 1.3); room.box(1.4, 0.14, 2.0, 0xf2efe6, 3.4, 0.52, 1.3); room.box(1.4, 0.2, 1.3, 0x3f8a5a, 3.4, 0.62, 1.0); room.box(0.9, 0.14, 0.4, 0xffffff, 3.4, 0.66, 2.1);
+        }
         if (!view) {
-            room.actions.push({ x: 2.3, z: 1.3, reach: 1.3, label: 'REST', run: rest });
-            // the door through to the garage, in the corner past the bed: your cars, to pick the one parked outside
-            room.box(0.06, 2.1, 0.9, 0x8a8f94, 4.24, 1.05, 2.6); room.glow(0.04, 0.16, 0.5, 0xffd24a, 4.22, 2.3, 2.6);
-            room.actions.push({ x: 3.4, z: 2.75, reach: 1.1, label: 'OPEN YOUR GARAGE', run: () => { UI.renderGarage(); document.getElementById('garage-modal').classList.add('open'); } });
-            room.hint = 'Your own house. E at the bed rests, E at the fridge opens your food, E at the grey door by the bed opens your garage. E at the door to leave.';
+            if (!upper) room.actions.push({ x: 2.3, z: 1.3, reach: 1.3, label: 'REST', run: rest });
+            // the door through to the garage, in the back wall beside the kitchen: your cars, to pick the one parked outside
+            room.box(0.9, 2.1, 0.06, 0x8a8f94, -2.4, 1.05, -3.04); room.glow(0.5, 0.16, 0.04, 0xffd24a, -2.4, 2.3, -3.02);
+            room.actions.push({ x: -2.4, z: -2.1, reach: 1.1, label: 'OPEN YOUR GARAGE', run: () => { UI.renderGarage(); document.getElementById('garage-modal').classList.add('open'); } });
+            room.hint = 'Your own house. ' + (upper ? 'The stairs by the door go up to the bedrooms. ' : 'E at the bed rests. ') + 'E at the fridge opens your food, E at the grey door in the back wall opens your garage. E at the door to leave.';
             return finishRoom(room, () => {});
         }
         // a viewing: the papers are on the table (E there to bid), and E anywhere else asks the realtor
@@ -340,16 +357,48 @@ window.Places = (function () {
         const answers = ['"They are asking ' + h.price + ' coins. Another buyer wants it too."', '"You get one bid and so do they. The higher bid gets the house."', '"Two minutes from the freeway, and so quiet at night."', '"When you are ready, the papers are on the table."'];
         let asked = 0;
         room.anywhere = { label: 'ASK ' + who.name.toUpperCase(), run: () => UI.toast(who.name + ': ' + answers[asked++ % answers.length], 4000) };
-        room.hint = who.name + ' shows you round. E asks her about the house, E at the table bids for it. E at the door to leave.';
+        room.hint = who.name + ' shows you round. E asks her about the house, E at the table bids for it' + (upper ? ', the stairs by the door go up to the bedrooms' : '') + '. E at the door to leave.';
         const tour = () => [
             { x: -1.0, z: 0.9, wait: 5, face: -Math.PI / 2, say: who.name + ': "This is the living room. Lots of light."' },
             { x: 1.6, z: -1.8, wait: 5, face: Math.PI, say: who.name + ': "The kitchen. Brand new, and the fridge stays."' },
-            { x: 2.2, z: 0.9, wait: 5, face: Math.PI / 2, say: who.name + ': "And here is the bedroom corner. Cosy!"' }];
+            upper ? { x: 2.5, z: 2.0, wait: 5, face: Math.PI / 2, say: who.name + ': "The bedrooms are upstairs. Go on up and have a look."' }
+                  : { x: 2.2, z: 0.9, wait: 5, face: Math.PI / 2, say: who.name + ': "And here is the bedroom corner. Cosy!"' }];
         return finishRoom(room, () => { walker(room, tour, 0, { loop: true, look: who.look }); });
+    }
+    // Upstairs in a two-storey house: the big bedroom, a child's bed, a desk. You arrive at the
+    // top of the stairs (the far end of the railed-off stairwell) and go back down from there.
+    function upperFloor(place, view) {
+        const room = startRoom(place, 8.6, 6.2, 2.9, 0xe9e2d2, 0xa88a62, { noDoor: true });
+        // the stairwell in the corner: a dark gap in the floor with a rail on its two open sides
+        room.box(1.1, 0.02, 2.5, 0x1a1a1a, 3.7, 0.11, 1.2);
+        for (let k = 0; k < 4; k++) room.box(1.1, 0.04, 0.28, 0x7a5a3c, 3.7, 0.08 - k * 0.02, 0.2 + k * 0.3);
+        room.solid(0.08, 0.95, 2.6, 0x4a3524, 3.1, 0.48, 1.2); room.solid(1.2, 0.95, 0.08, 0x4a3524, 3.7, 0.48, 2.5);
+        room.blocks.push({ x: 3.75, z: 1.25, hx: 0.5, hz: 1.2 });
+        room.actions.push({ x: 3.7, z: -0.75, reach: 1.1, label: 'GO DOWNSTAIRS', run: () => { const down = ownHouse(place, view); moveTo(down, down.actions.find(a => a.stairs).at); } });
+        // the big bed against the left wall, a lamp each side, a rug at its foot
+        room.solid(2.1, 0.5, 1.9, 0x6b4a32, -3.1, 0.25, -1.1); room.box(0.12, 1.2, 2.0, 0x5a3a26, -4.15, 0.6, -1.1);
+        room.box(2.0, 0.16, 1.8, 0xf4f1ea, -3.05, 0.58, -1.1); room.box(1.3, 0.2, 1.84, 0x3f6a8a, -2.75, 0.64, -1.1);
+        [-1.55, -0.65].forEach(z => room.box(0.45, 0.14, 0.7, 0xffffff, -3.8, 0.73, z));
+        [-2.4, 0.2].forEach(z => { room.solid(0.5, 0.55, 0.45, 0x6b4a32, -3.95, 0.28, z); room.glow(0.2, 0.26, 0.2, 0xffe2a8, -3.95, 0.72, z); });
+        room.box(2.2, 0.03, 1.6, 0x7a3a3a, -0.9, 0.11, -1.1);
+        if (!view) room.actions.push({ x: -1.6, z: -1.1, reach: 1.4, label: 'REST', run: rest });
+        // windows front and back, a wardrobe, a desk with a screen, and a child's bed with a box of toys
+        room.box(3.0, 1.5, 0.06, 0xf4f1ea, -1.2, 1.6, 3.07); room.glow(2.8, 1.3, 0.04, 0xbfe3ff, -1.2, 1.6, 3.04);
+        room.box(1.8, 1.4, 0.06, 0xf4f1ea, 2.8, 1.6, -3.07); room.glow(1.6, 1.2, 0.04, 0xbfe3ff, 2.8, 1.6, -3.04);
+        room.solid(1.6, 2.1, 0.6, 0x5a3a26, -0.6, 1.05, -2.75);
+        room.solid(1.4, 0.75, 0.6, 0x6b4a32, 1.3, 0.375, -2.75); room.box(0.6, 0.42, 0.04, 0x111111, 1.3, 1.02, -2.95); room.glow(0.54, 0.36, 0.02, 0x7fd0ff, 1.3, 1.02, -2.92);
+        room.solid(0.45, 0.48, 0.45, 0x4a3524, 1.3, 0.24, -1.95);
+        room.solid(1.0, 0.4, 1.9, 0x8a6a4a, -3.65, 0.2, 2.0); room.box(0.95, 0.16, 1.8, 0xf2d21e, -3.65, 0.46, 2.0); room.box(0.7, 0.12, 0.35, 0xffffff, -3.65, 0.56, 2.7);
+        room.solid(0.6, 0.4, 0.45, 0xd24f3f, -2.5, 0.2, 2.6); [0xe2362f, 0x2f6fe2, 0x3fb24f].forEach((c, k) => room.box(0.16, 0.16, 0.16, c, -2.68 + k * 0.18, 0.48, 2.6));
+        room.box(0.06, 2.1, 0.9, 0xf4f1ea, -4.24, 1.05, 0.95);                                   // the bathroom door
+        room.hint = 'Upstairs: the bedrooms. ' + (view ? '' : 'E at the big bed rests. ') + 'E at the top of the stairs goes back down.';
+        finishRoom(room, () => {});
+        room.doorIn = room.group.localToWorld(new THREE.Vector3(3.7, 0.1, -0.75));              // (where you come up: there is no door here)
+        return room;
     }
     function enterViewing(view) {
         const plan = view.plan;
-        const place = { kind: 'viewing', name: 'HOUSE FOR SALE', p: plan.p.clone(), centre: plan.centre.clone(), yaw: view.city.heading + plan.facing * Math.PI / 2 };
+        const place = { kind: 'viewing', name: 'HOUSE FOR SALE', p: plan.p.clone(), centre: plan.centre.clone(), yaw: view.city.heading + plan.facing * Math.PI / 2, floors: plan.floors };
         const room = ownHouse(place, view);
         P.inside = { place, room };
         Walk.enterRoom(room);
@@ -357,7 +406,7 @@ window.Places = (function () {
     }
     function enterHome(home) {
         const plan = home.plan;
-        const place = { kind: 'home', name: 'YOUR HOUSE', p: plan.p.clone(), centre: plan.centre.clone(), yaw: home.city.heading + plan.facing * Math.PI / 2 };
+        const place = { kind: 'home', name: 'YOUR HOUSE', p: plan.p.clone(), centre: plan.centre.clone(), yaw: home.city.heading + plan.facing * Math.PI / 2, floors: plan.floors };
         const room = ownHouse(place);
         P.inside = { place, room };
         Walk.enterRoom(room);
@@ -415,7 +464,7 @@ window.Places = (function () {
         if (!window.Walk || !Walk.active || !Game.started) return null;
         if (P.inside) {
             const r = P.inside.room, me = Walk.pos;
-            if (flat(me, r.doorIn) < 1.7) return r.door || { label: 'LEAVE', run: leave };
+            if (!r.noDoor && flat(me, r.doorIn) < 1.7) return r.door || { label: 'LEAVE', run: leave };
             const a = r.actions.find(a => flat(me, a.at) < a.reach);
             return a ? { label: a.label, run: a.run } : r.anywhere || { label: '', run: () => UI.toast(r.hint, 2500) };
         }
