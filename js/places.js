@@ -48,6 +48,9 @@ window.Places = (function () {
         [[0, 0], [-5, -5], [5, -5], [-5, 5], [5, 5]].forEach(([dx, dz]) => { y = Math.max(y, Terrain.height(c.x + dx, c.z + dz)); });
         g.position.set(c.x, y + 0.4, c.z); g.rotation.y = place.yaw;
         const room = { group: g, W, D, H, place, people: [], blocks: [], actions: [], payer: null };
+        // which room this is, the same on every player's machine (it stands in the same place for
+        // all of them): two players whose rooms have the same id are in the room together
+        room.id = Math.round(c.x) + ':' + Math.round(c.z) + ':' + W + ':' + D + ':' + H + (opts && opts.noDoor ? ':up' : '');
         room.box = (w, h, d, color, x, yy, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), paint); m.userData.color = lin(color); m.position.set(x, yy, z); g.add(m); return m; };
         room.shape = (geom, color, x, yy, z) => { const m = new THREE.Mesh(geom, paint); m.userData.color = lin(color); m.position.set(x, yy, z); g.add(m); return m; };
         room.glow = (w, h, d, color, x, yy, z) => { const mat = glows[color] || (glows[color] = new THREE.MeshBasicMaterial({ color: lin(color) })); const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, yy, z); g.add(m); return m; };
@@ -308,14 +311,16 @@ window.Places = (function () {
     // the realtor showing you round instead of your own things in them.
     // A house of two storeys (place.floors, from City.housePlan) has stairs where the bed would
     // be, and the bedrooms are upstairs (`upperFloor`).
+    // place.guestOf (another player's name) makes it their house, which you are visiting: the
+    // same rooms, nothing of yours in them and nothing to use.
     function ownHouse(place, view) {
-        const upper = place.floors === 2;
+        const upper = place.floors === 2, mine = !view && !place.guestOf;
         const room = startRoom(place, 8.6, 6.2, 3, 0xece6d8, 0x9a7a55);
         // the kitchen along the back wall; the fridge opens your bag of food
         room.solid(3.2, 0.9, 0.6, 0xf0efe8, 0.6, 0.45, -2.75); room.box(3.3, 0.05, 0.65, 0x2f2f2f, 0.6, 0.93, -2.75);
         room.box(0.6, 0.02, 0.45, 0x111111, -0.2, 0.97, -2.75);
         room.solid(0.8, 1.9, 0.7, 0xdfe3e6, 3.6, 0.95, -2.7);
-        if (!view) room.actions.push({ x: 3.4, z: -1.6, reach: 1.4, label: 'OPEN THE FRIDGE', run: () => Shop.open() });
+        if (mine) room.actions.push({ x: 3.4, z: -1.6, reach: 1.4, label: 'OPEN THE FRIDGE', run: () => Shop.open() });
         // sofa, rug and TV
         room.box(2.6, 0.03, 1.8, 0x7a3a3a, -2.3, 0.11, 0.9);
         room.solid(2.2, 0.42, 0.85, 0x55708a, -2.3, 0.21, 2.2); room.box(2.2, 0.9, 0.2, 0x4a6278, -2.3, 0.45, 2.72);
@@ -324,7 +329,7 @@ window.Places = (function () {
         // a window, and a shelf that fills up with the things you have bought
         room.box(0.06, 1.5, 1.8, 0xf4f1ea, -4.23, 1.6, 1.0); room.glow(0.04, 1.3, 1.6, 0xbfe3ff, -4.2, 1.6, 1.0);
         room.solid(0.4, 1.8, 1.6, 0x6b4a32, -4.05, 0.9, -1.6);
-        let n = 0; if (!view) Shop.things().forEach(x => { n += x.n; });
+        let n = 0; if (mine) Shop.things().forEach(x => { n += x.n; });
         for (let k = 0; k < Math.min(n, 12); k++) room.box(0.28, 0.3, 0.3, pick([0xe2362f, 0x2f6fe2, 0xf2d21e, 0x3fb24f, 0xd24fd0, 0xff8a1e]), -3.8, 0.5 + Math.floor(k / 4) * 0.5, -2.2 + (k % 4) * 0.4);
         // a table and chair, and your bed
         room.solid(1.2, 0.06, 0.8, 0x8a6a48, 0.9, 0.76, -0.4); [[0.4, -0.7], [1.4, -0.7], [0.4, -0.1], [1.4, -0.1]].forEach(([x, z]) => room.box(0.07, 0.74, 0.07, 0x6b4f3a, x, 0.37, z));
@@ -343,9 +348,13 @@ window.Places = (function () {
             room.solid(1.5, 0.45, 2.1, 0x8a6a4a, 3.4, 0.23, 1.3); room.box(1.4, 0.14, 2.0, 0xf2efe6, 3.4, 0.52, 1.3); room.box(1.4, 0.2, 1.3, 0x3f8a5a, 3.4, 0.62, 1.0); room.box(0.9, 0.14, 0.4, 0xffffff, 3.4, 0.66, 2.1);
         }
         if (!view) {
-            if (!upper) room.actions.push({ x: 2.3, z: 1.3, reach: 1.3, label: 'REST', run: rest });
             // the door through to the garage, in the back wall beside the kitchen: your cars, to pick the one parked outside
             room.box(0.9, 2.1, 0.06, 0x8a8f94, -2.4, 1.05, -3.04); room.glow(0.5, 0.16, 0.04, 0xffd24a, -2.4, 2.3, -3.02);
+            if (!mine) {                                                    // a visitor: it is somebody else's house
+                room.hint = 'This is ' + place.guestOf + "'s house. " + (upper ? 'The stairs by the door go up to the bedrooms. ' : '') + 'E at the door to leave.';
+                return finishRoom(room, () => {});
+            }
+            if (!upper) room.actions.push({ x: 2.3, z: 1.3, reach: 1.3, label: 'REST', run: rest });
             // (with the car parked in this house's garage, the door drives it out; otherwise it is the list of your cars)
             const inHere = () => { const g = Shop.garaged(); return !!(g && place.key && g.key === place.key); };
             room.actions.push({ x: -2.4, z: -2.1, reach: 1.1, get label() { return inHere() ? 'DRIVE OUT OF THE GARAGE' : 'OPEN YOUR GARAGE'; },
@@ -384,7 +393,7 @@ window.Places = (function () {
         [-1.55, -0.65].forEach(z => room.box(0.45, 0.14, 0.7, 0xffffff, -3.8, 0.73, z));
         [-2.4, 0.2].forEach(z => { room.solid(0.5, 0.55, 0.45, 0x6b4a32, -3.95, 0.28, z); room.glow(0.2, 0.26, 0.2, 0xffe2a8, -3.95, 0.72, z); });
         room.box(2.2, 0.03, 1.6, 0x7a3a3a, -0.9, 0.11, -1.1);
-        if (!view) room.actions.push({ x: -1.6, z: -1.1, reach: 1.4, label: 'REST', run: rest });
+        if (!view && !place.guestOf) room.actions.push({ x: -1.6, z: -1.1, reach: 1.4, label: 'REST', run: rest });
         // windows front and back, a wardrobe, a desk with a screen, and a child's bed with a box of toys
         room.box(3.0, 1.5, 0.06, 0xf4f1ea, -1.2, 1.6, 3.07); room.glow(2.8, 1.3, 0.04, 0xbfe3ff, -1.2, 1.6, 3.04);
         room.box(1.8, 1.4, 0.06, 0xf4f1ea, 2.8, 1.6, -3.07); room.glow(1.6, 1.2, 0.04, 0xbfe3ff, 2.8, 1.6, -3.04);
@@ -394,7 +403,7 @@ window.Places = (function () {
         room.solid(1.0, 0.4, 1.9, 0x8a6a4a, -3.65, 0.2, 2.0); room.box(0.95, 0.16, 1.8, 0xf2d21e, -3.65, 0.46, 2.0); room.box(0.7, 0.12, 0.35, 0xffffff, -3.65, 0.56, 2.7);
         room.solid(0.6, 0.4, 0.45, 0xd24f3f, -2.5, 0.2, 2.6); [0xe2362f, 0x2f6fe2, 0x3fb24f].forEach((c, k) => room.box(0.16, 0.16, 0.16, c, -2.68 + k * 0.18, 0.48, 2.6));
         room.box(0.06, 2.1, 0.9, 0xf4f1ea, -4.24, 1.05, 0.95);                                   // the bathroom door
-        room.hint = 'Upstairs: the bedrooms. ' + (view ? '' : 'E at the big bed rests. ') + 'E at the top of the stairs goes back down.';
+        room.hint = 'Upstairs' + (place.guestOf ? ' in ' + place.guestOf + "'s house" : '') + ': the bedrooms. ' + (view || place.guestOf ? '' : 'E at the big bed rests. ') + 'E at the top of the stairs goes back down.';
         finishRoom(room, () => {});
         room.doorIn = room.group.localToWorld(new THREE.Vector3(3.7, 0.1, -0.75));              // (where you come up: there is no door here)
         return room;
@@ -406,6 +415,16 @@ window.Places = (function () {
         P.inside = { place, room };
         Walk.enterRoom(room);
         UI.toast(view.h.address + ', asking ' + view.h.price + ' coins. ' + room.hint, 6000);
+    }
+    // into another player's house (multiplayer): they are told you have come in
+    function enterFriend(friend) {
+        const plan = friend.plan;
+        const place = { kind: 'visit', name: friend.name + "'S HOUSE", guestOf: friend.name, p: plan.p.clone(), centre: plan.centre.clone(), yaw: friend.city.heading + plan.facing * Math.PI / 2, floors: plan.floors, key: plan.key };
+        const room = ownHouse(place);
+        P.inside = { place, room };
+        Walk.enterRoom(room);
+        UI.toast(room.hint, 6000);
+        if (window.Multiplayer && Multiplayer.tell) Multiplayer.tell(friend.id, 'I came into your house!');
     }
     function enterHome(home) {
         const plan = home.plan;
@@ -479,6 +498,8 @@ window.Places = (function () {
         if (view) return { label: 'SEE THE HOUSE WITH THE REALTOR', run: () => enterViewing(view) };
         const home = window.Shop ? Shop.homeNear(Walk.pos, REACH) : null;    // the door of a house you own
         if (home) return { label: 'GO INTO YOUR HOUSE', run: () => enterHome(home) };
+        const friend = window.Shop && Shop.friendHomeNear ? Shop.friendHomeNear(Walk.pos, REACH) : null;   // or of another player's
+        if (friend) return { label: 'GO INTO ' + String(friend.name).toUpperCase() + "'S HOUSE", run: () => enterFriend(friend) };
         const pl = P.near(Walk.pos, REACH);
         if (pl) return { label: 'GO INTO THE ' + pl.name, run: () => enter(pl) };
         const c = Walk.rideOffer();                                         // another player's car right here: G rides along

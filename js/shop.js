@@ -20,6 +20,9 @@
 //                 rolls up, the car turns its tail to the house and reverses inside, the door
 //                 comes down and you are standing in your house. The grey door inside drives it
 //                 out again (so does G by the garage, from outside).
+//   In multiplayer every player tells the room which houses are theirs (Shop.myHouses, sent
+//   with their car). Those houses get a board with the owner's name, and anyone can walk in
+//   (places.js): "This is Yugveer's house". Two players in the same room see each other.
 // Saved per account: `bag` ([{ name, food, n }]), `houses` ([{ key, city, i, j, side, k, ... }])
 // and `housesLost` (the keys of the houses the other buyer got).
 window.Shop = (function () {
@@ -329,6 +332,51 @@ window.Shop = (function () {
         return null;
     };
 
+    // ---------- other players' houses (multiplayer) ----------
+    // the keys of my houses, for the others; and theirs, as Multiplayer hands them over
+    S.myHouses = () => houses.slice(0, 6).map(o => o.key);
+    let others = [];                                                         // [{ id, name, keys }]
+    S.setOthers = function (list) { others = Array.isArray(list) ? list : []; };
+    // A house key is "city:i:j:side:k". One that comes from another player is checked before it
+    // is believed: a real city, a block of houses in it, a real house on that block.
+    function planFromKey(key) {
+        const m = /^([a-z]+):(\d+):(\d+):(-?1):(\d+)$/.exec(String(key)); if (!m) return null;
+        const city = cityOf(m[1]), i = +m[2], j = +m[3], side = +m[4], k = +m[5];
+        if (!city || !city.suburbCols || i >= city.rows || j >= city.suburbCols || k >= City.housesPerBlock(city)) return null;
+        return { city, plan: City.housePlan(city, i, j, side, k) };
+    }
+    // every house that belongs to another player in the room (and not to me), with whose it is
+    function friendsHouses() {
+        const out = [];
+        others.forEach(p => (Array.isArray(p.keys) ? p.keys : []).slice(0, 6).forEach(key => {
+            if (S.owns(key) || out.some(x => x.key === key)) return;
+            const at = planFromKey(key); if (at) out.push({ key, id: p.id, name: p.name, city: at.city, plan: at.plan });
+        }));
+        return out;
+    }
+    // the other player's house whose door is within `reach` of someone on foot (for places.js)
+    S.friendHomeNear = function (pos, reach) {
+        return friendsHouses().find(h => h.city.loaded && Math.hypot(h.plan.p.x - pos.x, h.plan.p.z - pos.z) < reach && Math.abs(h.plan.p.y - pos.y) < 3) || null;
+    };
+    // a board with the owner's name over the door of each of them, while its city is built
+    const nameBoards = {};
+    function dropNameBoard(key) { const b = nameBoards[key]; if (!b) return; scene.remove(b.mesh); b.mesh.geometry.dispose(); delete nameBoards[key]; }
+    function friendsBoards() {
+        const now = friendsHouses(), wanted = {};
+        now.forEach(h => {
+            if (!h.city.loaded) return;
+            wanted[h.key] = true;
+            const text = String(h.name).toUpperCase() + "'S HOUSE";
+            if (nameBoards[h.key] && nameBoards[h.key].text === text) return;
+            dropNameBoard(h.key);
+            const mesh = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.75), Signs.nameFace(text, '#1f3f6a'));
+            const at = h.city.toWorld(h.plan.lx + h.plan.facing * (h.plan.d / 2 + 0.12), h.plan.lz);
+            mesh.position.set(at.x, h.plan.ground + 3.05, at.z); mesh.rotation.y = h.city.heading + h.plan.facing * Math.PI / 2;
+            scene.add(mesh); nameBoards[h.key] = { mesh, text };
+        });
+        Object.keys(nameBoards).forEach(key => { if (!wanted[key]) dropNameBoard(key); });
+    }
+
     // ---------- the garage of a house you own ----------
     // Where things are, for house o. Along the house's own axes: the garage door is in the
     // street wall at the quarter of the house away from the front door, `inside` is where the
@@ -469,6 +517,7 @@ window.Shop = (function () {
                 scene.add(board); boards[o.key] = board;
             } else if (!up && boards[o.key]) { scene.remove(boards[o.key]); boards[o.key].geometry.dispose(); delete boards[o.key]; }
         });
+        friendsBoards();
         if (S.viewing && !S.viewing.city.loaded) endViewing();
         // (a house you have sold loses its board)
         Object.keys(boards).forEach(key => { if (!S.owns(key)) { scene.remove(boards[key]); boards[key].geometry.dispose(); delete boards[key]; } });

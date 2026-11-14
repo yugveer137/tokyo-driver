@@ -17,7 +17,7 @@ window.Multiplayer = (function () {
     let LOBBY_ID = 'bay-area-driver-lobby-1';
     try { LOBBY_ID += localStorage.getItem('td_lobby') || ''; } catch (e) { /* (a test can use a lobby of its own) */ }
 
-    let scene, sendTimer = 0, trafficTimer = 0;
+    let scene, sendTimer = 0, trafficTimer = 0, ownTimer = 0;
     let hostConn = null, hostHeard = 0;   // guest: the connection to the host, and when it last said anything
     let guests = [];                // host: [{ conn, id, n, d }] (d = that guest's latest car state)
     let nextN = 2, myN = 1;         // player numbers: the host is 1
@@ -273,8 +273,15 @@ window.Multiplayer = (function () {
         clockAhead = clockKnown ? Math.max(clockAhead, ahead) : ahead; clockKnown = true;
     }
     // A player on foot is drawn as a person where they say they are (their car stays parked).
+    // Someone indoors is seen only by a player in the same room (the room stands in the same
+    // place for both, so where they say they are is where they are); someone out of doors, by
+    // everyone who is not in a room themselves.
+    function sameRoom(d) {
+        const W = window.Walk, mine = W && W.active && W.room ? (W.room.id || 'private-here') : '';
+        return (typeof d.rm === 'string' ? d.rm : '') === mine;
+    }
     function showWalker(c, dt) {
-        const w = c.d.w;
+        const w = Array.isArray(c.d.w) && sameRoom(c.d) ? c.d.w : null;
         if (!w) { if (c.avatar) c.avatar.visible = false; return; }
         if (!c.avatar) {
             c.avatar = Peds.person(Peds.lookFor('player:' + c.label));
@@ -319,7 +326,11 @@ window.Multiplayer = (function () {
         const me = { t: 'p', x: p.x, y: p.y, z: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w, car: Car.data.id, name: myName(), riding: !!((window.Walk && Walk.passenger) || (window.Shop && Shop.garaged && Shop.garaged())) };   // (riding with someone, or parked in the garage: not drawn)
         // on foot out of doors: where I am walking [x, y, z, heading, 0 still / 1 walking / 2 running]
         const W = window.Walk;
-        if (W && W.active && !W.room && !W.passenger) me.w = [Math.round(W.pos.x * 100) / 100, Math.round(W.pos.y * 100) / 100, Math.round(W.pos.z * 100) / 100, Math.round(W.yaw * 100) / 100, W.moving ? (W.running ? 2 : 1) : 0];
+        if (W && W.active && !W.passenger) {
+            me.w = [Math.round(W.pos.x * 100) / 100, Math.round(W.pos.y * 100) / 100, Math.round(W.pos.z * 100) / 100, Math.round(W.yaw * 100) / 100, W.moving ? (W.running ? 2 : 1) : 0];
+            if (W.room) me.rm = W.room.id || 'private';                      // indoors: which room (see `sameRoom`)
+        }
+        if (window.Shop && Shop.myHouses) me.own = Shop.myHouses();          // the houses that are mine, for their name boards and for visiting
         return me;
     }
     // the screens before driving, if this player is still on them
@@ -597,6 +608,8 @@ window.Multiplayer = (function () {
             c.mesh.userData.tag.quaternion.copy(c.mesh.quaternion).invert().multiply(game.camera.quaternion);
             showWalker(c, dt);
         });
+        // which houses belong to whom, for shop.js (now and then: it changes seldom)
+        if (ownTimer++ % 30 === 0 && window.Shop && Shop.setOthers) Shop.setOthers(Object.keys(cars).map(id => ({ id, name: cars[id].label, keys: cars[id].d.own })));
     };
 
     M.init = function (sc) {
