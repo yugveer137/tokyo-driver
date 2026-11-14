@@ -354,8 +354,9 @@ window.Multiplayer = (function () {
             g.n = nextN++; guests.push(g);
             $('mp-waiting').style.display = 'none';
             const p = Car.body.position;
-            send(conn, { t: 'hi', n: g.n, x: p.x, y: p.y, z: p.z, yaw: Car.yaw(), host: myName() });
+            send(conn, { t: 'hi', n: g.n, x: p.x, y: p.y, z: p.z, yaw: Car.yaw(), host: myName(), v: CFG.MP_VERSION });
             status((g.name || 'Player ' + g.n) + ' joined!', GREEN, 4000);
+            if ((conn.metadata && conn.metadata.v) !== CFG.MP_VERSION) versionsDiffer(g.name || 'Player ' + g.n);
             refreshChip();
         });
         conn.on('data', (d) => {
@@ -366,6 +367,13 @@ window.Multiplayer = (function () {
             else if (d.t === 'msg' || d.t === 'coins') passOn(g, d);
         });
         conn.on('close', () => guestGone(g));
+    }
+    // The other player's game is not the same version as this one (theirs or ours was left open
+    // from before an update): say so, since nothing else explains why the two screens disagree.
+    function versionsDiffer(who) {
+        const text = who + ' and you have different versions of the game, so you will not see the same traffic, people or each other walking. Both of you: reload the page, then join again.';
+        setTimeout(() => status(text, RED, 20000), 4500);                  // (after the "joined" line has had its turn)
+        log(text);
     }
     function guestGone(g) {
         if (!guests.includes(g)) return;
@@ -389,7 +397,7 @@ window.Multiplayer = (function () {
         status('Connecting to the room…');
         startDriving();
         connected().then(p => {
-            const c = p.connect(roomId, { reliable: true, metadata: { kind: 'room', name: myName() } });
+            const c = p.connect(roomId, { reliable: true, metadata: { kind: 'room', name: myName(), v: CFG.MP_VERSION } });
             joining = { id: roomId, conn: c, timer: setTimeout(() => joinFailed('Could not reach that room.'), 12000) };
             c.on('open', () => {
                 if (!joining || joining.conn !== c) return;                 // (given up on already)
@@ -406,7 +414,7 @@ window.Multiplayer = (function () {
         hostHeard = Date.now();
         if (!d) return;
         if (d.t === 'full') { status('That room is full.', RED, 5000); return; }
-        if (d.t === 'hi') { myN = d.n; if (cleanName(d.host)) status('You are in ' + cleanName(d.host) + "'s room.", GREEN, 4000); goNear(d); return; }
+        if (d.t === 'hi') { myN = d.n; if (cleanName(d.host)) status('You are in ' + cleanName(d.host) + "'s room.", GREEN, 4000); goNear(d); if (d.v !== CFG.MP_VERSION) versionsDiffer(cleanName(d.host) || 'The host'); return; }
         if (d.t === 'msg' || d.t === 'coins') { receive(d); return; }
         if (d.t === 'tr') { Traffic.foreign(String(d.from), d.cars); return; }
         if (d.t !== 'all') return;

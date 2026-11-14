@@ -2,6 +2,10 @@
 window.CFG = {
     TITLE: 'Bay Area Driver',
     SITE: 'https://yugveer137.github.io/tokyo-driver/',   // where the game is hosted: invite links point here
+    // Which version of the multiplayer messages this game speaks. Two players on different
+    // versions can share a room but will not see the same traffic, people or each other on foot,
+    // so each is told to reload (multiplayer.js). Add one whenever those messages change.
+    MP_VERSION: 2,
     TRAIN_FARE: 5,                    // coins for a train ticket, paid when you board
     GRAVITY: -30,                       // ~3x real, keeps the car planted (same as the old game)
     CYCLE: { day: 60, night: 60 },      // seconds; dawn and dusk blend inside these
