@@ -8,7 +8,7 @@
 // players see the same car in the same place. Players near each other share the MAX between
 // them, or the road would hold twice the cars.
 window.Traffic = (function () {
-    const T = { cars: [], MAX: 34, SPAWN_R: 650, DESPAWN_R: 1000, links: [] };
+    const T = { cars: [], MAX: 46, SPAWN_R: 650, DESPAWN_R: 1000, links: [] };   // (MAX was 34: the owner asked for busier roads. 56 made downtown draw about 40% slower, each car being ten meshes)
     let scene, world;
     const rnd = (a, b) => a + Math.random() * (b - a);
     const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
