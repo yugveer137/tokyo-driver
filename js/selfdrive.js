@@ -549,6 +549,22 @@ window.SelfDrive = (function () {
             cand.forEach(c => { const d = c.d !== undefined ? c.d : c.far.distanceTo(S.dest); if (d < (c.beat || stayFar) - 20 && d < pos.distanceTo(S.dest) && (!best || d < best.d)) best = Object.assign(c, { d }); });
             if (best) { S.road = best.road; S.dir = best.dir; S.laneIndex = 0; if (best.flip) S.flipTurn = true; }
         }
+        // Change lanes for slower traffic: on a road with more than one lane our way, and no exit
+        // to take soon (that needs the outer lane), when a car in our lane is within reach (40 m
+        // plus three seconds of driving), move to the lane beside that is clear alongside and
+        // for a good way further ahead. Not more often than once a second or so.
+        const ours = S.road.lanes.filter(l => l.dir === S.dir);
+        S.laneWait = Math.max(0, (S.laneWait || 0) - dt);
+        if (ours.length > 1 && S.exitDist > 800 && !S.laneWait) {
+            const reach = 40 + Car.mph / CFG.MPH * 3;
+            // how far ahead the nearest car in a lane is (a car alongside or just behind counts as no room at all)
+            const room = (i) => { let best = Infinity; Traffic.cars.forEach(c => { if (c.road !== S.road || c.dir !== S.dir || c.lane !== ours[i]) return; const gap = (c.s - n.s) * S.dir; if (gap > -12 && gap < best) best = gap; }); return best; };
+            const here = Math.min(S.laneIndex, ours.length - 1), mine = room(here);
+            if (mine < reach) {
+                const beside = [here - 1, here + 1].filter(i => i >= 0 && i < ours.length).map(i => ({ i, gap: room(i) })).filter(o => o.gap > 25 && o.gap > mine + 30).sort((a, b) => b.gap - a.gap);
+                if (beside.length) { S.laneIndex = beside[0].i; S.laneWait = 1.2; }
+            }
+        }
         // steer toward a point ahead in our lane (further ahead at speed); firm gain like Debug.drive
         const lane = laneOf(S.road, S.dir, S.laneIndex);
         const ahead1 = Math.max(0, Math.min(S.road.length, n.s + S.dir * (10 + Car.mph * 0.12)));
@@ -623,10 +639,17 @@ window.SelfDrive = (function () {
         S.stuck = Car.mph < 2 ? (S.stuck || 0) + dt : 0;
         if (S.stuck > 4) { S.cancel(true); UI.toast('Self-drive got stuck — you have the wheel', 3000); return; }
         // traffic ahead in our lane on this road
-        let ahead = null;
-        Traffic.cars.forEach(c => { if (c.road !== S.road || c.dir !== S.dir || c.lane.index !== lane.index) return; const gap = (c.s - n.s) * S.dir; if (gap > 0 && gap < 30 && (!ahead || gap < ahead)) ahead = gap; });
+        let ahead = null, lead = null;
+        Traffic.cars.forEach(c => {
+            if (c.road !== S.road || c.dir !== S.dir || c.lane.index !== lane.index) return;
+            const gap = (c.s - n.s) * S.dir;
+            if (gap > 0 && gap < 30 && (!ahead || gap < ahead)) ahead = gap;
+            if (gap > 0 && (!lead || gap < lead.gap)) lead = { gap, speed: c.speed };
+        });
+        // no lane to move into: come down to the speed of the car in front in good time, rather than arriving at it at 200
+        if (lead) { const closing = Car.mph / CFG.MPH - lead.speed; if (closing > 0 && lead.gap < 20 + closing * 2.5) Car.cruise = Math.min(Car.cruise, lead.speed * CFG.MPH + 4); }
         Car.autoBrake = !!(ahead && ahead < 18 && Car.mph > 6);
-        if (Car.mph > target + 6) Car.autoBrake = true;
+        if (Car.mph > Math.min(target, Car.cruise) + 6) Car.autoBrake = true;
     };
     return S;
 })();
