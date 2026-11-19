@@ -4,7 +4,7 @@
 // follows. Everything that depends on the time of day reads Sky.daylight (0..1) and Sky.night.
 window.Sky = (function () {
     const S = { daylight: 1, night: 0, t: 0.08, sunDir: new THREE.Vector3(0, 1, 0), speed: 1 };
-    let dome, stars, sun, hemi, ambient, scene, renderer, time = 0;
+    let dome, stars, clouds, sun, hemi, ambient, scene, renderer, time = 0;
 
     const C = (hex) => new THREE.Color(hex);
     const col = {
@@ -64,6 +64,32 @@ window.Sky = (function () {
         stars = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 2, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false }));
         stars.frustumCulled = false;
         scene.add(stars);
+
+        // Clouds: three dozen low-poly puffs on the sky, one mesh for the lot. They are part
+        // of the sky, not of the world: they go where the dome goes, are drawn straight after it
+        // without writing depth (so everything in the world draws over them), and turn slowly
+        // overhead. The sun and the sky light shade them, so they redden at dusk and darken at night.
+        const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0, flatShading: true, fog: false, depthWrite: false });
+        const puff = new THREE.IcosahedronGeometry(1, 1), field = new THREE.Group();
+        let seed = 20261118;
+        const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };   // (the same sky for every player)
+        for (let k = 0; k < 34; k++) {
+            const around = rnd() * Math.PI * 2, rise = 0.045 + rnd() * 0.45, far = 760;          // where on the dome: bearing, and how high (radians up from the horizon)
+            const centre = new THREE.Vector3(Math.sin(around) * Math.cos(rise) * far, Math.sin(rise) * far, Math.cos(around) * Math.cos(rise) * far);
+            const along = new THREE.Vector3(Math.cos(around), 0, -Math.sin(around));           // sideways as seen from the middle
+            const size = 26 + rnd() * 34;
+            for (let n = 0, puffs = 4 + Math.floor(rnd() * 4); n < puffs; n++) {
+                const m = new THREE.Mesh(puff, cloudMat), r = size * (0.6 + rnd() * 0.6);
+                m.position.copy(centre).addScaledVector(along, (n - (puffs - 1) / 2) * size * 0.85 + (rnd() - 0.5) * size * 0.4);
+                m.position.y += (rnd() - 0.3) * size * 0.35;
+                m.scale.set(r, r * 0.55, r); m.rotation.y = rnd() * 6.3;
+                field.add(m);
+            }
+        }
+        Batch.merge(field);
+        // (the order goes on the mesh only: a Group's own renderOrder is sorted on first, and would put the clouds before the dome)
+        clouds = field; clouds.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.renderOrder = -9; } });
+        scene.add(clouds);
 
         sun = new THREE.DirectionalLight(0xffffff, 1.2);
         sun.castShadow = true;
@@ -134,7 +160,8 @@ window.Sky = (function () {
         dome.position.copy(focus);
         stars.position.copy(focus);
         // keep the dome inside the camera's view distance (it is clipped to black otherwise)
-        if (window.game && game.camera) { const k = Math.min(1, game.camera.far * 0.92 / 850); dome.scale.setScalar(k); stars.scale.setScalar(k); }
+        if (window.game && game.camera) { const k = Math.min(1, game.camera.far * 0.92 / 850); dome.scale.setScalar(k); stars.scale.setScalar(k); clouds.scale.setScalar(k); }
+        clouds.position.copy(focus); clouds.rotation.y += dt * 0.004;         // (they drift round, a full turn in half an hour)
         stars.material.opacity = (1 - dl) * 0.9;
 
         sun.position.copy(focus).addScaledVector(S.sunDir, 300);
