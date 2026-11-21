@@ -5,10 +5,13 @@ window.CFG = {
     // Which version of the multiplayer messages this game speaks. Two players on different
     // versions can share a room but will not see the same traffic, people or each other on foot,
     // so each is told to reload (multiplayer.js). Add one whenever those messages change.
-    MP_VERSION: 4,
+    MP_VERSION: 5,
     TRAIN_FARE: 5,                    // coins for a train ticket, paid when you board
     GRAVITY: -30,                       // ~3x real, keeps the car planted (same as the old game)
-    CYCLE: { day: 60, night: 60 },      // seconds; dawn and dusk blend inside these
+    // Seconds of daylight and of night. The clock on the screen shows 24 hours over the two, so
+    // at 7200 + 7200 one minute on it takes ten real seconds (the owner asked for that: at 60 + 60
+    // the minutes flew by twelve a second). Dawn and dusk blend inside these.
+    CYCLE: { day: 7200, night: 7200 },
     MPH: 2.237,                         // units/s -> mph
 
     // Gearbox: each gear caps speed at a fraction of the car's max. The old game also cut the

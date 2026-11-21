@@ -160,6 +160,22 @@ window.Tex = (function () {
         });
     };
 
+    // Wet roads. A material that should look wet in the rain is handed to Tex.wets once; it is
+    // remembered with how rough and what colour it is dry, and Tex.setWet (0 dry .. 1 soaked)
+    // smooths it off and darkens it, so the road mirrors the sky. No new shaders: only two
+    // numbers of each material change.
+    const wettable = [];
+    let wetNow = 0;
+    T.wets = function (mat, soaked) {
+        wettable.push({ mat: mat, dry: mat.roughness, soaked: soaked === undefined ? 0.28 : soaked, color: mat.color.clone() });
+        return mat;
+    };
+    T.setWet = function (w) {
+        if (Math.abs(w - wetNow) < 0.004 && !(w === 0 && wetNow !== 0)) return;
+        wetNow = w;
+        wettable.forEach(e => { e.mat.roughness = e.dry + (e.soaked - e.dry) * w; e.mat.color.copy(e.color).multiplyScalar(1 - 0.28 * w); });
+    };
+
     T.asphaltMaterial = function (tint) {
         return new THREE.MeshStandardMaterial({
             color: tint, map: T.asphalt, roughnessMap: T.asphaltRough, roughness: 1, metalness: 0.25

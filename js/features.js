@@ -57,32 +57,63 @@ window.Features = (function () {
     };
 
     // ---------- rain ----------
-    const R = { on: false, mesh: null, count: 1500 };
+    // The weather looks after itself: now and then a shower comes over, lasts one minute and
+    // clears. Whether a minute is a wet one is worked out from the clock alone (the room's clock
+    // in multiplayer, so it rains on every screen at once): about one minute in six, and never
+    // two running. The RAIN button (V) brings a minute of rain of your own, or stops the shower.
+    // R.amount is how hard it is raining (it comes on and goes off over a few seconds) and R.wet
+    // how wet the roads are, which outlasts the rain by half a minute.
+    const R = { amount: 0, wet: 0, mesh: null, count: 1800, mineUntil: 0, skip: -1, was: false };
+    const stir = (n) => { n = Math.imul(n ^ (n >>> 15), 0x2c1b3c6d); n = Math.imul(n ^ (n >>> 12), 0x297a2d39); return (n ^ (n >>> 15)) >>> 0; };
+    const showery = (minute) => stir(minute) % 5 === 0;
+    const rainsIn = (minute) => showery(minute) && !showery(minute - 1);
+    const weatherClock = () => (window.Multiplayer && Multiplayer.now) ? Multiplayer.now() : Date.now();
+    function raining() {
+        const now = weatherClock(), minute = Math.floor(now / 60000);
+        return now < R.mineUntil || (rainsIn(minute) && R.skip !== minute);
+    }
+    F.raining = raining;
     F.toggleRain = function () {
-        R.on = !R.on;
-        if (R.on && !R.mesh) {
-            const pos = new Float32Array(R.count * 6);
-            for (let i = 0; i < R.count; i++) {
-                const x = (Math.random() - 0.5) * 80, y = Math.random() * 40, z = (Math.random() - 0.5) * 80;
-                pos.set([x, y, z, x, y - 1.2, z], i * 6);
-            }
-            const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-            R.mesh = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xaac4e0, transparent: true, opacity: 0.45 }));
-            R.mesh.frustumCulled = false;
-        }
-        if (R.mesh) { if (R.on) scene.add(R.mesh); else scene.remove(R.mesh); }
-        Sky.rain = R.on;
-        UI.toast(R.on ? 'Rain on' : 'Rain off');
+        const now = weatherClock();
+        if (raining()) { R.mineUntil = 0; R.skip = Math.floor(now / 60000); UI.toast('Rain off'); }
+        else { R.mineUntil = now + 60000; R.was = true; UI.toast('Rain for a minute'); }
     };
+    function rainMesh() {
+        const pos = new Float32Array(R.count * 6);
+        for (let i = 0; i < R.count; i++) {
+            const x = (Math.random() - 0.5) * 80, y = Math.random() * 40, z = (Math.random() - 0.5) * 80;
+            pos.set([x, y, z, x, y - 1.5, z], i * 6);
+        }
+        const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        const m = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xaac4e0, transparent: true, opacity: 0, depthWrite: false }));
+        m.frustumCulled = false; m.visible = false;
+        scene.add(m);
+        return m;
+    }
     function updateRain(dt) {
-        if (!R.on || !R.mesh) return;
+        const want = raining();
+        if (want !== R.was) {                                              // (a shower of the weather's own: say so)
+            R.was = want;
+            UI.toast(want ? 'It is starting to rain' : 'The rain has stopped');
+            const b = document.getElementById('rain-btn'); if (b) b.classList.toggle('on', want);
+        }
+        R.amount = Math.max(0, Math.min(1, R.amount + (want ? dt : -dt) / 4));
+        R.wet = want ? Math.min(1, Math.max(R.wet, R.amount)) : Math.max(0, R.wet - dt / 30);
+        Sky.rain = R.amount;
+        Tex.setWet(R.wet);
+        if (R.amount <= 0) { if (R.mesh) R.mesh.visible = false; return; }
+        if (!R.mesh) R.mesh = rainMesh();
+        // the rain falls round whoever is looking (the car, or you on foot), and not indoors
+        const eye = game.camera.position, indoors = window.Walk && Walk.active && Walk.room;
+        R.mesh.visible = !indoors;
+        R.mesh.material.opacity = 0.45 * R.amount;
         const p = R.mesh.geometry.attributes.position, a = p.array;
         for (let i = 0; i < R.count; i++) {
-            a[i * 6 + 1] -= 28 * dt; a[i * 6 + 4] -= 28 * dt;
+            a[i * 6 + 1] -= 30 * dt; a[i * 6 + 4] -= 30 * dt;
             if (a[i * 6 + 1] < 0) { a[i * 6 + 1] += 40; a[i * 6 + 4] += 40; }
         }
         p.needsUpdate = true;
-        R.mesh.position.set(Car.body.position.x, Car.body.position.y, Car.body.position.z);
+        R.mesh.position.set(eye.x, eye.y - 14, eye.z);
     }
 
     // ---------- drift rewards ----------

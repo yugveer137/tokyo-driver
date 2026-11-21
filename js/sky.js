@@ -2,9 +2,13 @@
 // One full cycle = CFG.CYCLE.day + CFG.CYCLE.night seconds. t = 0 is sunrise, the sun is
 // highest a quarter of the way through, sets at the half-way point, and the night half
 // follows. Everything that depends on the time of day reads Sky.daylight (0..1) and Sky.night.
+// A day is long (config.js), so the time of day is kept in the save ('clock') and the next
+// game carries on from it: otherwise every game would start in the morning and never see night.
+// Sky.rain (0 dry .. 1 pouring) is set by the weather in features.js.
 window.Sky = (function () {
-    const S = { daylight: 1, night: 0, t: 0.08, sunDir: new THREE.Vector3(0, 1, 0), speed: 1 };
-    let dome, stars, clouds, sun, hemi, ambient, scene, renderer, time = 0;
+    const S = { daylight: 1, night: 0, t: 0.08, sunDir: new THREE.Vector3(0, 1, 0), speed: 1, rain: 0 };
+    let dome, stars, clouds, cloudMat, sun, hemi, ambient, scene, renderer, time = 0, unsaved = 0;
+    const moonDir = new THREE.Vector3(0, 1, 0);
 
     const C = (hex) => new THREE.Color(hex);
     const col = {
@@ -13,13 +17,16 @@ window.Sky = (function () {
         botDay: C(0x8fb3d9), botNight: C(0x05060c),
         sunHigh: C(0xfff6e0), sunLow: C(0xffb060),
         hemiSkyDay: C(0x9fc7ff), hemiSkyNight: C(0x1b2240),
-        hemiGroundDay: C(0x6b6b5a), hemiGroundNight: C(0x0a0a12)
+        hemiGroundDay: C(0x6b6b5a), hemiGroundNight: C(0x0a0a12),
+        moon: C(0x9db4ff), cloudDry: C(0xffffff), cloudWet: C(0x7d848e)
     };
     const tmpA = new THREE.Color(), tmpB = new THREE.Color();
     const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
     S.init = function (sc, r) {
         scene = sc; renderer = r;
+        const saved = window.Save ? Number(Save.get('clock', NaN)) : NaN;
+        if (saved >= 0 && saved < 1) S.t = saved;                          // carry on from where the last game left the day
         time = S.t * (CFG.CYCLE.day + CFG.CYCLE.night);
 
         dome = new THREE.Mesh(new THREE.SphereGeometry(850, 32, 16), new THREE.ShaderMaterial({
@@ -27,7 +34,8 @@ window.Sky = (function () {
             uniforms: {
                 uTop: { value: new THREE.Color() }, uHorizon: { value: new THREE.Color() },
                 uBottom: { value: new THREE.Color() }, uSunDir: { value: new THREE.Vector3(0, 1, 0) },
-                uSunColor: { value: new THREE.Color() }
+                uSunColor: { value: new THREE.Color() },
+                uMoonDir: { value: new THREE.Vector3(0, 1, 0) }, uMoon: { value: 0 }
             },
             vertexShader: `
                 varying vec3 vDir;
@@ -36,7 +44,8 @@ window.Sky = (function () {
                     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
                 }`,
             fragmentShader: `
-                uniform vec3 uTop, uHorizon, uBottom, uSunDir, uSunColor;
+                uniform vec3 uTop, uHorizon, uBottom, uSunDir, uSunColor, uMoonDir;
+                uniform float uMoon;
                 varying vec3 vDir;
                 void main() {
                     vec3 d = normalize(vDir);
@@ -44,6 +53,8 @@ window.Sky = (function () {
                     vec3 c = h > 0.0 ? mix(uHorizon, uTop, pow(h, 0.55)) : mix(uHorizon, uBottom, pow(-h, 0.5));
                     float s = max(dot(d, uSunDir), 0.0);
                     c += uSunColor * (pow(s, 400.0) * 2.0 + pow(s, 12.0) * 0.22 + pow(s, 2.0) * 0.05);
+                    float m = max(dot(d, uMoonDir), 0.0);                 // the moon: a disc and a faint glow round it
+                    c += vec3(0.86, 0.9, 1.0) * uMoon * (smoothstep(0.99955, 0.9997, m) * 0.9 + pow(m, 90.0) * 0.07);
                     gl_FragColor = vec4(c, 1.0);
                 }`
         }));
@@ -63,13 +74,14 @@ window.Sky = (function () {
         sg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
         stars = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 2, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false }));
         stars.frustumCulled = false;
+        stars.renderOrder = -9.5;                                          // (before the clouds, which are drawn with the see-through things so that they cover the stars)
         scene.add(stars);
 
         // Clouds: three dozen low-poly puffs on the sky, one mesh for the lot. They are part
-        // of the sky, not of the world: they go where the dome goes, are drawn straight after it
-        // without writing depth (so everything in the world draws over them), and turn slowly
+        // of the sky, not of the world: they go where the dome goes, are drawn after it and after
+        // the stars without writing depth (the world, drawn first, still hides them), and turn slowly
         // overhead. The sun and the sky light shade them, so they redden at dusk and darken at night.
-        const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0, flatShading: true, fog: false, depthWrite: false });
+        cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0, flatShading: true, fog: false, depthWrite: false, transparent: true });
         const puff = new THREE.IcosahedronGeometry(1, 1), field = new THREE.Group();
         let seed = 20261118;
         const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };   // (the same sky for every player)
@@ -93,7 +105,7 @@ window.Sky = (function () {
 
         sun = new THREE.DirectionalLight(0xffffff, 1.2);
         sun.castShadow = true;
-        sun.shadow.mapSize.set(1536, 1536);
+        sun.shadow.mapSize.set(2048, 2048);                                // (sharper shadow edges; the game is held back by the processor, not by this)
         const sc2 = sun.shadow.camera;
         sc2.left = -90; sc2.right = 90; sc2.top = 90; sc2.bottom = -90; sc2.near = 1; sc2.far = 600;
         sun.shadow.bias = -0.0006;
@@ -162,16 +174,22 @@ window.Sky = (function () {
         // keep the dome inside the camera's view distance (it is clipped to black otherwise)
         if (window.game && game.camera) { const k = Math.min(1, game.camera.far * 0.92 / 850); dome.scale.setScalar(k); stars.scale.setScalar(k); clouds.scale.setScalar(k); }
         clouds.position.copy(focus); clouds.rotation.y += dt * 0.004;         // (they drift round, a full turn in half an hour)
-        stars.material.opacity = (1 - dl) * 0.9;
+        stars.material.opacity = (1 - dl) * 0.9 * (1 - 0.85 * (S.rain || 0));      // (rain clouds hide most of them)
 
-        sun.position.copy(focus).addScaledVector(S.sunDir, 300);
+        // The one directional light is the sun by day and the moon by night. The moon stands
+        // opposite the sun, and the light is dark at the moment it changes sides (daylight is
+        // gone by the time the sun is 0.12 under the horizon, and the moon only starts there).
+        const moon = smooth(0.12, 0.3, -elev), rain = S.rain || 0;
+        moonDir.set(-S.sunDir.x, -S.sunDir.y, S.sunDir.z);
+        u.uMoonDir.value.copy(moonDir); u.uMoon.value = moon * (1 - 0.8 * rain);
+        sun.position.copy(focus).addScaledVector(moon > 0 ? moonDir : S.sunDir, 300);
         sun.target.position.copy(focus);
         // Daylight is a strong sun and little fill light, with the exposure held down: bright fill
         // light at full exposure washed every colour out to pale grey (ACES tone mapping brightens
         // by 1/0.6 before it compresses). The night keeps its own softer balance.
-        sun.intensity = 1.5 * dl;
-        sun.color.copy(col.sunLow).lerp(col.sunHigh, smooth(0, 0.45, elev));
-        sun.visible = dl > 0.02;
+        sun.intensity = moon > 0 ? 0.3 * moon : 1.5 * dl;
+        if (moon > 0) sun.color.copy(col.moon); else sun.color.copy(col.sunLow).lerp(col.sunHigh, smooth(0, 0.45, elev));
+        sun.visible = sun.intensity > 0.02;
 
         hemi.color.copy(col.hemiSkyNight).lerp(col.hemiSkyDay, dl);
         hemi.groundColor.copy(col.hemiGroundNight).lerp(col.hemiGroundDay, dl);
@@ -179,10 +197,28 @@ window.Sky = (function () {
         ambient.intensity = 0.1 - 0.04 * dl;
 
         scene.fog.color.copy(u.uHorizon.value);
-        scene.fog.density = (0.0025 - 0.0017 * dl) * (S.rain ? 1.8 : 1) * (S.fogBoost || 1);
-        if (S.rain) { u.uTop.value.multiplyScalar(0.55); u.uHorizon.value.multiplyScalar(0.7); sun.intensity *= 0.5; }
+        // rain: thicker air, a darker sky, half the sun and grey clouds, all by how hard it is raining
+        scene.fog.density = (0.0025 - 0.0017 * dl) * (1 + 0.8 * rain) * (S.fogBoost || 1);
+        if (rain > 0) { u.uTop.value.multiplyScalar(1 - 0.45 * rain); u.uHorizon.value.multiplyScalar(1 - 0.3 * rain); sun.intensity *= 1 - 0.5 * rain; }
+        cloudMat.color.copy(col.cloudDry).lerp(col.cloudWet, rain);
         if (renderer) renderer.toneMappingExposure = 0.8 - 0.2 * dl;
         if (S.envDay) { const want = dl > 0.4 ? S.envDay : S.envNight; if (scene.environment !== want) scene.environment = want; }
+        unsaved += dt;
+        if (unsaved > 20 && window.Save) { unsaved = 0; Save.set('clock', Math.round(S.t * 10000) / 10000); }
+    };
+
+    // Put the clock at a time of day (0..1, as S.t). In a multiplayer room the guests keep to the
+    // host's time of day this way, so it is night for everyone at once; a guest who has gone to
+    // bed and slept till morning keeps their own morning (S.slept) rather than be put back.
+    S.setTime = function (t) {
+        if (!(t >= 0 && t < 1)) return;
+        const cycle = CFG.CYCLE.day + CFG.CYCLE.night;
+        time = t * cycle; S.t = t;
+    };
+    S.follow = function (t) {
+        if (S.slept || !(t >= 0 && t < 1)) return;
+        const off = Math.abs(t - S.t), apart = Math.min(off, 1 - off);
+        if (apart > 0.002) S.setTime(t);                                   // (more than about three minutes on the clock)
     };
 
     // Clock text for the HUD: 24-hour cycle mapped onto the day/night loop, 6:00 = sunrise

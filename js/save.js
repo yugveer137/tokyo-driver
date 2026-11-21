@@ -713,7 +713,7 @@
     // every ten minutes of play and just before a big spend, whenever anything has changed) and
     // the SAVES panel puts one back. Kept: the four newest, then the last one of each hour of
     // the past half day, then the last one of each earlier day, twelve in all.
-    const BACKUPS = 'backups', NOT_BACKED_UP = [BACKUPS, 'paid2', 'trialUntil', 'trialUsed', 'trialDays'];
+    const BACKUPS = 'backups', NOT_BACKED_UP = [BACKUPS, 'paid2', 'trialUntil', 'trialUsed', 'trialDays', 'clock'];   // ('clock' is the time of day: it changes all the time and is nothing to restore)
     // this account's save as it stands: { key: the stored text }
     function saveNow() {
         const prefix = 'td:' + account() + ':', out = {};

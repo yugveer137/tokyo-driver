@@ -54,7 +54,7 @@ window.UI = (function () {
             if (e.code === 'KeyC') { if (window.Train && Train.riding) Train.toggleView(); else Car.toggleView(); }
             if (e.code === 'KeyB') Car.boostStart();
             if (e.code === 'KeyG' && window.Walk) Walk.toggle();
-            if (e.code === 'KeyN') Sky.speed = Sky.speed === 1 ? 12 : 1;
+            if (e.code === 'KeyN') Sky.speed = Sky.speed === 1 ? 240 : 1;   // (a day in a minute, to look at dusk and night)
             if (e.code === 'KeyV') Features.toggleRain();
             if (e.code === 'KeyK') Features.toggleCruise();
             if (e.code === 'KeyQ') Features.setSignal('left');

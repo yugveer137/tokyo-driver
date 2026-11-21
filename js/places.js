@@ -306,6 +306,7 @@ window.Places = (function () {
             // on to just after sunrise (Sky.update moves the clock on by the time it is given)
             const cycle = CFG.CYCLE.day + CFG.CYCLE.night, morning = 0.04;
             Sky.update(((morning - Sky.t + 1) % 1) * cycle / (Sky.speed || 1), Car.body.position);
+            Sky.slept = true;                                              // (a guest in a room keeps this morning: see Sky.follow)
             fade.textContent = 'Good morning!';
         }, 1100);
         setTimeout(() => { fade.style.opacity = '0'; resting = false; UI.toast('You slept like a log. It is morning.', 3000); }, 2300);

@@ -34,8 +34,18 @@ window.Terrain = (function () {
 
     T.init = function (sc, w) {
         scene = sc; world = w;
-        material = new THREE.MeshStandardMaterial({ color: 0x3f7a26, map: Tex.grass, roughness: 0.95, metalness: 0 });
+        material = new THREE.MeshStandardMaterial({ color: 0x3f7a26, map: Tex.grass, roughness: 0.95, metalness: 0, vertexColors: true });
     };
+
+    // The land is not one green all over: broad patches run from lush to sun-dried, painted into
+    // the vertices (the grass texture repeats every few metres and looked like a flat carpet
+    // from the freeway). Worked out from the spot alone, so chunks meet without a seam.
+    const LUSH = [0.78, 0.96, 0.8], DRY = [1.42, 1.2, 0.78];
+    function shade(x, z, out, at) {
+        const n = 0.5 + 0.3 * Math.sin(x * 0.0061 + 1.3) * Math.cos(z * 0.0053 - 0.7) + 0.14 * Math.sin(x * 0.019 - z * 0.023) + 0.06 * Math.sin(x * 0.071 + z * 0.057);
+        const k = Math.min(1, Math.max(0, n));
+        for (let c = 0; c < 3; c++) out[at + c] = LUSH[c] + (DRY[c] - LUSH[c]) * k;
+    }
 
     function key(i, j) { return i + ',' + j; }
 
@@ -46,10 +56,13 @@ window.Terrain = (function () {
         geom.rotateX(-Math.PI / 2);                // now x/z in plane, y up; rows run along z
         Tex.scalePlaneUVs(geom, C, C, 5);
         const p = geom.attributes.position;
+        const tones = new Float32Array(p.count * 3);
         for (let k = 0; k < p.count; k++) {
             const x = x0 + p.getX(k), z = z0 + p.getZ(k);
             p.setY(k, T.height(x, z));
+            shade(x, z, tones, k * 3);
         }
+        geom.setAttribute('color', new THREE.BufferAttribute(tones, 3));
         geom.computeVertexNormals();
         const mesh = new THREE.Mesh(geom, material);
         mesh.position.set(x0, 0, z0);

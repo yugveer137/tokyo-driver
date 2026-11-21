@@ -22,7 +22,7 @@ window.City = (function () {
     C.init = function (sc, w) { scene = sc; world = w; buildTextures(); };
 
     // ---------- textures ----------
-    let windowSets = [], patchTex, lampMat, poleMat, glassMat, shopMat, trimMat, beaconMat, headMat;
+    let windowSets = [], patchTex, junctionMat, lampMat, poleMat, glassMat, shopMat, trimMat, beaconMat, headMat;
     const SHOP_W = 8, SHOPS = 4;                     // one shopfront is 8 units wide; the texture holds four in a row
     function buildTextures() {
         // 4 window layouts: a facade map (concrete with dark glass) + an emissive map (lit panes)
@@ -185,7 +185,8 @@ window.City = (function () {
         city.lightMap = {};
         city.lightAt = (i, j) => city.lightMap[i + ',' + j];
         // intersections: crosswalk patch, traffic lights, street blades, lamps
-        const patchMat = new THREE.MeshStandardMaterial({ map: patchTex, roughness: 0.92, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+        // (one material for every junction in the game, so the rain can wet them along with the streets)
+        const patchMat = junctionMat || (junctionMat = Tex.wets(new THREE.MeshStandardMaterial({ map: patchTex, roughness: 0.92, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 })));
         for (let i = 0; i <= city.rows; i++) for (let j = 0; j <= city.cols; j++) {
             const c = city.toWorld(city.streetX(j), city.streetZ(i));
             city.meshes.push(Road.drapedQuad(c.x, c.z, city.street, city.heading, patchMat, Road.DRAPE + 0.01, 8));   // (a vertex every 2 m: see Road.strip on why)

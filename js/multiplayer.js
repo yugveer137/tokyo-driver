@@ -430,6 +430,7 @@ window.Multiplayer = (function () {
         if (d.t === 'tr') { Traffic.foreign(String(d.from), d.cars); return; }
         if (d.t !== 'all') return;
         hearClock(d.now);
+        Sky.follow(Number(d.sky));                                        // (the host's time of day is the room's)
         const here = {};
         d.ps.forEach(s => { here[s.id] = true; placeCar(s.id, s); });
         Object.keys(cars).forEach(id => { if (!here[id]) removeCar(id); });   // (someone left)
@@ -588,7 +589,7 @@ window.Multiplayer = (function () {
                     // everyone's car to everyone else: the host is 'host', a guest goes by their peer id
                     const all = [Object.assign({ id: 'host', n: 1 }, me)];
                     guests.forEach(g => { if (g.d) all.push(Object.assign({ id: g.id }, g.d)); });
-                    guests.forEach(g => send(g.conn, { t: 'all', now: Date.now(), ps: all.filter(s => s.id !== g.id) }));
+                    guests.forEach(g => send(g.conn, { t: 'all', now: Date.now(), sky: Math.round(Sky.t * 10000) / 10000, ps: all.filter(s => s.id !== g.id) }));
                 }
             }
             // my traffic, five times a second, while there is anyone to tell
