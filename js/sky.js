@@ -18,7 +18,7 @@ window.Sky = (function () {
         sunHigh: C(0xfff6e0), sunLow: C(0xffb060),
         hemiSkyDay: C(0x9fc7ff), hemiSkyNight: C(0x1b2240),
         hemiGroundDay: C(0x6b6b5a), hemiGroundNight: C(0x0a0a12),
-        moon: C(0x9db4ff), cloudDry: C(0xffffff), cloudWet: C(0x7d848e)
+        moon: C(0x9db4ff), cloudDay: C(0xffffff), cloudNight: C(0x0c1124), cloudWet: C(0x4a5058)
     };
     const tmpA = new THREE.Color(), tmpB = new THREE.Color();
     const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -74,33 +74,66 @@ window.Sky = (function () {
         sg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
         stars = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xffffff, size: 2, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false }));
         stars.frustumCulled = false;
-        stars.renderOrder = -9.5;                                          // (before the clouds, which are drawn with the see-through things so that they cover the stars)
+        stars.renderOrder = -9.5;                                          // (before the clouds, which are see-through too and drawn over them)
         scene.add(stars);
 
-        // Clouds: three dozen low-poly puffs on the sky, one mesh for the lot. They are part
-        // of the sky, not of the world: they go where the dome goes, are drawn after it and after
-        // the stars without writing depth (the world, drawn first, still hides them), and turn slowly
-        // overhead. The sun and the sky light shade them, so they redden at dusk and darken at night.
-        cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0, flatShading: true, fog: false, depthWrite: false, transparent: true });
-        const puff = new THREE.IcosahedronGeometry(1, 1), field = new THREE.Group();
-        let seed = 20261118;
+        // Clouds: soft white puffs painted on the sky. Each cloud is a row of soft-edged patches
+        // (one fuzzy blob texture) that overlap into a wide shape with a flat grey base and a
+        // heaped white top. They were solid lumpy balls at first, and looked like hot air balloons.
+        // They are part of the sky, not of the world: they go where the dome goes, so each patch
+        // can simply face the middle for good; they are drawn after the dome and the stars without
+        // writing depth (the world, drawn first, still hides them), and turn slowly overhead.
+        // Nothing lights them: S.update gives them the colour of the hour.
+        let seed = 20261121;
         const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };   // (the same sky for every player)
-        for (let k = 0; k < 34; k++) {
-            const around = rnd() * Math.PI * 2, rise = 0.045 + rnd() * 0.45, far = 760;          // where on the dome: bearing, and how high (radians up from the horizon)
-            const centre = new THREE.Vector3(Math.sin(around) * Math.cos(rise) * far, Math.sin(rise) * far, Math.cos(around) * Math.cos(rise) * far);
-            const along = new THREE.Vector3(Math.cos(around), 0, -Math.sin(around));           // sideways as seen from the middle
-            const size = 26 + rnd() * 34;
-            for (let n = 0, puffs = 4 + Math.floor(rnd() * 4); n < puffs; n++) {
-                const m = new THREE.Mesh(puff, cloudMat), r = size * (0.6 + rnd() * 0.6);
-                m.position.copy(centre).addScaledVector(along, (n - (puffs - 1) / 2) * size * 0.85 + (rnd() - 0.5) * size * 0.4);
-                m.position.y += (rnd() - 0.3) * size * 0.35;
-                m.scale.set(r, r * 0.55, r); m.rotation.y = rnd() * 6.3;
-                field.add(m);
+        const blob = Tex.textCanvas(128, 128, (ctx, W) => {                // a big soft ball with smaller ones round it
+            for (let k = 0; k < 9; k++) {
+                const a = rnd() * 6.283, off = k ? 14 + rnd() * 16 : 0, r = k ? 20 + rnd() * 14 : 40;
+                const x = W / 2 + Math.cos(a) * off, y = W / 2 + Math.sin(a) * off;
+                const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+                g.addColorStop(0, 'rgba(255,255,255,0.85)'); g.addColorStop(0.55, 'rgba(255,255,255,0.4)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.fillStyle = g; ctx.fillRect(0, 0, W, W);
+            }
+        });
+        cloudMat = new THREE.MeshBasicMaterial({ map: blob, vertexColors: true, transparent: true, depthWrite: false, fog: false, toneMapped: false });
+        const spots = [], uv = [], tone = [], index = [];
+        const across = new THREE.Vector3(), up = new THREE.Vector3(), mid = new THREE.Vector3(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), at = new THREE.Vector3();
+        // one patch: centred `x` along the cloud and `y` up it, `w` by `h` across, turned by `turn`, in a shade of grey
+        const patch = (x, y, w, h, turn, grey) => {
+            e1.copy(across).multiplyScalar(Math.cos(turn)).addScaledVector(up, Math.sin(turn));
+            e2.copy(across).multiplyScalar(-Math.sin(turn)).addScaledVector(up, Math.cos(turn));
+            const first = spots.length / 3;
+            [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(c => {
+                at.copy(mid).addScaledVector(across, x).addScaledVector(up, y).addScaledVector(e1, c[0] * w / 2).addScaledVector(e2, c[1] * h / 2);
+                spots.push(at.x, at.y, at.z); uv.push((c[0] + 1) / 2, (c[1] + 1) / 2); tone.push(grey * 0.97, grey * 0.985, grey);
+            });
+            index.push(first, first + 1, first + 2, first, first + 2, first + 3);
+        };
+        for (let k = 0; k < 30; k++) {
+            const around = rnd() * Math.PI * 2, rise = 0.05 + rnd() * 0.45, far = 760;         // where on the dome: bearing, and how high (radians up from the horizon)
+            mid.set(Math.sin(around) * Math.cos(rise) * far, Math.sin(rise) * far, Math.cos(around) * Math.cos(rise) * far);
+            across.set(Math.cos(around), 0, -Math.sin(around));                                // sideways as seen from the middle
+            up.copy(mid).normalize().cross(across); if (up.y < 0) up.negate();                 // up the sky, square to the line of sight
+            const wide = 110 + rnd() * 150, tall = wide * (0.2 + rnd() * 0.1);
+            // the base first (it is drawn first, so the white heaps go over it): a flat grey row
+            for (let n = 0, row = 5 + Math.floor(rnd() * 3); n < row; n++) {
+                const x = (n / (row - 1) - 0.5) * wide * 0.8 + (rnd() - 0.5) * 12;
+                patch(x, -tall * 0.12, tall * (1.9 + rnd() * 0.8), tall * (0.95 + rnd() * 0.3), 0, 0.8);
+            }
+            // then the heaps: tallest in the middle, falling away to the ends
+            for (let n = 0, heaps = 7 + Math.floor(rnd() * 5); n < heaps; n++) {
+                const u = rnd() * 2 - 1, x = u * wide * 0.4, bulge = 1 - u * u, size = tall * (0.9 + rnd() * 0.7) * (0.6 + 0.4 * bulge);
+                patch(x, tall * (0.1 + 0.55 * bulge * rnd()), size * 1.25, size, rnd() * 6.283, 1);
             }
         }
-        Batch.merge(field);
-        // (the order goes on the mesh only: a Group's own renderOrder is sorted on first, and would put the clouds before the dome)
-        clouds = field; clouds.traverse(o => { if (o.isMesh) { o.frustumCulled = false; o.renderOrder = -9; } });
+        const cg = new THREE.BufferGeometry();
+        cg.setAttribute('position', new THREE.Float32BufferAttribute(spots, 3));
+        cg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+        cg.setAttribute('color', new THREE.Float32BufferAttribute(tone, 3));
+        cg.setIndex(index);
+        clouds = new THREE.Mesh(cg, cloudMat);
+        cloudMat.side = THREE.DoubleSide;
+        clouds.frustumCulled = false; clouds.renderOrder = -9;
         scene.add(clouds);
 
         sun = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -200,7 +233,10 @@ window.Sky = (function () {
         // rain: thicker air, a darker sky, half the sun and grey clouds, all by how hard it is raining
         scene.fog.density = (0.0025 - 0.0017 * dl) * (1 + 0.8 * rain) * (S.fogBoost || 1);
         if (rain > 0) { u.uTop.value.multiplyScalar(1 - 0.45 * rain); u.uHorizon.value.multiplyScalar(1 - 0.3 * rain); sun.intensity *= 1 - 0.5 * rain; }
-        cloudMat.color.copy(col.cloudDry).lerp(col.cloudWet, rain);
+        // the clouds take the colour of the hour (nothing lights them): white by day, warm at dusk,
+        // dark blue-grey at night, and rain-grey in a shower
+        cloudMat.color.copy(col.cloudNight).lerp(col.cloudDay, dl).lerp(col.dusk, dusk * 0.4);
+        cloudMat.color.lerp(tmpA.copy(col.cloudWet).multiplyScalar(0.25 + 0.75 * dl), rain * 0.85);
         if (renderer) renderer.toneMappingExposure = 0.8 - 0.2 * dl;
         if (S.envDay) { const want = dl > 0.4 ? S.envDay : S.envNight; if (scene.environment !== want) scene.environment = want; }
         unsaved += dt;
