@@ -586,11 +586,14 @@ window.SelfDrive = (function () {
         S.laneWait = Math.max(0, (S.laneWait || 0) - dt);
         if (ours.length > 1 && S.exitDist > 800 && !S.laneWait) {
             const reach = 40 + Car.mph / CFG.MPH * 3;
-            // how far ahead the nearest car in a lane is (a car alongside or just behind counts as no room at all)
-            const room = (i) => { let best = Infinity; Traffic.cars.forEach(c => { if (c.road !== S.road || c.dir !== S.dir || c.lane !== ours[i]) return; const gap = (c.s - n.s) * S.dir; if (gap > -12 && gap < best) best = gap; }); stray.forEach(o => { if (o.lane === ours[i] && o.gap > -12 && o.gap < best) best = o.gap; }); return best; };
+            // how far ahead the nearest car in a lane is (a car alongside or just behind counts as no room at all, and so does a lane shut for road works)
+            const room = (i) => { if (Roadworks.closed(S.road, S.dir, ours[i].index, n.s, reach)) return -1; let best = Infinity; Traffic.cars.forEach(c => { if (c.road !== S.road || c.dir !== S.dir || c.lane !== ours[i]) return; const gap = (c.s - n.s) * S.dir; if (gap > -12 && gap < best) best = gap; }); stray.forEach(o => { if (o.lane === ours[i] && o.gap > -12 && o.gap < best) best = o.gap; }); return best; };
             const here = Math.min(S.laneIndex, ours.length - 1), mine = room(here);
             if (mine < reach) {
-                const beside = [here - 1, here + 1].filter(i => i >= 0 && i < ours.length).map(i => ({ i, gap: room(i) })).filter(o => o.gap > 25 && o.gap > mine + 30).sort((a, b) => b.gap - a.gap);
+                // what is ahead may be road works standing in the lane: then any lane with a second's room in it will do, it need not be the emptier one
+                const works = Traffic.cars.some(c => c.fixed && c.road === S.road && c.lane === ours[here] && (c.s - n.s) * S.dir > 0 && (c.s - n.s) * S.dir < reach);
+                const enough = works ? 25 + Car.mph / CFG.MPH : mine + 30;
+                const beside = [here - 1, here + 1].filter(i => i >= 0 && i < ours.length).map(i => ({ i, gap: room(i) })).filter(o => o.gap > 25 && o.gap > enough).sort((a, b) => b.gap - a.gap);
                 if (beside.length) { S.laneIndex = beside[0].i; S.laneWait = 1.2; }
             }
         }

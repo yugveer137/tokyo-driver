@@ -16,6 +16,7 @@ window.Traffic = (function () {
     const tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler();
     let nextId = 1, frame = 0;
     const theirs = {};                                                    // other players' cars here, by owner:id
+    const standing = [];                                                  // things standing in a lane (road works, see T.stand)
 
     T.init = function (sc, w) { scene = sc; world = w; };
 
@@ -95,6 +96,7 @@ window.Traffic = (function () {
         }
         if (s === null) return;
         if (T.cars.some(c => c.road === r && c.lane === lane && Math.abs(c.s - s) < 18)) return;
+        if (standing.some(f => f.road === r && f.lane === lane && Math.abs(f.s - s) < 30)) return;   // (not in among the road works)
         const look = newLook(), made = build(look);
         const limit = r.type === 'freeway' ? rnd(26, 34) : rnd(11, 16);   // units/s (~60-75 mph, ~25-35 mph)
         T.cars.push({ id: nextId++, look, road: r, lane, s, dir: lane.dir, speed: limit * 0.8, limit, mesh: made.mesh, body: made.body, cross: null, cooldown: 0 });
@@ -120,7 +122,7 @@ window.Traffic = (function () {
     // my own cars, for the other players: [id, road, lane, s, speed, dir, colour, model, big]
     T.report = function () {
         const out = [];
-        T.cars.forEach(c => { if (!c.foreign) out.push([c.id, c.road.uid, c.road.lanes.indexOf(c.lane), Math.round(c.s * 10) / 10, Math.round(c.speed * 10) / 10, c.dir, c.look[0], c.look[1], c.look[2]]); });
+        T.cars.forEach(c => { if (!c.foreign && !c.fixed) out.push([c.id, c.road.uid, c.road.lanes.indexOf(c.lane), Math.round(c.s * 10) / 10, Math.round(c.speed * 10) / 10, c.dir, c.look[0], c.look[1], c.look[2]]); });
         return out;
     };
     // another player's cars as they last reported them: new ones appear, the ones they no longer
@@ -203,7 +205,8 @@ window.Traffic = (function () {
         for (let i = 0; i < T.cars.length; i++) {
             const o = T.cars[i];
             if (o === car || o.road !== car.road || o.dir !== car.dir || o.lane.index !== car.lane.index) continue;
-            const gap = (o.s - car.s) * car.dir;
+            let gap = (o.s - car.s) * car.dir;
+            if (gap > 0 && o.fixed) gap = Math.max(0.5, gap - 6);         // (stop well short of road works: there is a lane change to make from here)
             if (gap > 0 && gap < 60 && (!best || gap < best.gap)) best = { gap, speed: o.speed };
         }
         // the player, and any other player near: project onto this road (lateral offset from the
@@ -232,6 +235,7 @@ window.Traffic = (function () {
         let own = 0;
         for (let i = T.cars.length - 1; i >= 0; i--) {
             const c = T.cars[i];
+            if (c.fixed) continue;                                        // (road works: whoever stood it there takes it away)
             if (Object.keys(c.road.chunks).length === 0 || (c.foreign ? now - c.stamp > 1500 : c.mesh.position.distanceTo(playerPos) > T.DESPAWN_R)) remove(c);
             else if (!c.foreign) own++;
         }
@@ -241,13 +245,14 @@ window.Traffic = (function () {
         if (own < mine && Math.random() < 0.5) spawn(playerPos);
         else if (own > mine && frame++ % 20 === 0) {                      // too many now that someone has come near: the farthest of mine goes
             let far = null, fd = 80;
-            T.cars.forEach(c => { if (c.foreign) return; const d = c.mesh.position.distanceTo(playerPos); if (d > fd) { fd = d; far = c; } });
+            T.cars.forEach(c => { if (c.foreign || c.fixed) return; const d = c.mesh.position.distanceTo(playerPos); if (d > fd) { fd = d; far = c; } });
             if (far) remove(far);
         }
 
         const night = window.Sky ? Sky.night : 0;
         for (let i = 0; i < T.cars.length; i++) {
             const c = T.cars[i];
+            if (c.fixed) continue;
             if (c.foreign) {                                              // another player's car: it only rolls on at the speed they gave
                 c.s = Math.max(0, Math.min(c.road.length, c.s + c.dir * c.speed * dt));
                 settle(c, night);
@@ -268,6 +273,7 @@ window.Traffic = (function () {
                     continue;
                 }
             }
+            if (standing.length) goRound(c, playerPos, playerSpeed);
             // target speed: limit, leader, lights, road end
             let target = c.limit;
             const L = leader(c, playerPos, playerSpeed);
@@ -298,6 +304,10 @@ window.Traffic = (function () {
                 }
             }
             c.s += c.dir * c.speed * dt;
+            if (c.slide) {                                                // changing lanes: drift across as it drives on
+                const step = Math.min(Math.abs(c.slide), c.speed * dt * 0.4);
+                c.slide -= Math.sign(c.slide) * step;
+            }
             if ((c.dir === 1 && c.s >= c.road.length) || (c.dir === -1 && c.s <= 0)) {
                 c.s = Math.max(0, Math.min(c.road.length, c.s));
                 if (!nextRoad(c)) { remove(c); i--; continue; }
@@ -308,7 +318,7 @@ window.Traffic = (function () {
     };
     // put a car's mesh and box where its road, lane and s say, tilted with the slope, lights on at night
     function settle(c, night) {
-        const f = Road.at(c.road, c.s, c.lane.offset);
+        const f = Road.at(c.road, c.s, c.lane.offset + (c.slide || 0));
         c.mesh.position.copy(f.p);
         c.mesh.rotation.set(0, Math.atan2(f.tan.x * c.dir, f.tan.z * c.dir), 0);
         const pitch = Math.asin(Math.max(-1, Math.min(1, f.tan.y))) * c.dir;
@@ -324,6 +334,53 @@ window.Traffic = (function () {
         c.body.quaternion.set(tmpQ.x, tmpQ.y, tmpQ.z, tmpQ.w);
     }
 
-    T.clear = function () { T.cars.slice().forEach(remove); };
+    T.clear = function () { T.cars.filter(c => !c.fixed).forEach(remove); };
+
+    // ---------- things standing in a lane (road works) ----------
+    // T.stand puts something in a lane as if it were a stopped car: a box the player can hit,
+    // and an entry in T.cars, so everything that looks out for the car ahead (traffic, lane
+    // lock, self-drive) sees it. `at` and `turn` are where it stands and which way it faces,
+    // `size` its width, height and length. T.unstand takes it away again.
+    T.stand = function (road, lane, s, at, turn, size) {
+        const body = new CANNON.Body({ mass: 0, type: CANNON.Body.KINEMATIC });
+        body.addShape(new CANNON.Box(new CANNON.Vec3(size[0] / 2, size[1] / 2, size[2] / 2)), new CANNON.Vec3(0, size[1] / 2 + 0.1, 0));
+        body.position.set(at.x, at.y, at.z); body.quaternion.set(turn.x, turn.y, turn.z, turn.w);
+        world.addBody(body);
+        const mark = new THREE.Object3D(); mark.position.copy(at);         // (where it is, for the minimap and for self-drive)
+        const f = { id: nextId++, fixed: true, road, lane, s, dir: lane.dir, speed: 0, limit: 0, mesh: mark, body, cross: null, cooldown: 0 };
+        T.cars.push(f); standing.push(f);
+        // a car that is already where it now stands goes
+        T.cars.filter(c => !c.fixed && !c.foreign && c.road === road && c.lane === lane && Math.abs(c.s - s) < 12).forEach(remove);
+        return f;
+    };
+    T.unstand = function (f) { remove(f); const i = standing.indexOf(f); if (i >= 0) standing.splice(i, 1); };
+
+    // Road works ahead in this car's lane: it moves to the lane beside as soon as nobody is
+    // alongside there, another car or a player. Until then it comes up to the works and waits
+    // (the thing standing there counts as a stopped car in `leader`).
+    function goRound(c, playerPos, playerSpeed) {
+        const r = c.road;
+        if (!standing.some(f => f.road === r && f.lane === c.lane && (f.s - c.s) * c.dir > 0 && (f.s - c.s) * c.dir < 150)) return;
+        const lane = (step) => r.lanes.find(l => l.dir === c.dir && l.index === c.lane.index + step);
+        const beside = lane(1) || lane(-1);
+        if (!beside) return;
+        // room for it there: more behind when what comes up is faster, more ahead when it is the faster one
+        const room = (ahead, speed) => ahead > 10 + Math.max(0, c.speed - speed) || ahead < -(10 + Math.max(0, speed - c.speed) * 1.5);
+        for (let i = 0; i < T.cars.length; i++) {
+            const o = T.cars[i];
+            if (o !== c && o.road === r && o.lane === beside && !room((o.s - c.s) * c.dir, o.speed)) return;
+        }
+        const clearOf = (pos, speed) => {
+            const n = Road.nearest(r, pos);
+            if (n.dist >= r.width) return true;
+            const f = n.frame, dx = pos.x - f.p.x, dz = pos.z - f.p.z;
+            if (Math.abs(dx * f.right.x + dz * f.right.z - beside.offset) > 2.8) return true;
+            return room((n.s + dx * f.tan.x + dz * f.tan.z - c.s) * c.dir, speed);
+        };
+        if (!clearOf(playerPos, playerSpeed)) return;
+        for (let i = 0; i < near.length; i++) { probe.set(near[i].x, playerPos.y, near[i].z); if (!clearOf(probe, near[i].speed)) return; }
+        c.slide = (c.slide || 0) + c.lane.offset - beside.offset;
+        c.lane = beside;
+    }
     return T;
 })();

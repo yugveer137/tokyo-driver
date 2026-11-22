@@ -112,6 +112,7 @@
         Peds.init(scene); Walk.init(scene, camera); Police.init(scene); Robbery.init(scene); Places.init(scene); Shop.init(scene);
         City.init(scene, world);
         Traffic.init(scene, world);
+        Roadworks.init(scene);
         Car.init(scene, world, camera);
         Game.initCoins(scene);
         Features.init(scene);
@@ -198,6 +199,7 @@
         City.update(dt);
         if (Car.body) {
             Traffic.update(dt, Car.body.position, Car.mph / CFG.MPH);
+            Roadworks.update(dt, Walk.active ? Walk.pos : focus);
             if (Game.started) Game.updateCoins(dt, Car.body.position);
             if (frameNo++ % 15 === 0 && !OSM.isReal()) {
                 UI.area = World.areaAt(Car.body.position);
