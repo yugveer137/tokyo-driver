@@ -490,6 +490,8 @@ window.Places = (function () {
     P.leave = leave;
     P.goHome = (home) => enterHome(home);                                   // (shop.js: straight in from the garage)
 
+    // how a place is called on the button where its board alone reads oddly ("go into the clothes")
+    const SAID = { 'CLOTHES': 'CLOTHES SHOP', 'BOOKS': 'BOOK SHOP' };
     // What E (or the big button) would do right here, if anything: { label, run }.
     P.prompt = function () {
         if (!window.Walk || !Game.started) return null;
@@ -509,7 +511,7 @@ window.Places = (function () {
         const friend = window.Shop && Shop.friendHomeNear ? Shop.friendHomeNear(Walk.pos, REACH) : null;   // or of another player's
         if (friend) return { label: 'GO INTO ' + String(friend.name).toUpperCase() + "'S HOUSE", run: () => enterFriend(friend) };
         const pl = P.near(Walk.pos, REACH);
-        if (pl) return { label: 'GO INTO THE ' + pl.name, run: () => enter(pl) };
+        if (pl) return { label: 'GO INTO THE ' + (SAID[pl.name] || pl.name), run: () => enter(pl) };
         const c = Walk.rideOffer();                                         // another player's car right here: G rides along
         return c ? { label: 'RIDE WITH ' + c.label, run: () => Walk.toggle(), key: 'G' } : null;
     };

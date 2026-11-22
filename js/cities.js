@@ -68,6 +68,13 @@ window.CITIES = (function () {
             const k = Math.max(0, Math.min(1, (edge + 60) / 120));                // 0 on land, 1 well into the bay
             return h * (1 - k) + (city.base - BAY.depth) * k;
         });
+        Terrain.sands.push((x, z) => {                                          // a sandy shore round it
+            const l = city.toLocal(x, z);
+            const z0 = city.D / 2 + BAY.from, z1 = city.D / 2 + BAY.to, xMax = city.W / 2 + 10;
+            if (l.lz < z0 - 60 || l.lz > z1 + 60 || l.lx > xMax + 60 || l.lx < -900) return 0;
+            const edge = Math.min(l.lz - z0, z1 - l.lz, xMax - l.lx, l.lx + 900);
+            return Math.max(0, Math.min(1, (edge + 52) / 20));
+        });
     }
     function goldenGate(city, h) {
         const orange = std(0xc0471b);

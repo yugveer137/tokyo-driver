@@ -3,7 +3,7 @@
 // Terrain.height(x, z) is THE ground height everywhere; roads and cities read it so they
 // sit on (and slant with) the land. Regions can override it by pushing into Terrain.shapers.
 window.Terrain = (function () {
-    const T = { CHUNK: 200, SEG: 40, RADIUS: 2, shapers: [] };
+    const T = { CHUNK: 200, SEG: 40, RADIUS: 2, shapers: [], sands: [] };
     const chunks = new Map();
     let scene, world, material;
 
@@ -40,11 +40,16 @@ window.Terrain = (function () {
     // The land is not one green all over: broad patches run from lush to sun-dried, painted into
     // the vertices (the grass texture repeats every few metres and looked like a flat carpet
     // from the freeway). Worked out from the spot alone, so chunks meet without a seam.
-    const LUSH = [0.78, 0.96, 0.8], DRY = [1.42, 1.2, 0.78];
+    // And where there is water the land is sand, not lawn down to the waves: whoever shapes a
+    // shore also pushes a function into Terrain.sands, (x, z) -> 0 grass .. 1 sand.
+    // (The numbers multiply the material's green, which is why sand's are so big.)
+    const LUSH = [0.78, 0.96, 0.8], DRY = [1.42, 1.2, 0.78], SAND = [3.1, 1.42, 2.3];
     function shade(x, z, out, at) {
         const n = 0.5 + 0.3 * Math.sin(x * 0.0061 + 1.3) * Math.cos(z * 0.0053 - 0.7) + 0.14 * Math.sin(x * 0.019 - z * 0.023) + 0.06 * Math.sin(x * 0.071 + z * 0.057);
         const k = Math.min(1, Math.max(0, n));
-        for (let c = 0; c < 3; c++) out[at + c] = LUSH[c] + (DRY[c] - LUSH[c]) * k;
+        let sand = 0;
+        for (let i = 0; i < T.sands.length && sand < 1; i++) sand = Math.max(sand, T.sands[i](x, z));
+        for (let c = 0; c < 3; c++) { const grass = LUSH[c] + (DRY[c] - LUSH[c]) * k; out[at + c] = grass + (SAND[c] - grass) * Math.min(1, sand); }
     }
 
     function key(i, j) { return i + ',' + j; }

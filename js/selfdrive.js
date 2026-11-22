@@ -355,6 +355,35 @@ window.SelfDrive = (function () {
     // a loop more than 2.5 km off is not worth it: the next exit and a turn on the frontage road is quicker
     function nearLoop(u, s) { return u && Math.abs(u.s - s) < 2500 ? u : null; }
     function laneOf(road, dir, idx) { const ls = road.lanes.filter(l => l.dir === dir); return ls[Math.min(idx, ls.length - 1)] || road.lanes[0]; }
+    // Cars that are counted on another road but are in fact on ours: one leaving by an exit, or
+    // joining from a ramp, belongs to the ramp while it still (or already) drives along our outer
+    // lane. Looking only at the cars of its own road, self-drive ran into the back of them at
+    // 200 mph. Each such car within 260 m is placed along our road (its frames are evenly spaced,
+    // so only the stretch beside the car is searched) and given the lane it is in, if any.
+    function strays(n, pos, ours) {
+        const out = [], f = S.road.frames;
+        if (!f || f.length < 2) return out;
+        const last = f.length - 1, step = S.road.length / last, mid = Math.round(n.s / step);
+        if (f[mid] !== n.frame) return out;                                // (the road has just changed under us: n is the old road's for this one frame)
+        const self = (pos.x - n.frame.p.x) * n.frame.tan.x + (pos.z - n.frame.p.z) * n.frame.tan.z;      // (n.s is only as fine as the frames)
+        Traffic.cars.forEach(c => {
+            if (c.road === S.road || !c.mesh) return;
+            const q = c.mesh.position, far = Math.hypot(q.x - pos.x, q.z - pos.z);
+            if (far > 260 || Math.abs(q.y - pos.y) > 4) return;
+            const span = Math.ceil(far / step) + 2;
+            let best = -1, bd = Infinity;
+            for (let i = Math.max(0, mid - span); i <= Math.min(last, mid + span); i++) {
+                const dx = f[i].p.x - q.x, dz = f[i].p.z - q.z, d = dx * dx + dz * dz;
+                if (d < bd) { bd = d; best = i; }
+            }
+            if (best < 0) return;
+            const fr = f[best], dx = q.x - fr.p.x, dz = q.z - fr.p.z, along = dx * fr.tan.x + dz * fr.tan.z, lat = dx * fr.right.x + dz * fr.right.z;
+            let lane = null;
+            ours.forEach(l => { if (Math.abs(lat - l.offset) < 2.6 && (!lane || Math.abs(lat - l.offset) < Math.abs(lat - lane.offset))) lane = l; });
+            if (lane) out.push({ lane: lane, gap: (best * step + along - n.s - self) * S.dir, speed: c.speed });
+        });
+        return out;
+    }
     // at the end of the road: choose the connected road whose far end is closest to the destination
     function chooseNext() {
         const r = S.road, atEnd = S.dir === 1;
@@ -553,12 +582,12 @@ window.SelfDrive = (function () {
         // to take soon (that needs the outer lane), when a car in our lane is within reach (40 m
         // plus three seconds of driving), move to the lane beside that is clear alongside and
         // for a good way further ahead. Not more often than once a second or so.
-        const ours = S.road.lanes.filter(l => l.dir === S.dir);
+        const ours = S.road.lanes.filter(l => l.dir === S.dir), stray = strays(n, pos, ours);
         S.laneWait = Math.max(0, (S.laneWait || 0) - dt);
         if (ours.length > 1 && S.exitDist > 800 && !S.laneWait) {
             const reach = 40 + Car.mph / CFG.MPH * 3;
             // how far ahead the nearest car in a lane is (a car alongside or just behind counts as no room at all)
-            const room = (i) => { let best = Infinity; Traffic.cars.forEach(c => { if (c.road !== S.road || c.dir !== S.dir || c.lane !== ours[i]) return; const gap = (c.s - n.s) * S.dir; if (gap > -12 && gap < best) best = gap; }); return best; };
+            const room = (i) => { let best = Infinity; Traffic.cars.forEach(c => { if (c.road !== S.road || c.dir !== S.dir || c.lane !== ours[i]) return; const gap = (c.s - n.s) * S.dir; if (gap > -12 && gap < best) best = gap; }); stray.forEach(o => { if (o.lane === ours[i] && o.gap > -12 && o.gap < best) best = o.gap; }); return best; };
             const here = Math.min(S.laneIndex, ours.length - 1), mine = room(here);
             if (mine < reach) {
                 const beside = [here - 1, here + 1].filter(i => i >= 0 && i < ours.length).map(i => ({ i, gap: room(i) })).filter(o => o.gap > 25 && o.gap > mine + 30).sort((a, b) => b.gap - a.gap);
@@ -645,6 +674,11 @@ window.SelfDrive = (function () {
             const gap = (c.s - n.s) * S.dir;
             if (gap > 0 && gap < 30 && (!ahead || gap < ahead)) ahead = gap;
             if (gap > 0 && (!lead || gap < lead.gap)) lead = { gap, speed: c.speed };
+        });
+        stray.forEach(o => {                                               // (and the cars of an exit or a ramp that are in our lane)
+            if (o.lane !== lane || o.gap <= 0) return;
+            if (o.gap < 30 && (!ahead || o.gap < ahead)) ahead = o.gap;
+            if (!lead || o.gap < lead.gap) lead = { gap: o.gap, speed: o.speed };
         });
         // no lane to move into: come down to the speed of the car in front in good time, rather than arriving at it at 200
         if (lead) { const closing = Car.mph / CFG.MPH - lead.speed; if (closing > 0 && lead.gap < 20 + closing * 2.5) Car.cruise = Math.min(Car.cruise, lead.speed * CFG.MPH + 4); }

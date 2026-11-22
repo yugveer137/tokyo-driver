@@ -156,6 +156,12 @@ window.World = (function () {
             return h * (1 - kk * zEdge) + target * kk * zEdge;
         });
         W.water = { x: -BAY_W / 2, z: (BAY_Z1 - 600) / 2, w: BAY_W - 2 * SHORE + 60, d: BAY_Z1 + 600, y: -2 };
+        // sand along both shores and under the water: from a few metres before the land starts to drop
+        Terrain.sands.push((x, z) => {
+            if (x > -20 || x < -BAY_W + 20 || z < -600 || z > BAY_Z1) return 0;
+            const out = Math.min(-SHORE - x, x - (-BAY_W + SHORE)), ends = Math.min(z + 600, BAY_Z1 - z);   // metres out from the shoreline, and in from the bay's ends
+            return Math.max(0, Math.min(1, (out + 12) / 22)) * Math.max(0, Math.min(1, (ends - 60) / 100));
+        });
 
         // ---- I-880 up the east bay, then a long sweep in to join US-101 ----
         const e = [];
@@ -202,6 +208,7 @@ window.World = (function () {
             return (h * (1 - beach) + 1.0 * beach) * (1 - sea) - 8 * sea;
         });
         W.ocean = { x0: X1 + BEACH - 30, y: -2 };
+        Terrain.sands.push((x, z) => Math.max(0, Math.min(1, (x - X1 - 48) / 26)));   // the beach, and the sea bed beyond it
         // ---- the country roads between them: from the far edge of a US-101 city west to its town
         // on I-280, and from two of those towns on (under the I-280 deck) to the coast ----
         const byId = (id) => W.cities.find(c => c.id === id);
