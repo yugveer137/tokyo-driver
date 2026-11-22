@@ -60,24 +60,21 @@ window.Features = (function () {
     // The weather looks after itself: now and then a shower comes over, lasts one minute and
     // clears. Whether a minute is a wet one is worked out from the clock alone (the room's clock
     // in multiplayer, so it rains on every screen at once): about one minute in six, and never
-    // two running. The RAIN button (V) brings a minute of rain of your own, or stops the shower.
+    // two running. Nobody can turn it on or off (the owner took the RAIN button and the V key out:
+    // it rains when it rains); Features.testRain() is for trying things from the console.
     // R.amount is how hard it is raining (it comes on and goes off over a few seconds) and R.wet
     // how wet the roads are, which outlasts the rain by half a minute.
-    const R = { amount: 0, wet: 0, mesh: null, count: 1800, mineUntil: 0, skip: -1, was: false };
+    const R = { amount: 0, wet: 0, mesh: null, count: 1800, testUntil: 0, was: false };
     const stir = (n) => { n = Math.imul(n ^ (n >>> 15), 0x2c1b3c6d); n = Math.imul(n ^ (n >>> 12), 0x297a2d39); return (n ^ (n >>> 15)) >>> 0; };
     const showery = (minute) => stir(minute) % 5 === 0;
     const rainsIn = (minute) => showery(minute) && !showery(minute - 1);
     const weatherClock = () => (window.Multiplayer && Multiplayer.now) ? Multiplayer.now() : Date.now();
     function raining() {
         const now = weatherClock(), minute = Math.floor(now / 60000);
-        return now < R.mineUntil || (rainsIn(minute) && R.skip !== minute);
+        return now < R.testUntil || rainsIn(minute);
     }
     F.raining = raining;
-    F.toggleRain = function () {
-        const now = weatherClock();
-        if (raining()) { R.mineUntil = 0; R.skip = Math.floor(now / 60000); UI.toast('Rain off'); }
-        else { R.mineUntil = now + 60000; R.was = true; UI.toast('Rain for a minute'); }
-    };
+    F.testRain = function (seconds) { R.testUntil = weatherClock() + (seconds === undefined ? 60 : seconds) * 1000; };   // (console only)
     function rainMesh() {
         const pos = new Float32Array(R.count * 6);
         for (let i = 0; i < R.count; i++) {
@@ -95,7 +92,6 @@ window.Features = (function () {
         if (want !== R.was) {                                              // (a shower of the weather's own: say so)
             R.was = want;
             UI.toast(want ? 'It is starting to rain' : 'The rain has stopped');
-            const b = document.getElementById('rain-btn'); if (b) b.classList.toggle('on', want);
         }
         R.amount = Math.max(0, Math.min(1, R.amount + (want ? dt : -dt) / 4));
         R.wet = want ? Math.min(1, Math.max(R.wet, R.amount)) : Math.max(0, R.wet - dt / 30);

@@ -55,7 +55,6 @@ window.UI = (function () {
             if (e.code === 'KeyB') Car.boostStart();
             if (e.code === 'KeyG' && window.Walk) Walk.toggle();
             if (e.code === 'KeyN') Sky.speed = Sky.speed === 1 ? 240 : 1;   // (a day in a minute, to look at dusk and night)
-            if (e.code === 'KeyV') Features.toggleRain();
             if (e.code === 'KeyK') Features.toggleCruise();
             if (e.code === 'KeyQ') Features.setSignal('left');
             // E on foot: a door or a counter here (places.js), else the robbery's doors
@@ -89,7 +88,6 @@ window.UI = (function () {
         $('travel-btn').onclick = () => { U.renderTravel(); $('travel-modal').classList.add('open'); };
         $('delivery-btn').onclick = () => { if (Game.started) Features.startDelivery(); };
         $('cruise-btn').onclick = () => { if (Game.started) Features.toggleCruise(); };
-        $('rain-btn').onclick = () => Features.toggleRain();
         $('race-btn').onclick = () => { if (Game.started) Races.startStreet(); };
         $('train-btn').onclick = () => { if (Game.started) Train.toggle(); };
         $('map-btn').onclick = () => { SelfDrive.draw(); $('map-modal').classList.add('open'); };
