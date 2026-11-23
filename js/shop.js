@@ -196,7 +196,7 @@ window.Shop = (function () {
     // ---------- seeing a house with the realtor ----------
     // SEE IT: you are driven to the house, a FOR SALE board goes up on it and the realtor waits
     // at the door. S.viewing is that house until its bidding is over or you go to see another.
-    const REALTOR = 'Rita', REALTOR_LOOK = { shirt: 0x8a1f3a, pants: 0x1f1f2a, hair: 0x4a2a10 };
+    const REALTOR = 'Rita', REALTOR_LOOK = { shirt: 0x8a1f3a, pants: 0x1f1f2a, hair: 0x4a2a10, skin: 0xb1642f, woman: true, style: 'bob', legs: 'skirt', tall: 0.96 };
     S.viewing = null;
     S.realtor = () => ({ name: REALTOR, look: REALTOR_LOOK });
     function endViewing() {

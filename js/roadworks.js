@@ -191,7 +191,7 @@ window.Roadworks = (function () {
         Batch.merge(g);
         const driver = crewMember(7);
         driver.position.set(0, 1.0, 0.05);
-        driver.userData.legs.forEach(l => { l.rotation.x = -1.45; });
+        Peds.sit(driver, 1.45);
         driver.userData.arms.forEach(a => { a.rotation.x = -1.0; });
         g.add(driver);
         g.userData.keep = true;                                            // (it moves: the site's own merge leaves it alone)
@@ -298,9 +298,9 @@ window.Roadworks = (function () {
         const man = Peds.person({ skin: look.skin, hair: look.hair, shirt: seed % 2 ? C.orange : C.lime, pants: C.navy });
         const cap = new THREE.SphereGeometry(0.152, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2);
         const hat = seed % 3 ? mats.hat : mats.hatWhite;
-        own(man, cap, hat, 0, 1.52, 0);
-        own(man, new THREE.CylinderGeometry(0.2, 0.2, 0.02, 12), hat, 0, 1.53, 0.03);
-        [0.95, 1.17].forEach(y => own(man, new THREE.BoxGeometry(0.395, 0.05, 0.235), mats.band, 0, y, 0));
+        own(man, cap, hat, 0, 1.605, 0);
+        own(man, new THREE.CylinderGeometry(0.2, 0.2, 0.02, 12), hat, 0, 1.615, 0.03);
+        [[0.95, 0.156], [1.17, 0.172]].forEach(([y, r]) => own(man, new THREE.CylinderGeometry(r, r, 0.05, 14).scale(1, 1, 0.66), mats.band, 0, y, 0));   // the vest's bands, round the body
         return man;
     }
     const rod = (length, material) => new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, length, 6), material);

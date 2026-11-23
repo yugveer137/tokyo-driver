@@ -565,7 +565,7 @@ window.City = (function () {
         put(new THREE.BoxGeometry(1.6, 0.45, 2.1), new THREE.MeshStandardMaterial({ color: 0x8a6a4a, roughness: 0.9 }), bedX, 0.25, bedZ);
         put(new THREE.BoxGeometry(1.5, 0.12, 2.0), new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.9 }), bedX, 0.53, bedZ);
         put(new THREE.BoxGeometry(0.9, 0.14, 0.45), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }), bedX, 0.66, bedZ - 0.75);   // pillow
-        const sleeper = Peds.person({ shirt: 0x8fb8e8, pants: 0x8fb8e8 });
+        const sleeper = Peds.person({ shirt: 0x8fb8e8, pants: 0x8fb8e8, asleep: true });
         sleeper.rotation.x = -Math.PI / 2; sleeper.position.set(bedX, 0.62, bedZ + 0.95);                  // lying with the head on the pillow
         sleeper.userData.legs[0].rotation.x = sleeper.userData.legs[1].rotation.x = 0.15; g.add(sleeper);
         put(new THREE.BoxGeometry(1.5, 0.22, 1.3), new THREE.MeshStandardMaterial({ color: 0x3a5a8a, roughness: 1 }), bedX, 0.7, bedZ + 0.2);   // blanket
@@ -675,7 +675,7 @@ window.City = (function () {
         put(new THREE.BoxGeometry(2.6, 0.9, 1.0), dark, deskX, 0.45, deskZ);
         put(new THREE.SphereGeometry(0.14, 8, 6), new THREE.MeshStandardMaterial({ color: 0xffe9b0, emissive: 0xffd080, emissiveIntensity: 0.9 }), deskX - 1.0, 1.15, deskZ);
         const glow = new THREE.PointLight(0xffe0b0, 0.8, 9, 2); glow.position.set(deskX, 2.0, deskZ); g.add(glow);
-        const sleeper = Peds.person({ shirt: 0x1d3f8f, pants: 0x14172a, hair: 0x111111 });
+        const sleeper = Peds.person({ shirt: 0x1d3f8f, pants: 0x14172a, hair: 0x111111, asleep: true });
         sleeper.position.set(deskX, 0, deskZ - 0.9); sleeper.rotation.y = Math.PI; sleeper.rotation.x = 0.55;   // slumped forward over the desk
         sleeper.userData.arms[0].rotation.x = sleeper.userData.arms[1].rotation.x = -1.4; g.add(sleeper);
         put(new THREE.BoxGeometry(1.6, 1.0, 0.04), new THREE.MeshStandardMaterial({ color: 0x6b4f3a, roughness: 1 }), deskX, 2.2, -4.56);
@@ -733,7 +733,7 @@ window.City = (function () {
         const bedX = -D / 2 + 1.3, bedZ = W / 2 - 1.6;
         put(new THREE.BoxGeometry(1.0, 0.4, 2.1), steel, bedX, 0.2, bedZ);
         put(new THREE.BoxGeometry(0.9, 0.1, 2.0), new THREE.MeshStandardMaterial({ color: 0xd8d4c8, roughness: 1 }), bedX, 0.46, bedZ);
-        const sleeper = Peds.person({ shirt: 0x1d3f8f, pants: 0x14172a, hair: 0x111111 });
+        const sleeper = Peds.person({ shirt: 0x1d3f8f, pants: 0x14172a, hair: 0x111111, asleep: true });
         sleeper.rotation.x = -Math.PI / 2; sleeper.position.set(bedX, 0.55, bedZ + 0.95); g.add(sleeper);
         put(new THREE.BoxGeometry(0.95, 0.2, 1.3), new THREE.MeshStandardMaterial({ color: 0x3a4a3a, roughness: 1 }), bedX, 0.62, bedZ + 0.2);
         // the evidence locker: a steel cabinet, three drawers, the confiscated cash in two of them

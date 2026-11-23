@@ -105,7 +105,7 @@ window.Police = (function () {
             const dx = to.x - c.mesh.position.x, dz = to.z - c.mesh.position.z, d = Math.hypot(dx, dz);
             if (d > 7) { const step = Math.min(d - 6, 14 * dt); c.mesh.position.x += dx / d * step; c.mesh.position.z += dz / d * step; c.mesh.rotation.y = Math.atan2(dx, dz); c.mesh.position.y = Walk.groundY(c.mesh.position.x, c.mesh.position.z, c.mesh.position.y + 1); }
             else {
-                a.phase = 'cop'; a.cop = Peds.person({ shirt: 0x1d3f8f, pants: 0x14172a, hair: 0x111111 });
+                a.phase = 'cop'; a.cop = Peds.person({ shirt: 0x1d3f8f, pants: 0x14172a, hair: 0x111111, style: 'cap', cap: 0x14172a });
                 a.cop.position.copy(c.mesh.position); a.cop.position.y = Walk.groundY(a.cop.position.x, a.cop.position.z, c.mesh.position.y); scene.add(a.cop);
                 UI.toast('POLICE! An officer is coming for you' + (inside ? ' — they are at the door!' : '. Run!'), 4500);
             }

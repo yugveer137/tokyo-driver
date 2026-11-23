@@ -98,12 +98,12 @@ window.Places = (function () {
     }
 
     // ---------- the people inside ----------
-    // someone who stays put: standing, or sitting (legs out in front, hips at seat height)
+    // someone who stays put: standing, or sitting (hips at seat height, feet on the floor)
     function stander(room, x, z, yaw, look, sitting) {
         const m = Peds.person(look);
         m.position.set(x, sitting ? -0.3 : 0.1, z); m.rotation.y = yaw;
         m.scale.set(1 / room.wider, 1, 1 / room.wider);                       // (people are not stretched with the room)
-        if (sitting) m.userData.legs.forEach(l => { l.rotation.x = -Math.PI / 2; });
+        if (sitting) Peds.sit(m);
         room.group.add(m);
         return m;
     }
@@ -115,7 +115,7 @@ window.Places = (function () {
     function walker(room, script, delay, opts) {
         const w = Object.assign({ script, rest: delay || 0 }, opts);
         const fresh = () => {
-            if (w.mesh) room.group.remove(w.mesh);
+            if (w.mesh) { room.group.remove(w.mesh); Peds.dispose(w.mesh); }
             w.mesh = Peds.person(w.look); w.steps = script(); w.i = 0; w.t = 0;
             w.mesh.position.set(w.steps[0].x, 0.1, w.steps[0].z); w.mesh.visible = w.rest <= 0;
             w.mesh.scale.set(1 / room.wider, 1, 1 / room.wider);
@@ -143,7 +143,7 @@ window.Places = (function () {
         if (s.pay) {                                                         // paid: off you go with a bag in your hand
             room.payer = null;
             const bag = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.3, 0.12), new THREE.MeshStandardMaterial({ color: lin(0xb98a4a), roughness: 0.9 }));
-            bag.position.y = -0.75; m.userData.arms[1].add(bag);
+            bag.position.y = -0.48; m.userData.elbows[1].add(bag);                 // (hung from the forearm, so it swings with the hand)
         }
         w.t = 0; w.i++;
         if (w.loop && w.i >= w.steps.length) { w.i = 0; w.steps = w.script(); }
