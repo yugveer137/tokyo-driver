@@ -79,7 +79,7 @@ window.UI = (function () {
         $('paylink-save').onclick = () => {
             const v = $('paylink-input').value.trim();
             if (v && !/^https:\/\//i.test(v)) { $('paylink-note').textContent = 'The link must start with https://'; return; }
-            Save.setGlobal('td_pay_link', v); $('paylink-note').textContent = v ? 'Saved. Players see this link on the $1 screen.' : 'Cleared.';
+            Save.setGlobal('td_pay_link', v); $('paylink-note').textContent = v ? 'Saved. Players see this link on the $5 screen.' : 'Cleared.';
         };
         $('drive-btn').onclick = () => { $('drive-btn').style.display = 'none'; Game.start(); U.toast('Drive safe. Take Exit 1 for San Francisco.'); };
 

@@ -1,4 +1,4 @@
-// save.js — accounts, per-account saves, login gate and $1 pay gate for tokyo-driver1.
+// save.js — accounts, per-account saves, login gate and $5 pay gate for tokyo-driver1.
 // Ported from the old index.html (login gate, pay gate, tdKey/tdSession). Plain script,
 // no modules: exposes window.Save. Needs nothing else; builds its own DOM + CSS.
 //
@@ -140,7 +140,7 @@
             box-shadow: 0 8px 24px rgba(0, 255, 136, 0.3);
         }
 
-        /* Pay gate ($1 to play) */
+        /* Pay gate ($5 to play) */
         #pay-gate {
             position: fixed;
             inset: 0;
@@ -299,12 +299,12 @@
     const PAY_HTML = `
         <div class="pay-card">
             <h2>Bay Area Driver</h2>
-            <div class="pay-price">PAY $1</div>
-            <p class="pay-sub">Bay Area Driver costs $1, once. Pay the owner by email and you get a money code that opens the game for good. There is nothing to pay for inside the game.</p>
-            <div class="pay-row"><button id="pay-btn">PAY $1</button><button id="pay-more" title="more choices">&#9662;</button></div>
+            <div class="pay-price">PAY $5</div>
+            <p class="pay-sub">Bay Area Driver costs $5, once. Pay the owner by email and you get a money code that opens the game for good. There is nothing to pay for inside the game.</p>
+            <div class="pay-row"><button id="pay-btn">PAY $5</button><button id="pay-more" title="more choices">&#9662;</button></div>
             <div id="pay-plans">
                 <div class="plans">
-                    <div class="plan"><b>$1</b><span>once, and the game is yours to keep</span><a id="mail-once" href="#">EMAIL TO PAY</a></div>
+                    <div class="plan"><b>$5</b><span>once, and the game is yours to keep</span><a id="mail-once" href="#">EMAIL TO PAY</a></div>
                 </div>
                 <p class="pay-sub" style="margin-bottom:8px">To play you have to email the owner at<br>
                    <b style="color:#fff;font-size:1.1em">${OWNER_EMAIL}</b><br>
@@ -519,7 +519,7 @@
         return { days: Number(readRaw(nsKey('trialDays'), 0)) || 0, leftMs: trialLeftMs() };
     }
 
-    // $1 pay gate. Payment happens on the payment company's own secure site --
+    // $5 pay gate. Payment happens on the payment company's own secure site --
     // this page never asks for card details.
     // Title board: "tokyo-driver1 — PLAY". Shown before the login and pay screens.
     function showSplash() {
@@ -547,10 +547,10 @@
                 if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(OWNER_EMAIL).then(done, done); else done();
             });
 
-            // PAY $1 opens the one price ($1, once: the money code never runs out); EMAIL TO PAY drafts the email to the owner
+            // PAY $5 opens the one price ($5, once: the money code never runs out); EMAIL TO PAY drafts the email to the owner
             const plans = gate.querySelector('#pay-plans'), more = gate.querySelector('#pay-more-box');
             const login = account() || '(not signed in)';
-            [['mail-once', '$1, once']].forEach(function (pair) {
+            [['mail-once', '$5, once']].forEach(function (pair) {
                 const a = gate.querySelector('#' + pair[0]);
                 a.href = 'mailto:' + OWNER_EMAIL + '?subject=' + encodeURIComponent('Bay Area Driver: ' + pair[1]) + '&body=' + encodeURIComponent('Hi, I want to play Bay Area Driver: ' + pair[1] + '.\nMy game login: ' + login + '\nPlease send me my money code.');
             });
@@ -558,7 +558,7 @@
                 plans.classList.toggle('on'); more.classList.remove('on');
                 const link = String(getGlobal(PAY_LINK_KEY, '') || '').trim();
                 if (link) window.open(link, '_blank', 'noopener');
-                noteEl.textContent = plans.classList.contains('on') ? 'Email ' + OWNER_EMAIL + ' to pay your $1, and type the money code you get back.' : '';
+                noteEl.textContent = plans.classList.contains('on') ? 'Email ' + OWNER_EMAIL + ' to pay your $5, and type the money code you get back.' : '';
             });
             gate.querySelector('#pay-more').addEventListener('click', function () { more.classList.toggle('on'); });
             // the free trials: one per account; the gate comes back when the days are up
@@ -573,7 +573,7 @@
             gate.querySelector('#free3').addEventListener('click', function () { startTrial(3); });
             if (readRaw(nsKey('trialUsed'), null) === 'yes') {                    // one trial per account: the buttons go grey
                 ['#trial7', '#free3'].forEach(function (sel) { var b = gate.querySelector(sel); b.disabled = true; b.style.opacity = '0.45'; b.textContent = 'FREE TRIAL ALREADY USED'; });
-                if (trialLeftMs() <= 0) noteEl.textContent = 'Your free trial has ended. $1, once, keeps you driving for good.';
+                if (trialLeftMs() <= 0) noteEl.textContent = 'Your free trial has ended. $5, once, keeps you driving for good.';
             }
 
             // Unlock code the owner emails to people who've paid. Only its SHA-256 fingerprint
