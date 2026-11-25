@@ -26,12 +26,15 @@ window.Signs = (function () {
     function post(g, x, y, height, r) {
         const p = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1, 8), postMat);
         p.scale.y = height; p.position.set(x, y, 0); g.add(p);
+        (g.userData.posts = g.userData.posts || []).push({ x, r });
     }
 
-    function place(g, pos, facing, lift) {
+    // `solid`: the car hits the posts (solids.js), for as long as the sign stands in the scene
+    function place(g, pos, facing, lift, solid) {
         g.position.copy(pos); g.position.y += lift;
         g.rotation.y = facing;
         scene.add(g);
+        if (solid) g.userData.posts.forEach(p => Solids.add(g, pos.x + p.x * Math.cos(facing), pos.y, pos.z - p.x * Math.sin(facing), Math.max(0.15, p.r * 1.5), Math.min(lift, 3.5), { live: () => !!g.parent }));
         return g;
     }
 
@@ -61,7 +64,7 @@ window.Signs = (function () {
         }
         post(g, -w / 2 + 0.6, -h / 2 - 2.8, 5.6, 0.12);
         post(g, w / 2 - 0.6, -h / 2 - 2.8, 5.6, 0.12);
-        return place(g, pos, facing, 5.6 + h / 2);
+        return place(g, pos, facing, 5.6 + h / 2, true);
     };
 
     // Yellow gore sign with an arrow
@@ -74,7 +77,7 @@ window.Signs = (function () {
             ctx.font = 'bold 90px Helvetica, Arial, sans-serif'; ctx.fillText('➚', W / 2, H * 0.7);
         });
         post(g, 0, -1.3 - 1.2, 2.4, 0.08);
-        return place(g, pos, facing, 2.4 + 1.3);
+        return place(g, pos, facing, 2.4 + 1.3, true);
     };
 
     // White rectangular sign: city limit / speed limit / plain text
@@ -88,7 +91,7 @@ window.Signs = (function () {
             if (body) { ctx.font = 'bold 60px Helvetica, Arial, sans-serif'; ctx.fillText(body, W / 2, H * 0.7); }
         });
         post(g, 0, -h / 2 - 1.1, 2.2, 0.08);
-        return place(g, pos, facing, 2.2 + h / 2);
+        return place(g, pos, facing, 2.2 + h / 2, true);
     };
 
     // The face of a name board over a building's door (HOTEL, MARKET...): white letters on a
@@ -111,7 +114,7 @@ window.Signs = (function () {
             ctx.font = 'bold 22px Helvetica, Arial, sans-serif'; ctx.fillText(name.toUpperCase(), W / 2, H / 2 + 1);
         }, 'blade:' + name);
         post(g, 0, -0.25 - 1.6, 3.2, 0.06);
-        return place(g, pos, facing, 3.2 + 0.25);
+        return place(g, pos, facing, 3.2 + 0.25);                           // (a city merges its blades: it makes the pole solid itself)
     };
 
     return S;

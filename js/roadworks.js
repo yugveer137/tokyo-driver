@@ -108,6 +108,12 @@ window.Roadworks = (function () {
         site.root.add(thing);
         return thing;
     }
+    // ...and the car hits it (solids.js): `half` wide each way, `height` tall
+    function solid(site, thing, half, height) {
+        const p = thing.position;
+        Solids.add(site, p.x + site.origin.x, p.y + site.origin.y, p.z + site.origin.z, half, height, null);
+        return thing;
+    }
     // the same, for a big thing that blocks the lane: the traffic is told about it
     function stand(site, made, along, turn) {
         const thing = put(site, made.group, along, 0, turn);
@@ -360,9 +366,9 @@ window.Roadworks = (function () {
 
     // ---------- the two kinds of site ----------
     function buildLong(site) {
-        const half = site.half, cones = (along, side) => put(site, cone(), along, side);
+        const half = site.half, cones = (along, side) => solid(site, put(site, cone(), along, side), 0.2, 0.75);
         // the way in: a board on the median, then cones that shut the lane off bit by bit
-        put(site, warning(), -150, -half - 0.5);
+        solid(site, put(site, warning(), -150, -half - 0.5), 0.15, 3);
         for (let u = 0; u <= 36; u += 4.5) cones(u, -half + 0.3 + (2 * half - 0.45) * u / 36);
         for (let u = 43; u <= LONG; u += 7) cones(u, half - 0.15);
         crew(site, 1, 'flag', 30, -0.9, Math.PI);
@@ -372,7 +378,7 @@ window.Roadworks = (function () {
         crew(site, 2, 'drill', 49.5, 0.3);
         crew(site, 3, 'dig', 54, -1.0, -Math.PI / 2);
         rubble(site, 51.5, -0.2, site.road.uid);
-        heap(site, 59.3, -half + 0.05);
+        solid(site, heap(site, 59.3, -half + 0.05), 0.7, 0.45);
         const d = digger();
         stand(site, d, 62, Math.PI);                                       // (it faces back up the road, at the trench)
         site.movers.push(digging(d, -1));
@@ -390,11 +396,11 @@ window.Roadworks = (function () {
         crew(site, 5, 'watch', 101, 1.2, -2.2);
         crew(site, 6, 'walk', 66, -1.45, 0, 103);
         stand(site, barrier(), 106);
-        put(site, tower(), 108.5, -half + 0.2, Math.PI);
+        solid(site, put(site, tower(), 108.5, -half + 0.2, Math.PI), 0.7, 1.2);
         stand(site, barrier(), 128);
     }
     function buildShort(site) {
-        const half = site.half, cones = (along, side) => put(site, cone(), along, side);
+        const half = site.half, cones = (along, side) => solid(site, put(site, cone(), along, side), 0.2, 0.75);
         for (let u = 0; u <= 6; u += 2) cones(u, -half + 0.3 + (2 * half - 0.45) * u / 6);
         for (let u = 10; u <= SHORT; u += 3.5) cones(u, half - 0.15);
         stand(site, barrier(), 8);
@@ -446,6 +452,7 @@ window.Roadworks = (function () {
         scene.remove(site.root);
         site.root.traverse(o => { if (o.geometry) o.geometry.dispose(); });
         site.stands.forEach(f => Traffic.unstand(f));
+        Solids.drop(site);
         site.plan.site = null;
         RW.sites.splice(RW.sites.indexOf(site), 1);
     }

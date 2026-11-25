@@ -1,5 +1,5 @@
 // tokyo-driver1 v2 — trees. A clump of trees is two InstancedMeshes (all the trunks, all the
-// crowns), so a few hundred trees cost two draw calls. They are scenery only: no physics.
+// crowns), so a few hundred trees cost two draw calls. The car hits their trunks (solids.js).
 // Cities plant their parks and sidewalks (City), the land between plants itself by terrain
 // chunk (Trees.wild), kept clear of the freeways, the railway beside them, the bay and the cities.
 window.Trees = (function () {
@@ -42,9 +42,10 @@ window.Trees = (function () {
         trunks.frustumCulled = crowns.frustumCulled = false;
         const g = new THREE.Group(); g.add(trunks); g.add(crowns);
         scene.add(g);
+        spots.forEach(t => Solids.add(g, t.x, t.y - 0.2, t.z, 0.3 * t.size, 3, null));
         return g;
     };
-    T.remove = function (g) { if (g) { scene.remove(g); g.children.forEach(c => c.dispose()); } };
+    T.remove = function (g) { if (g) { scene.remove(g); g.children.forEach(c => c.dispose()); Solids.drop(g); } };
 
     // Is this spot open country? Not the bay or its shores, not within 100 m of a freeway (its
     // U-turn loops reach 51 m out and the railway runs at 60 to 74; a clump spreads up to 23 m

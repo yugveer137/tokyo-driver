@@ -196,6 +196,7 @@ window.City = (function () {
             // (the name blades go in with the city's still parts, not its signs: they merge by street name)
             city.meshes.push(Signs.streetBlade(corner, city.heading, ns[j % ns.length]));
             city.meshes.push(Signs.streetBlade(corner.clone().setY(corner.y - 0.6), city.heading + Math.PI / 2, ew[i % ew.length]));
+            Solids.add(city, corner.x, corner.y - 0.6, corner.z, 0.14, 3, null);
         }
     }
 
@@ -222,6 +223,7 @@ window.City = (function () {
             heads[axis].push(lenses);
             g.position.set(base.x, gy, base.z);
             g.rotation.y = city.heading + rot;
+            Solids.add(city, base.x, gy, base.z, 0.2, 3.5, null);        // (the pole: the car is stopped by it)
             if (city.still) city.still.add(g); else { scene.add(g); city.meshes.push(g); }
         });
         const L = { city, heads, phase, nsGreen: true, ewGreen: false };
@@ -793,6 +795,7 @@ window.City = (function () {
                     const post = new THREE.Group();
                     post.position.set(p.x, Terrain.height(p.x, p.z) + 0.3, p.z); post.rotation.y = city.heading;
                     put(post, poleGeom, poleMat, 0, 3.7);
+                    Solids.add(city, post.position.x, post.position.y, post.position.z, 0.17, 3.5, null);
                     put(post, armGeom, poleMat, -side * 1.15, 7.3);            // (the road is toward -side)
                     put(post, headGeom, lampMat, -side * 2.2, 7.22);
                     addMesh(city, post, false);
@@ -850,6 +853,7 @@ window.City = (function () {
         city.roads.forEach(r => { if (window.Traffic) Traffic.unlinkRoad(r); Road.remove(r); });
         city.signs.forEach(s => scene.remove(s));
         Trees.remove(city.trees); city.trees = null;
+        Solids.drop(city);
         C.lights = C.lights.filter(l => l.city !== city);
         C.nightMats = C.nightMats.filter(m => city.mats.indexOf(m) === -1);
         city.mats.forEach(m => m.dispose());
