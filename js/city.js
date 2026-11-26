@@ -795,8 +795,13 @@ window.City = (function () {
         const poleGeom = new THREE.CylinderGeometry(0.08, 0.11, 7.4, 6), armGeom = new THREE.BoxGeometry(2.4, 0.1, 0.1), headGeom = new THREE.BoxGeometry(0.9, 0.14, 0.36);
         const put = (g, geom, mat, x, y) => { const m = new THREE.Mesh(geom, mat); m.position.set(x, y, 0); g.add(m); };
         const halos = [], head = new THREE.Vector3();                      // a glow at every lamp head, at night
+        // Two lamps beside every block, counted from the block's middle. They used to stand every
+        // 40 m from the city's edge, which did not fit the 78 m between streets: from the sixth
+        // cross street on a lamp stood in the middle of the road.
+        const out = Math.min(20, city.block / 2 - 6);
         for (let j = 0; j <= city.cols; j += 3) {
-            for (let s = -city.D / 2 + 20; s < city.D / 2; s += 40) {
+            for (let i = 0; i < city.rows; i++) for (let n = -1; n <= 1; n += 2) {
+                const s = (city.streetZ(i) + city.streetZ(i + 1)) / 2 + n * out;
                 [-1, 1].forEach(side => {
                     const p = city.toWorld(city.streetX(j) + side * (city.street / 2 + 1.0), s);
                     const post = new THREE.Group();
