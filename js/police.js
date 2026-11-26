@@ -191,15 +191,21 @@ window.Police = (function () {
         const n = pr ? pr.n : Road.nearest(c.road, Car.body.position);
         const gap = (n.s - c.s) * c.dir;                                        // how far ahead of the cop you are along the road
         if (P.state === 'patrol') {
-            c.speed += ((limit / CFG.MPH) - c.speed) * Math.min(1, dt);
+            // It drives at the limit, but never into you: coming up behind, it slows to your
+            // speed and stops 14 m back when you stop. (It has no body, so it used to roll
+            // straight into the player's car and park inside it at the end of the street.)
+            let want = limit / CFG.MPH;
+            if (gap > -4 && gap < 70) want = Math.min(want, Math.max(0, Car.mph / CFG.MPH + (gap - 14) * 0.6));
+            c.speed += (want - c.speed) * Math.min(1, dt * (want < c.speed ? 3 : 1));
             if (Car.mph > limit + OVER && Math.abs(gap) < 220 && !(window.SelfDrive && SelfDrive.active)) { /* (the self-driving Waymo's 200 mph is the robot's, not yours) */ P.state = 'chase'; c.t = 0; UI.toast('POLICE! You were doing ' + Math.round(Car.mph) + ' in a ' + limit + '. Pull over or outrun them.', 3500); }
             if (Math.abs(gap) > 600) remove();                                   // drifted out of sight: off duty
         } else if (P.state === 'chase') {
             // close in fast from far back, ease off close behind, and back up if it overshoots
             const pv = Car.mph / CFG.MPH;
             let want;
-            if (gap > 30) want = pv + 12; else if (gap > 10) want = pv + 4; else if (gap > 3) want = pv + 1;
-            else if (gap >= -3) want = Math.min(pv, c.speed); else want = -6;
+            // (it holds 6 to 8 m behind, bumper to bumper: at 3 m it sat half inside the player's car)
+            if (gap > 30) want = pv + 12; else if (gap > 12) want = pv + 4; else if (gap > 8) want = pv + 1;
+            else if (gap >= 6) want = Math.min(pv, c.speed); else if (gap >= -3) want = pv - 5; else want = -6;
             want = Math.max(-6, Math.min(140 / CFG.MPH, want));
             c.speed += (want - c.speed) * Math.min(1, dt * 2.5);
             const near = Math.abs(gap) < CATCH_DIST;
