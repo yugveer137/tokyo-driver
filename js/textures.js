@@ -207,6 +207,27 @@ window.Tex = (function () {
     // The pool of light under a street lamp: a soft warm patch that is added to whatever it
     // lies on. One material for every lamp in the game; City.update fades it in with the night.
     let pool = null;
+    // The glow round a lamp at night: a soft disc that always faces you, added to the picture
+    // (so the lamp seems to shine in the air, as a real one does in the eye or a camera).
+    // Tex.halos(spots) makes all the halos of one stretch of road or one city as one set of
+    // points, from [x, y, z, x, y, z, ...]; City.update fades the one material in with the night.
+    let glow = null;
+    T.glow = function () {
+        if (glow) return glow;
+        const tex = T.textCanvas(64, 64, (ctx, W, H) => {
+            const g = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, W / 2);
+            g.addColorStop(0, 'rgba(255,236,200,1)'); g.addColorStop(0.08, 'rgba(255,216,156,0.6)'); g.addColorStop(0.25, 'rgba(255,196,128,0.16)'); g.addColorStop(0.55, 'rgba(255,186,116,0.04)'); g.addColorStop(1, 'rgba(255,180,110,0)');
+            ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+        });
+        glow = new THREE.PointsMaterial({ map: tex, size: 8, sizeAttenuation: true, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+        glow.visible = false;
+        return glow;
+    };
+    T.halos = function (spots) {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(spots, 3));
+        return new THREE.Points(g, T.glow());
+    };
     T.lightPool = function () {
         if (pool) return pool;
         const tex = T.textCanvas(128, 128, (ctx, W, H) => {

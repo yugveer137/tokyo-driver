@@ -240,17 +240,55 @@ window.World = (function () {
         W.spawnYaw = Road.yawOf(sp.tan);
     };
 
+    // The water's surface. It is one flat sheet, so the waves are in the shader: the slope of a
+    // handful of ripples running different ways is worked out for every pixel from where it is
+    // in the world and the time, and tilts the surface there. The lighting three.js already does
+    // then gives the rest: the sun glitters in a path toward you, the sky shows in the water at a
+    // low angle and the deep blue from above. (A plain shiny sheet copied the pale sky and looked
+    // washed out; a matt one looked like paint.) Far away the small ripples are faded out, where
+    // they would only flicker.
+    function waterMaterial() {
+        const m = new THREE.MeshStandardMaterial({ color: 0x0a3a66, roughness: 0.2, metalness: 0, envMapIntensity: 0.5, transparent: true, opacity: 0.95 });
+        const clock = { value: 0 };
+        m.userData.clock = clock;
+        m.onBeforeCompile = (shader) => {
+            shader.uniforms.uTime = clock;
+            shader.vertexShader = shader.vertexShader
+                .replace('#include <common>', '#include <common>\nvarying vec3 vWaterPos;')
+                .replace('#include <project_vertex>', '#include <project_vertex>\nvWaterPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+            shader.fragmentShader = shader.fragmentShader
+                .replace('#include <common>', `#include <common>
+                    uniform float uTime;
+                    varying vec3 vWaterPos;
+                    // the slope of one ripple: it runs along d, k is 2 pi over its length, w its speed, a its height
+                    vec2 ripple(vec2 p, vec2 d, float k, float w, float a) { return d * (a * k * cos(dot(p, d) * k + uTime * w)); }
+                    vec2 waterSlope(vec2 p, float far) {
+                        p += 1.6 * sin(p.yx * 0.11 + uTime * 0.13);                    // (bent a little, so the rows do not look ruled)
+                        vec2 big = ripple(p, vec2(0.83, 0.56), 0.21, 0.55, 0.30) + ripple(p, vec2(-0.37, 0.93), 0.33, 0.70, 0.17)
+                                 + ripple(p, vec2(0.98, -0.21), 0.52, 0.95, 0.10);
+                        vec2 small = ripple(p, vec2(0.45, 0.89), 1.3, 1.6, 0.045) + ripple(p, vec2(-0.71, -0.70), 2.1, 2.2, 0.028)
+                                   + ripple(p, vec2(0.92, 0.39), 3.4, 2.9, 0.017) + ripple(p, vec2(-0.16, 0.99), 5.3, 3.8, 0.010);
+                        return big / (1.0 + far * 0.0025) + small / (1.0 + far * 0.02);
+                    }`)
+                .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+                    vec2 slope = waterSlope(vWaterPos.xz, length(vWaterPos - cameraPosition));
+                    normal = normalize((viewMatrix * vec4(normalize(vec3(-slope.x, 1.0, -slope.y)), 0.0)).xyz);`);
+        };
+        return m;
+    }
     // the water sheet (built once the scene exists)
     W.buildWater = function () {
         if (!W.water || W.waterMesh) return;
         const w = W.water;
-        // (matt rather than mirror-like: a shiny sheet just copies the pale sky and looks washed out)
-        const m = new THREE.Mesh(new THREE.PlaneGeometry(w.w, w.d), new THREE.MeshStandardMaterial({ color: 0x1d5f92, roughness: 0.6, metalness: 0, envMapIntensity: 0.3, transparent: true, opacity: 0.94 }));
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(w.w, w.d), waterMaterial());
+        const tick = () => { m.material.userData.clock.value = (performance.now() / 1000) % 3600; };   // (the ripples move by the wall clock; kept small, for the shader's sums)
+        m.onBeforeRender = tick;
         m.rotation.x = -Math.PI / 2; m.position.set(w.x, w.y, w.z); m.receiveShadow = true;
         game.scene.add(m); W.waterMesh = m;
         // the Pacific, from the beach west of Highway 1 out past the horizon
         const sea = new THREE.Mesh(new THREE.PlaneGeometry(4000, 40000), m.material);
         sea.rotation.x = -Math.PI / 2; sea.position.set(W.ocean.x0 + 2000, W.ocean.y, 13000); sea.receiveShadow = true;
+        sea.onBeforeRender = tick;
         game.scene.add(sea);
     };
 

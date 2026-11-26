@@ -417,6 +417,8 @@ window.Road = (function () {
             chunk.still.add(new THREE.Mesh(g, Tex.lightPool()));
         };
         const every = (s, step) => Math.round(s) % step === 0;
+        const halos = [];                                                  // where the lamp heads are: each gets a glow at night
+        const halo = (head) => halos.push(head.position.x, head.position.y - 0.15, head.position.z);
         fr.forEach((f, i) => {
             const s = f.t * length;
             if (every(s, 16) || (!freeway && i % 3 === 0)) {              // reflectors on the outer walls
@@ -427,7 +429,7 @@ window.Road = (function () {
                 [-1, 1].forEach(sd => {
                     const yaw = Math.atan2(f.tan.x, f.tan.z) + Math.PI / 2;
                     put(armGeom, poleMat, f, sd * 1.5, 12.3, yaw);
-                    put(headGeom, mats.lampHead, f, sd * 3.0, 12.2, yaw);
+                    halo(put(headGeom, mats.lampHead, f, sd * 3.0, 12.2, yaw));
                     pool(f, sd * (halfW / 2 + 0.5), halfW - 1, 30);
                 });
             }
@@ -435,7 +437,7 @@ window.Road = (function () {
                 const yaw = Math.atan2(f.tan.x, f.tan.z) + Math.PI / 2, lat = halfW - 0.35;
                 const pole = put(poleGeom, poleMat, f, lat, 5.5); pole.scale.y = 0.75; pole.castShadow = true;
                 put(armGeom, poleMat, f, lat - 1.5, 9.9, yaw);
-                put(headGeom, mats.lampHead, f, lat - 3.0, 9.8, yaw);
+                halo(put(headGeom, mats.lampHead, f, lat - 3.0, 9.8, yaw));
                 pool(f, 0, halfW * 2 - 1.5, 26);
             }
             // chevron boards round the outside of a tight bend: how far the road turns over the
@@ -453,6 +455,7 @@ window.Road = (function () {
                 }
             }
         });
+        if (halos.length) chunk.still.add(Tex.halos(halos));
         // crash barrels in front of a wall that starts in the open, part-way along the road
         if (!freeway) [[-halfW + 0.35, gapsLeft], [halfW - 0.35, gapsRight]].forEach(([lat, gaps]) => {
             (gaps || []).forEach(g => {

@@ -25,19 +25,25 @@ window.City = (function () {
     let windowSets = [], patchTex, junctionMat, lampMat, poleMat, glassMat, shopMat, trimMat, beaconMat, headMat;
     const SHOP_W = 8, SHOPS = 4;                     // one shopfront is 8 units wide; the texture holds four in a row
     function buildTextures() {
-        // 4 window layouts: a facade map (concrete with dark glass) + an emissive map (lit panes)
+        // 4 window layouts: a facade map (concrete with glass) + an emissive map (lit panes) + a
+        // gloss map that says where the glass is: rough wall, smooth mirror-like panes (three.js
+        // reads roughness from its green and metalness from its blue), so by day the windows show
+        // the sky and flash in the sun while the wall round them stays matt
         for (let v = 0; v < 4; v++) {
             const size = 256, cols = 4, rows = 2;          // one tile = 8 units wide x 7 units tall
             const base = document.createElement('canvas'); base.width = base.height = size;
             const lit = document.createElement('canvas'); lit.width = lit.height = size;
-            const b = base.getContext('2d'), l = lit.getContext('2d');
+            const gloss = document.createElement('canvas'); gloss.width = gloss.height = size;
+            const b = base.getContext('2d'), l = lit.getContext('2d'), o = gloss.getContext('2d');
+            o.fillStyle = 'rgb(0,224,10)'; o.fillRect(0, 0, size, size);       // wall: rough, hardly a mirror
             b.drawImage(Tex.facade.image, 0, 0, size, size);
             l.fillStyle = '#000'; l.fillRect(0, 0, size, size);
             const ww = size / cols, wh = size / rows;
             for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
                 const x = c * ww + ww * 0.18, y = r * wh + wh * 0.2, w = ww * 0.64, h = wh * 0.55;
-                b.fillStyle = `rgba(${20 + Math.random() * 20 | 0},${30 + Math.random() * 20 | 0},${50 + Math.random() * 25 | 0},0.92)`;
+                b.fillStyle = `rgba(${38 + Math.random() * 16 | 0},${60 + Math.random() * 18 | 0},${96 + Math.random() * 24 | 0},0.95)`;   // (the tint of the glass: what it shows of the sky)
                 b.fillRect(x, y, w, h);
+                o.fillStyle = `rgb(0,${22 + Math.random() * 16 | 0},215)`; o.fillRect(x, y, w, h);   // glass: smooth, a mirror
                 b.fillStyle = 'rgba(255,255,255,0.12)'; b.fillRect(x, y, w, h * 0.3);
                 const on = Math.random() < 0.55;
                 if (on) {
@@ -48,7 +54,7 @@ window.City = (function () {
                 }
             }
             const mk = (cv) => { const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t; };
-            windowSets.push({ map: mk(base), emissive: mk(lit) });
+            windowSets.push({ map: mk(base), emissive: mk(lit), gloss: mk(gloss) });
         }
         // Intersection patch: asphalt with four crosswalks and stop lines
         patchTex = Tex.textCanvas(512, 512, (ctx, W, H) => {
@@ -294,7 +300,7 @@ window.City = (function () {
         const key = set + (tall ? 't' : 'l');
         if (!wallMats[key]) {
             wallMats[key] = new THREE.MeshStandardMaterial({ vertexColors: true, map: windowSets[set].map, emissiveMap: windowSets[set].emissive, emissive: 0xffffff, emissiveIntensity: 0,
-                roughness: tall ? 0.45 : 0.8, metalness: tall ? 0.35 : 0.05 });
+                roughnessMap: windowSets[set].gloss, metalnessMap: windowSets[set].gloss, roughness: tall ? 0.75 : 1, metalness: tall ? 1 : 0.8 });   // (times the gloss map: towers a little shinier all over)
             C.nightMats.push(wallMats[key]);
         }
         return wallMats[key];
@@ -788,6 +794,7 @@ window.City = (function () {
     function buildLamps(city) {
         const poleGeom = new THREE.CylinderGeometry(0.08, 0.11, 7.4, 6), armGeom = new THREE.BoxGeometry(2.4, 0.1, 0.1), headGeom = new THREE.BoxGeometry(0.9, 0.14, 0.36);
         const put = (g, geom, mat, x, y) => { const m = new THREE.Mesh(geom, mat); m.position.set(x, y, 0); g.add(m); };
+        const halos = [], head = new THREE.Vector3();                      // a glow at every lamp head, at night
         for (let j = 0; j <= city.cols; j += 3) {
             for (let s = -city.D / 2 + 20; s < city.D / 2; s += 40) {
                 [-1, 1].forEach(side => {
@@ -798,12 +805,14 @@ window.City = (function () {
                     Solids.add(city, post.position.x, post.position.y, post.position.z, 0.17, 3.5, null);
                     put(post, armGeom, poleMat, -side * 1.15, 7.3);            // (the road is toward -side)
                     put(post, headGeom, lampMat, -side * 2.2, 7.22);
+                    post.updateMatrix(); head.set(-side * 2.2, 7.05, 0).applyMatrix4(post.matrix); halos.push(head.x, head.y, head.z);
                     addMesh(city, post, false);
                     const c = city.toWorld(city.streetX(j) + side * 4.4, s);
                     city.meshes.push(Road.drapedQuad(c.x, c.z, 9, city.heading, Tex.lightPool(), Road.DRAPE + 0.05, 4, 18));
                 });
             }
         }
+        if (halos.length) { const glow = Tex.halos(halos); if (city.still) city.still.add(glow); else { scene.add(glow); city.meshes.push(glow); } }
     }
 
     // Building a city, as a list of steps. A big downtown takes a few tenths of a second in
@@ -866,6 +875,7 @@ window.City = (function () {
         const night = window.Sky ? Sky.night : 0;
         for (let i = 0; i < C.nightMats.length; i++) C.nightMats[i].emissiveIntensity = night * 1.3;
         const pool = Tex.lightPool(); pool.opacity = night * 0.5; pool.visible = night > 0.03;   // the lamps' light on the road
+        const glow = Tex.glow(); glow.opacity = night * 0.85; glow.visible = night > 0.03;       // and the glow round each lamp
         // (by the clock every player shares, so a light is red for both players at once)
         cycleT = ((window.Multiplayer && Multiplayer.now ? Multiplayer.now() : Date.now()) / 1000) % 8;
         for (let i = 0; i < C.lights.length; i++) {

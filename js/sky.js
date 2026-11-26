@@ -34,7 +34,7 @@ window.Sky = (function () {
             uniforms: {
                 uTop: { value: new THREE.Color() }, uHorizon: { value: new THREE.Color() },
                 uBottom: { value: new THREE.Color() }, uSunDir: { value: new THREE.Vector3(0, 1, 0) },
-                uSunColor: { value: new THREE.Color() },
+                uSunColor: { value: new THREE.Color() }, uDusk: { value: 0 },
                 uMoonDir: { value: new THREE.Vector3(0, 1, 0) }, uMoon: { value: 0 }
             },
             vertexShader: `
@@ -45,13 +45,21 @@ window.Sky = (function () {
                 }`,
             fragmentShader: `
                 uniform vec3 uTop, uHorizon, uBottom, uSunDir, uSunColor, uMoonDir;
-                uniform float uMoon;
+                uniform float uMoon, uDusk;
                 varying vec3 vDir;
                 void main() {
                     vec3 d = normalize(vDir);
                     float h = d.y;
                     vec3 c = h > 0.0 ? mix(uHorizon, uTop, pow(h, 0.55)) : mix(uHorizon, uBottom, pow(-h, 0.5));
                     float s = max(dot(d, uSunDir), 0.0);
+                    // Sunrise and sunset: the fire is low in the sky on the sun's side (toward, 1 facing
+                    // the sun's bearing, 0 away), deep orange at the horizon and gold above it, and
+                    // the far side of the sky answers with a band of rose over a blue-grey shadow.
+                    float toward = 0.5 + 0.5 * dot(normalize(d.xz + vec2(1e-5)), normalize(uSunDir.xz));
+                    float low = exp(-abs(h) * 5.5);
+                    c = mix(c, mix(vec3(1.0, 0.36, 0.12), vec3(1.0, 0.72, 0.36), smoothstep(0.0, 0.3, h)), uDusk * low * pow(toward, 3.0) * 0.9);
+                    c = mix(c, vec3(0.78, 0.46, 0.56), uDusk * exp(-pow((h - 0.13) * 9.0, 2.0)) * pow(1.0 - toward, 2.0) * 0.55);
+                    c += uSunColor * uDusk * pow(s, 5.0) * 0.25;            // (a wide warm glow round the low sun)
                     c += uSunColor * (pow(s, 400.0) * 2.0 + pow(s, 12.0) * 0.22 + pow(s, 2.0) * 0.05);
                     float m = max(dot(d, uMoonDir), 0.0);                 // the moon: a disc and a faint glow round it
                     c += vec3(0.86, 0.9, 1.0) * uMoon * (smoothstep(0.99955, 0.9997, m) * 0.9 + pow(m, 90.0) * 0.07);
@@ -197,7 +205,8 @@ window.Sky = (function () {
 
         const u = dome.material.uniforms;
         u.uTop.value.copy(col.topNight).lerp(col.topDay, dl);
-        u.uHorizon.value.copy(col.horNight).lerp(col.horDay, dl).lerp(col.dusk, dusk * 0.75);
+        u.uHorizon.value.copy(col.horNight).lerp(col.horDay, dl).lerp(col.dusk, dusk * 0.3);   // (a touch of dusk all round; the shader puts the fire on the sun's side)
+        u.uDusk.value = dusk * (1 - 0.8 * (S.rain || 0));
         u.uBottom.value.copy(col.botNight).lerp(col.botDay, dl);
         u.uSunDir.value.copy(S.sunDir);
         u.uSunColor.value.copy(col.sunLow).lerp(col.sunHigh, smooth(0, 0.5, elev)).multiplyScalar(elev > -0.1 ? 1 : 0);
@@ -224,7 +233,7 @@ window.Sky = (function () {
         if (moon > 0) sun.color.copy(col.moon); else sun.color.copy(col.sunLow).lerp(col.sunHigh, smooth(0, 0.45, elev));
         sun.visible = sun.intensity > 0.02;
 
-        hemi.color.copy(col.hemiSkyNight).lerp(col.hemiSkyDay, dl);
+        hemi.color.copy(col.hemiSkyNight).lerp(col.hemiSkyDay, dl).lerp(col.dusk, dusk * 0.3);   // (the whole sky lights things a little warm at sunrise and sunset)
         hemi.groundColor.copy(col.hemiGroundNight).lerp(col.hemiGroundDay, dl);
         hemi.intensity = 0.22 + 0.08 * dl;
         ambient.intensity = 0.1 - 0.04 * dl;
